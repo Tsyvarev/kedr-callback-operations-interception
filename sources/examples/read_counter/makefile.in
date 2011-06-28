@@ -1,0 +1,34 @@
+module_name=@module_name@
+
+kedr_core_symbols=@KEDR_INSTALL_DIR@/lib/modules/$(shell uname -r)/symvers/kedr.symvers
+kedr_coi_core_symbols=@kedr_coi_core_symbols@
+
+kedr_gen_templates_dir := @KEDR_INSTALL_DIR@/share/kedr/templates
+kedr_gen_coi_templates_dir := @KEDR_COI_PREFIX_TEMPLATES@
+kedr_gen_tool := @kedr_gen_tool@
+
+KBUILD_DIR=@KBUILD_BUILD_DIR@
+PWD=`pwd`
+
+all: ${module_name}.ko
+
+${module_name}.ko: read_counter.c functions_support.c cdev_file_operations.c file_operations.c \
+    $(kedr_core_symbols) $(kedr_coi_core_symbols)
+	cat $(kedr_core_symbols) $(kedr_coi_core_symbols) > Module.symvers
+	$(MAKE) -C ${KBUILD_DIR} M=${PWD} modules
+
+file_operations.c: %.c: %.data
+	$(kedr_gen_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_interceptor.c/ $^ > $@
+
+cdev_file_operations.c: %.c: %.data
+	$(kedr_gen_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_interceptor_foreign.c/ $^ > $@
+
+
+functions_support.c: functions.data
+	$(kedr_gen_tool) $(kedr_gen_templates_dir)/functions_support.c/ $^ > $@
+
+clean:
+	$(MAKE) -C ${KBUILD_DIR} M=${PWD} clean
+	rm -f functions_support.c
+
+.PHONY: all clean
