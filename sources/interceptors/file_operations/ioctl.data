@@ -1,0 +1,19 @@
+[group]
+operation.name = ioctl
+operation.returnType = int
+
+operation.arg.type = struct inode *
+operation.arg.name = inode
+
+operation.arg.type = struct file *
+operation.arg.name = filp
+
+operation.arg.type = unsigned int
+operation.arg.name = cmd
+
+operation.arg.type = unsigned long
+operation.arg.name = arg
+
+operation.object = filp
+
+operation.default = return -ENOTTY;

@@ -263,11 +263,15 @@ set(KEDR_GEN_COI_TEMPLATES_DIR "${CMAKE_SOURCE_DIR}/templates/")
 
 add_subdirectory(core)
 
-add_subdirectory(templates)
-
 add_subdirectory(include)
 
+add_subdirectory(templates)
+
+add_subdirectory(interceptors)
+
 add_subdirectory(tools)
+
+
 
 if (NOT CMAKE_CROSSCOMPILING)
 	# Examples

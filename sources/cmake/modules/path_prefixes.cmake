@@ -6,7 +6,7 @@
 
 set (KEDR_COI_ALL_PATH_SUFFIXES EXEC READONLY GLOBAL_CONF LIB INCLUDE 
     TEMP_SESSION TEMP STATE CACHE VAR DOC 
-    KMODULE KSYMVERS KINCLUDE EXAMPLES TEMPLATES)
+    KMODULE KSYMVERS KINCLUDE EXAMPLES TEMPLATES INTERCEPTORS)
 
 # See conventions about paths of installed files
 # Determine type of installation
@@ -127,6 +127,9 @@ set(KEDR_COI_INSTALL_PREFIX_EXAMPLES
 # additional, 5
 set(KEDR_COI_INSTALL_PREFIX_TEMPLATES
 		"${KEDR_COI_INSTALL_PREFIX_READONLY}/templates")
+# additional, 6
+set(KEDR_COI_INSTALL_PREFIX_INTERCEPTORS
+		"${KEDR_COI_INSTALL_PREFIX_READONLY}/interceptors")
 
 # Default directory for configuration files
 set(KEDR_COI_DEFAULT_CONFIG_DIR "${KEDR_COI_INSTALL_PREFIX_VAR}/configs")
@@ -140,10 +143,14 @@ foreach(var_suffix ${KEDR_COI_ALL_PATH_SUFFIXES})
     set(KEDR_COI_TEST_PREFIX_${var_suffix} "${KEDR_COI_TEST_COMMON_PREFIX}${KEDR_COI_INSTALL_PREFIX_${var_suffix}}")
 endforeach(var_suffix ${KEDR_COI_ALL_PATH_SUFFIXES})
 #rewrite some prefixes
-#Root of include tree in building package
-set(KEDR_COI_TEST_PREFIX_INCLUDE "${CMAKE_BINARY_DIR}/include")
+
+# Root of include tree in building package
+#
+# NOTE: this path is used only for tests, not for building package itself.
+set(KEDR_COI_TEST_PREFIX_INCLUDE "${CMAKE_BINARY_DIR}/include/install")
 
 set(KEDR_COI_TEST_PREFIX_TEMPLATES "${CMAKE_SOURCE_DIR}/templates")
+set(KEDR_COI_TEST_PREFIX_INTERCEPTORS "${CMAKE_BINARY_DIR}/interceptors")
 
 
 #kedr_coi_load_install_prefixes()

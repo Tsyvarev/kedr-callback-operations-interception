@@ -1,0 +1,19 @@
+[group]
+operation.name = fallocate
+operation.returnType = int
+
+operation.arg.type = struct file *
+operation.arg.name = filp
+
+operation.arg.type = int
+operation.arg.name = mode
+
+operation.arg.type = loff_t
+operation.arg.name = offset
+
+operation.arg.type = loff_t
+operation.arg.name = len
+
+operation.object = filp
+
+operation.default = return -EOPNOTSUPP;

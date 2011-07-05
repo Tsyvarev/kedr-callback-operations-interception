@@ -6,6 +6,8 @@
 
 <$if concat(header)$><$header: join(\n)$>
 
+<$endif$><$if concat(implementation_header)$><$implementation_header: join(\n)$>
+
 <$endif$>static struct kedr_coi_interceptor* interceptor = NULL;
 
 static struct kedr_coi_intermediate_foreign_info intermediate_info;

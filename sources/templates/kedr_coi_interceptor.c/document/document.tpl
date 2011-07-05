@@ -6,9 +6,14 @@
 
 <$if concat(header)$><$header: join(\n)$>
 
+<$endif$><$if concat(implementation_header)$><$implementation_header: join(\n)$>
+
 <$endif$>static struct kedr_coi_interceptor* interceptor = NULL;
 
 #define OPERATION_OFFSET(operation_name) offsetof(<$if interceptor.is_direct$><$object.type$><$else$><$operations.type$><$endif$>, operation_name)
+#define OPERATION_TYPE(operation_name) typeof(((<$if interceptor.is_direct$><$object.type$><$else$><$operations.type$><$endif$>*)0)->operation_name)
+#define OPERATION_CHECKED_TYPE(op, operation_name) \
+(BUILD_BUG_ON_ZERO(!__builtin_types_compatible_p(typeof(op), OPERATION_TYPE(operation_name))) + op)
 
 <$block: join(\n)$>
 

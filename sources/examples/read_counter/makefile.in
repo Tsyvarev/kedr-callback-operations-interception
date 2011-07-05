@@ -7,21 +7,25 @@ kedr_gen_templates_dir := @KEDR_INSTALL_DIR@/share/kedr/templates
 kedr_gen_coi_templates_dir := @KEDR_COI_PREFIX_TEMPLATES@
 kedr_gen_tool := @kedr_gen_tool@
 
+kedr_coi_interceptors_dir := @KEDR_COI_PREFIX_INTERCEPTORS@
+
 KBUILD_DIR=@KBUILD_BUILD_DIR@
 PWD=`pwd`
 
 all: ${module_name}.ko
 
-${module_name}.ko: read_counter.c functions_support.c cdev_file_operations.c file_operations.c \
+${module_name}.ko: read_counter.c functions_support.c \
+	cdev_file_operations_interceptor.c file_operations_interceptor.c \
+	cdev_file_operations_interceptor.h \
     $(kedr_core_symbols) $(kedr_coi_core_symbols)
 	cat $(kedr_core_symbols) $(kedr_coi_core_symbols) > Module.symvers
 	$(MAKE) -C ${KBUILD_DIR} M=${PWD} modules
 
-file_operations.c: %.c: %.data
-	$(kedr_gen_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_interceptor.c/ $^ > $@
+file_operations_interceptor.c: $(kedr_coi_interceptors_dir)/file_operations_interceptor.c
+	cp -p $^ $@
 
-cdev_file_operations.c: %.c: %.data
-	$(kedr_gen_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_interceptor_foreign.c/ $^ > $@
+cdev_file_operations_interceptor.c cdev_file_operations_interceptor.h: cdev_file_operations_interceptor.%: cdev_file_operations.data
+	$(kedr_gen_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_interceptor_foreign.$*/ $^ > $@
 
 
 functions_support.c: functions.data
@@ -30,5 +34,7 @@ functions_support.c: functions.data
 clean:
 	$(MAKE) -C ${KBUILD_DIR} M=${PWD} clean
 	rm -f functions_support.c
+	rm -f file_operations_interceptor.c file_operations_interceptor.h
+	rm -f cdev_file_operations_interceptor.c cdev_file_operations_interceptor.h
 
 .PHONY: all clean

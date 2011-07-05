@@ -24,44 +24,15 @@
 #include <linux/moduleparam.h>
 
 #include <linux/fs.h>
+#include <linux/cdev.h>
 
 #include <kedr/core/kedr.h>
-#include <kedr-coi/operations_interception.h>
 
-#include <linux/cdev.h>
 MODULE_AUTHOR("Andrey Tsyvarev");
 MODULE_LICENSE("GPL");
 
-/* Interceptor for file operations */
-extern int file_operations_interceptor_init(void);
-extern void file_operations_interceptor_destroy(void);
-
-extern int file_operations_interceptor_payload_register(struct kedr_coi_payload* payload);
-extern int file_operations_interceptor_payload_unregister(struct kedr_coi_payload* payload);
-
-extern int file_operations_interceptor_start(void);
-extern int file_operations_interceptor_stop(void);
-
-extern int file_operations_interceptor_watch(struct file* filp);
-extern int file_operations_interceptor_forget(struct file* filp);
-
-/* Interceptor for file operations in cdev */
-extern int cdev_file_operations_interceptor_init(void);
-extern void cdev_file_operations_interceptor_destroy(void);
-
-extern int cdev_file_operations_interceptor_payload_register(
-    struct kedr_coi_payload_foreign* payload);
-extern int cdev_file_operations_interceptor_payload_unregister(
-    struct kedr_coi_payload_foreign* payload);
-
-
-extern int cdev_file_operations_interceptor_start(void);
-extern int cdev_file_operations_interceptor_stop(void);
-
-extern int cdev_file_operations_interceptor_watch(struct cdev* dev);
-extern int cdev_file_operations_interceptor_forget(struct cdev* dev);
-
-//...
+#include <kedr-coi/interceptors/file_operations_interceptor.h>
+#include "cdev_file_operations_interceptor.h"
 
 unsigned read_counter = 0;
 module_param(read_counter, uint, S_IRUGO);

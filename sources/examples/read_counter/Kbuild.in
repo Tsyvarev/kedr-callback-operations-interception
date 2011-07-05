@@ -2,4 +2,4 @@ module_name=@module_name@
 
 ccflags-y :=  -I@KEDR_COI_INCLUDE_DIR@ -I@KEDR_INSTALL_DIR@/include
 obj-m := ${module_name}.o
-${module_name}-y := read_counter.o functions_support.o cdev_file_operations.o file_operations.o
+${module_name}-y := read_counter.o functions_support.o cdev_file_operations_interceptor.o file_operations_interceptor.o

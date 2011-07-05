@@ -1,5 +1,4 @@
-static struct kedr_coi_intermediate_info
-intermediate_info_<$operation.name$>;
+static struct kedr_coi_intermediate_info intermediate_info_<$operation.name$>;
 
 static <$if operation.returnType$><$operation.returnType$><$else$>void<$endif$> intermediate_operation_default_<$operation.name$>(<$argumentSpec$>)
 {

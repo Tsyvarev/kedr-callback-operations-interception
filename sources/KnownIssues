@@ -1,0 +1,27 @@
+	Known Issues
+
+This document contains known issues about using KEDR callback operations
+interceptrion. These issues mainly reveals problems which may occure when use
+KEDR COI in concrete conditions. If you found that your system behavour is
+something strange, this document is the place that is worth to look through.
+
+1. If driver or other kernel module (re)set operations for object after this
+object is created and begin to watch by the KEDR COI, some operations calls may
+be missed by the interception mechanism (That is, handlers are not called for
+such operations calls.) Repeating calls of kedr_coi_interceptor_watch() on this
+objects after those operations calls which may reset object's operation may
+decrease number of missed operations calls, but do not garantee absence of such
+misses.
+
+This is not applied to file operations which is set in open() operation of the
+file - call of kedr_coi_interceptor_watch() after this operation garantees that
+all file operations calls will be intercepted.
+
+2. Intermediate operation for lock() operation of file object (struct file)
+calls posix_lock_file() in case of original operation for that object is NULL
+(not set). But this call is not fully equivalent to what is occured in case
+of nfs lock detect, that lock() file operation is not set.
+
+This may(theoretically) leads to crash in nfsd4_lock() or nfs4_set_lock_denied()
+functions because of uninitialized variable.
+Not confirmed.

@@ -15,26 +15,31 @@ if (CMAKE_CROSSCOMPILING)
 endif (CMAKE_CROSSCOMPILING)
 
 # kmodule_try_compile(RESULT_VAR bindir srcfile
-#           [COMPILE_DEFINITIONS flags]
+#           [COMPILE_DEFINITIONS flags ...]
 #           [OUTPUT_VARIABLE var])
 
 # Similar to try_module in simplified form, but compile srcfile as
 # kernel module, instead of user space program.
+#
+# 'flags' for COMPILE_DEFINITIONS may be any but without "'" symbols.
 
 function(kmodule_try_compile RESULT_VAR bindir srcfile)
-	set(is_compile_definitions_current "FALSE")
-	set(is_output_var_current "FALSE")
+	set(current_scope)
+	#set(is_compile_definitions_current "FALSE")
+	#set(is_output_var_current "FALSE")
 	to_abs_path(src_abs_path "${srcfile}")
 	foreach(arg ${ARGN})
 		if(arg STREQUAL "COMPILE_DEFINITIONS")
-			set(is_compile_definitions_current "TRUE")
-			set(is_output_var_current "FALSE")
+			#set(is_compile_definitions_current "TRUE")
+			#set(is_output_var_current "FALSE")
+			set(current_scope "COMPILE_DEFINITIONS")
 		elseif(arg STREQUAL "OUTPUT_VARIABLE")
-			set(is_compile_definitions_current "FALSE")
-			set(is_output_var_current "TRUE")
-		elseif(is_compile_definitions_current)
-			set(kmodule_cflags "${kmodule_cflags} ${arg}")
-		elseif(is_output_var_current)
+			#set(is_compile_definitions_current "FALSE")
+			#set(is_output_var_current "TRUE")
+			set(current_scope "OUTPUT_VARIABLE")
+		elseif(current_scope STREQUAL "COMPILE_DEFINITIONS")
+			set(kmodule_cflags "${kmodule_cflags} '${arg}'")
+		elseif(current_scope STREQUAL "OUTPUT_VARIABLE")
 			set(output_variable "${arg}")
 		else(arg STREQUAL "COMPILE_DEFINITIONS")
 			message(FATAL_ERROR 
@@ -42,29 +47,37 @@ function(kmodule_try_compile RESULT_VAR bindir srcfile)
 			)
 		endif(arg STREQUAL "COMPILE_DEFINITIONS")
 	endforeach(arg ${ARGN})
-	set(cmake_params 
-		"-DSRC_FILE:path=${src_abs_path}" 
-		"-DKERNELDIR=${KBUILD_BUILD_DIR}"
-		"-DKEDR_COI_ARCH=${KEDR_COI_ARCH}"
-		"-DKEDR_COI_CROSS_COMPILE=${KEDR_COI_CROSS_COMPILE}"
-	)
+	# Collect parameters to try_compile() function
+	set(try_compile_params
+		result_tmp # Result variable(temporary)
+		"${bindir}" # Binary directory
+		"${kmodule_this_module_dir}/kmodule_files" # Source directory
+		"kmodule_try_compile_target" # Project name
+         CMAKE_FLAGS # Flags to CMake:
+			"-DSRC_FILE:path=${src_abs_path}" # Path to real source file
+			"-DKERNELDIR=${KBUILD_BUILD_DIR}" # Kernel build directory
+			"-DKEDR_COI_ARCH=${KEDR_COI_ARCH}" # Arhictecture
+			"-DKEDR_COI_CROSS_COMPILE=${KEDR_COI_CROSS_COMPILE}" # Cross compilation
+		)
+
 	if(DEFINED kmodule_cflags)
-		list(APPEND cmake_params "-Dkmodule_flags=${kmodule_cflags}")
+		list(APPEND try_compile_params
+			"-Dkmodule_flags:STRING=${kmodule_cflags}" # Parameters for compiler
+			)
 	endif(DEFINED kmodule_cflags)
 
 	if(DEFINED output_variable)
-		try_compile(result_tmp "${bindir}"
-                "${kmodule_this_module_dir}/kmodule_files"
-				"kmodule_try_compile_target"
-                CMAKE_FLAGS ${cmake_params}
-                OUTPUT_VARIABLE output_tmp)
-		set("${output_variable}" "${output_tmp}" PARENT_SCOPE)
-	else(DEFINED output_variable)
-		try_compile(result_tmp "${bindir}"
-                "${kmodule_this_module_dir}/kmodule_files"
-				"kmodule_try_compile_target"
-                CMAKE_FLAGS ${cmake_params})
+		list(APPEND try_compile_params
+			OUTPUT_VARIABLE output_tmp # Output variable(temporary)
+		)
 	endif(DEFINED output_variable)
+	try_compile(${try_compile_params})
+	
+	if(DEFINED output_variable)
+		# Set output variable for the caller
+		set("${output_variable}" "${output_tmp}" PARENT_SCOPE)
+	endif(DEFINED output_variable)
+	# Set result variable for the caller
 	set("${RESULT_VAR}" "${result_tmp}" PARENT_SCOPE)
 endfunction(kmodule_try_compile RESULT_VAR bindir srcfile)
 
@@ -149,3 +162,68 @@ macro(check_kernel_version kversion_major kversion_minor kversion_micro)
 	message(STATUS "${check_kernel_version_message}")
 endmacro(check_kernel_version kversion_major kversion_minor kversion_micro)
 ############################################################################
+
+# kmodule_is_operation_exist(RESULT_VAR bindir
+#     operations_include_dir operations_struct operation_name [operation_type]
+#     )
+#
+# Determine, whether given 'operations_struct' has operation field with name
+# 'operation_name'. If 'operation_type' is set, verify that type of this field
+# coincide with 'operation_type'
+#
+# 'operations_include_dir' should contain header file "operations_include.h",
+# which define 'operations_struct'.
+#
+# If operation exist and has expected type, RESULT_VAR will be set to "FOUND".
+# Otherwise it will be set to "NOTFOUND".
+# RESULT_VAR will be cached in any case.
+#
+# 'bindir' will be used for compilation attempt.
+
+function(kmodule_is_operation_exist RESULT_VAR bindir operations_include_dir operations_struct_type operation_name)
+	set(status_message "Looking for '${operation_name}' callback operation in the '${operations_struct_type}'")
+
+	list(LENGTH ARGN rest_params_n)
+	if(rest_params_n GREATER 0)
+		list(GET ARGN 0 operation_type)
+		set(status_message "${status_message}(type ${operation_type})")
+	endif(rest_params_n GREATER 0)
+
+
+	if(NOT DEFINED ${RESULT_VAR})
+		set(kmodule_try_compile_params result_tmp
+			"${bindir}"	# Binary directory
+			"${kmodule_test_sources_dir}/check_operation/check_operation.c" # Source file
+			COMPILE_DEFINITIONS # Definitions for compiler
+				"-D" "OPERATIONS_STRUCT_TYPE=${operations_struct_type}"
+				"-D" "OPERATION_NAME=${operation_name}"
+				"-I" "${operations_include_dir}")
+		
+		if(operation_type)
+			LIST(APPEND kmodule_try_compile_params
+				"-D" "OPERATION_TYPE=${operation_type}")
+		endif(operation_type)
+
+		kmodule_try_compile(${kmodule_try_compile_params})
+
+		if(result_tmp)
+			set(result_tmp "FOUND")
+		else(result_tmp)
+			set(result_tmp "NOTFOUND")
+		endif(result_tmp)
+	
+		set("${RESULT_VAR}" "${result_tmp}" CACHE INTERNAL "Whether operation ${operation_name} of type '${operation_type}' exists in ${operations_struct_type}.")
+	else(NOT DEFINED ${RESULT_VAR})
+		set(status_cached " [cached]")
+	endif(NOT DEFINED ${RESULT_VAR})
+	
+	if(${RESULT_VAR})
+		set(status_result "found")
+	else(${RESULT_VAR})
+		set(status_result "not found")
+	endif(${RESULT_VAR})
+	set(status_message "${status_message} - ${status_result}${status_cached}")
+	message("${status_message}")
+endfunction(kmodule_is_operation_exist RESULT_VAR bindir operations_include_dir operations_struct_type operation_name)
+	
+
