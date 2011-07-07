@@ -48,11 +48,13 @@ include(kbuild_system)
 include(kmodule)
 
 include(path_prefixes)
+
+include(kedr_coi_testing)
 #######################################################################
 #######################################################################
 # Initialize test-related stuff
 kedr_coi_test_init()
-
+kedr_coi_test_add_prefix("kedr_coi")
 #######################################################################
 #kedr_coi_install_library(library_name)
 function(kedr_coi_install_library library_name)

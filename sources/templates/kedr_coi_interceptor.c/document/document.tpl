@@ -20,7 +20,7 @@
 
 static struct kedr_coi_intermediate intermediate_operations[] =
 {
-<$intermediate_operation: join(\n)$>
+    <$intermediate_operation: join(\n\t)$>
     {
         .operation_offset = -1,
     }

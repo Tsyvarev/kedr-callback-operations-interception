@@ -151,6 +151,20 @@ payload_containter_create_replacements(
     struct kedr_coi_payload_container* container,
     struct operations_interception_info* interception_info);
 
+/*
+ * Check that 'replacements' with each grouped intermediate include
+ * all intermediates from this group. If it is not so, add needed
+ * intermediates to replacements.
+ * 
+ * Return 0 on success and negative error code on fail.
+ * 
+ * On success, newly allocated replacements will be returned in parameter.
+ */
+static int
+payload_container_replacements_close_groups(
+    struct kedr_coi_payload_container* container,
+    struct kedr_coi_instrumentor_replacement** replacements);
+
 /************** Implementation of API ********************************/
 
 struct kedr_coi_payload_container*
@@ -705,6 +719,7 @@ payload_containter_create_replacements(
     struct kedr_coi_payload_container* container,
     struct operations_interception_info* interception_info)
 {
+    int result;
     struct operation_interception_info* elem;
     int replacements_n = 0;
     int i;
@@ -746,5 +761,324 @@ payload_containter_create_replacements(
     
     container->replacements[replacements_n].operation_offset = -1;
 
+    result = payload_container_replacements_close_groups(container,
+        &container->replacements);
+    if(!result)
+    {
+        kfree(container->replacements);
+        return result;
+    }
+
+    return 0;
+}
+
+/*
+ * Additional structures and function for close array of replacement
+ * operations for intermediate groups.
+ */
+
+struct intermediate_elem
+{
+    struct list_head list; //list organization into group
+
+    struct kedr_coi_intermediate* intermediate;
+    //whether this intermediate is added to replacements
+    int is_added;
+};
+
+static struct intermediate_elem*
+intermediate_elem_create(struct kedr_coi_intermediate* intermediate)
+{
+    struct intermediate_elem* elem =
+        kmalloc(sizeof(*elem), GFP_KERNEL);
+    
+    if(elem == NULL) return NULL;
+    
+    INIT_LIST_HEAD(&elem->list);
+    elem->intermediate = intermediate;
+    elem->is_added = 0;
+    
+    return elem;
+}
+
+static void intermediate_elem_destroy(
+    struct intermediate_elem* elem)
+{
+    kfree(elem);
+}
+
+// List of intermediates with given group_id.
+struct intermediate_group
+{
+    struct list_head list; // List organization of groups used in replacements
+    
+    int group_id;
+
+    struct list_head elems;
+};
+
+static struct intermediate_group*
+intermediate_group_create(int group_id)
+{
+    struct intermediate_group* group =
+        kmalloc(sizeof(*group), GFP_KERNEL);
+    
+    if(group == NULL) return NULL;
+    
+    INIT_LIST_HEAD(&group->list);
+    group->group_id = group_id;
+    INIT_LIST_HEAD(&group->elems);
+    
+    return group;
+}
+
+static void intermediate_group_add_elem(
+    struct intermediate_group* group,
+    struct intermediate_elem* elem)
+{
+    list_add_tail(&elem->list, &group->elems);
+}
+
+static struct intermediate_elem*
+intermediate_group_get_elem(
+    struct intermediate_group* group,
+    struct kedr_coi_intermediate* intermediate_operation)
+{
+    struct intermediate_elem* elem;
+    list_for_each_entry(elem, &group->elems, list)
+    {
+        if(elem->intermediate == intermediate_operation)
+            return elem;
+    }
+    return NULL;
+}
+
+static void intermediate_group_destroy(
+    struct intermediate_group* group)
+{
+    while(!list_empty(&group->elems))
+    {
+        struct intermediate_elem* elem =
+            list_first_entry(&group->elems, struct intermediate_elem, list);
+        list_del(&elem->list);
+        
+        intermediate_elem_destroy(elem);
+    }
+    
+    kfree(group);
+}
+
+// Return list of all intermediates with given group_id.
+static struct intermediate_group*
+payload_container_get_intermediate_group(
+    struct kedr_coi_payload_container* container,
+    int group_id)
+{
+    struct kedr_coi_intermediate* intermediate_operation;
+    struct intermediate_group* group =
+        intermediate_group_create(group_id);
+    
+    if(group == NULL)
+    {
+        pr_err("Failed to allocate intermediate group.");
+        return NULL;
+    }
+    
+    for(intermediate_operation = container->intermediate_operations;
+        intermediate_operation->operation_offset != -1;
+        intermediate_operation++)
+    {
+        if(intermediate_operation->group_id == group_id)
+        {
+            struct intermediate_elem* elem =
+                intermediate_elem_create(intermediate_operation);
+            
+            if(elem == NULL)
+            {
+                pr_err("Failed to allocate intermediate element.");
+                intermediate_group_destroy(group);
+                return NULL;
+            }
+            
+            intermediate_group_add_elem(group, elem);
+        }
+    }
+    
+    return group;
+}
+
+// List of intermediate groups
+struct intermediate_groups
+{
+    struct list_head groups_list;
+};
+
+static void
+intermediate_groups_init(struct intermediate_groups* groups)
+{
+    INIT_LIST_HEAD(&groups->groups_list);
+}
+
+static void
+intermediate_groups_add_group(
+    struct intermediate_groups* groups,
+    struct intermediate_group* group)
+{
+    list_add_tail(&group->list, &groups->groups_list);
+}
+
+void intermediate_groups_destroy(struct intermediate_groups* groups)
+{
+    while(!list_empty(&groups->groups_list))
+    {
+        struct intermediate_group* group =
+            list_first_entry(&groups->groups_list, struct intermediate_group, list);
+        list_del(&group->list);
+        
+        intermediate_group_destroy(group);
+    }
+    
+    kfree(groups);
+}
+
+static struct intermediate_group*
+intermediate_groups_get_group(struct intermediate_groups* groups,
+    int group_id)
+{
+    struct intermediate_group* group;
+    list_for_each_entry(group, &groups->groups_list, list)
+    {
+        if(group->group_id == group_id)
+            return group;
+    }
+    return NULL;
+}
+/*
+ * Check that 'replacements' with each grouped intermediate include
+ * all intermediates from this group. If it is not so, add needed
+ * intermediates to replacements.
+ * 
+ * Return 0 on success and negative error code on fail.
+ * 
+ * On success, newly allocated replacements will be returned in parameter.
+ */
+int
+payload_container_replacements_close_groups(
+    struct kedr_coi_payload_container* container,
+    struct kedr_coi_instrumentor_replacement** replacements)
+{
+    int replacements_n;
+    int replacements_n_add;
+    int i;
+
+    struct intermediate_group* group;
+
+    struct kedr_coi_instrumentor_replacement* replacement;
+    struct intermediate_groups groups;
+    
+    intermediate_groups_init(&groups);
+
+    for(replacement = *replacements;
+        replacement->operation_offset != -1;
+        replacement++)
+    {
+        struct kedr_coi_intermediate* intermediate_operation =
+            payload_container_get_intermediate(container, replacement->operation_offset);
+        BUG_ON(intermediate_operation == NULL);
+        
+        if(intermediate_operation->group_id != 0)
+        {
+            int group_id = intermediate_operation->group_id;
+            struct intermediate_elem* elem;
+            // Look for intermediate group in already collected groups
+            group = intermediate_groups_get_group(
+                &groups, group_id);
+            
+            if(group == NULL)
+            {
+                //Not found, create group.
+                group = payload_container_get_intermediate_group(container, group_id);
+                if(group == NULL)
+                {
+                    intermediate_groups_destroy(&groups);
+                    return -ENOMEM;
+                }
+                // And add it to our list
+                intermediate_groups_add_group(&groups, group);
+            }
+            // Mark intermediate as added to replacements
+            elem = intermediate_group_get_elem(group,
+                intermediate_operation);
+            
+            BUG_ON(elem == NULL);
+            
+            elem->is_added = 1;
+        }
+    }
+    // Count intermediates, which should be in replacements
+    // according to grouping principle, but have not been included yet.
+    list_for_each_entry(group, &groups.groups_list, list)
+    {
+        struct intermediate_elem* elem;
+        list_for_each_entry(elem, &group->elems, list)
+        {
+            if(!elem->is_added)
+                replacements_n_add++;
+        }
+    }
+    
+    if(replacements_n_add == 0)
+    {
+        // Groups are already closed
+        return 0;
+    }
+    
+    // Realloc replacements array for add new replacements to it.
+    replacements_n = replacement - *replacements;
+    *replacements = kmalloc(sizeof(**replacements)
+        * (replacements_n + replacements_n_add + 1), GFP_KERNEL);
+    
+    if(*replacements == NULL)
+    {
+        pr_err("Failed to allocate replacements array closed for intermediate groups.");
+        intermediate_groups_destroy(&groups);
+        
+        return -ENOMEM;
+    }
+    
+    i = 0;
+    // Add replacements for close groups
+    list_for_each_entry(group, &groups.groups_list, list)
+    {
+        struct intermediate_elem* elem;
+        list_for_each_entry(elem, &group->elems, list)
+        {
+            if(!elem->is_added)
+            {
+                struct kedr_coi_instrumentor_replacement* replacement =
+                    &(*replacements)[replacements_n + i];
+                struct kedr_coi_intermediate* intermediate_operation =
+                    elem->intermediate;
+                
+                BUG_ON(i >= replacements_n_add);
+                
+                replacement->operation_offset =
+                    intermediate_operation->operation_offset;
+                replacement->repl = 
+                    intermediate_operation->repl;
+                
+                intermediate_operation->info->post = NULL;
+                intermediate_operation->info->pre = NULL;
+                
+                i++;
+            }
+        }
+    }
+    BUG_ON(i != replacements_n_add);
+    
+    (*replacements)[replacements_n + replacements_n_add].operation_offset = -1;
+    
+    intermediate_groups_destroy(&groups);
+    
     return 0;
 }

@@ -38,6 +38,13 @@
 
 #define SIZE_MIN (1 << BITS_MIN)
 
+static inline unsigned long hash_function(const char* key, unsigned int bits)
+{
+    // really hash_ptr process first argument as unsigned long, so
+    // its constantness has no sence
+    return hash_ptr((void*)key, bits);
+}
+
 static void init_hlist_heads(struct hlist_head* heads, unsigned int bits)
 {
     int i;
@@ -49,7 +56,7 @@ struct global_map_elem
 {
     struct hlist_node node;
     
-    void* key;
+    const void* key;
     // additional data may be here
 };
 
@@ -115,7 +122,7 @@ static struct global_map* global_map_create(void)
  */
 
 static int
-global_map_add_key(struct global_map* map, void* key)
+global_map_add_key(struct global_map* map, const void* key)
 {
     unsigned long flags;
 
@@ -141,7 +148,7 @@ global_map_add_key(struct global_map* map, void* key)
         global_map_realloc(map, map->bits + 1);
     }
     
-    head = &map->heads[hash_ptr(key, map->bits)];
+    head = &map->heads[hash_function(key, map->bits)];
     
     hlist_for_each_entry(elem, node_tmp, head, node)
     {
@@ -162,7 +169,7 @@ global_map_add_key(struct global_map* map, void* key)
 }
 
 static void global_map_remove_key(struct global_map* map,
-    void* key)
+    const void* key)
 {
     struct hlist_head* head;
     struct global_map_elem* elem;
@@ -172,7 +179,7 @@ static void global_map_remove_key(struct global_map* map,
 
     spin_lock_irqsave(&map->lock, flags);
     
-    head = &map->heads[hash_ptr(key, map->bits)];
+    head = &map->heads[hash_function(key, map->bits)];
     
     hlist_for_each_entry(elem, node_tmp, head, node)
     {
@@ -231,12 +238,12 @@ int kedr_coi_global_map_init(void)
     return 0;
 }
 
-int kedr_coi_global_map_add_key(void* key)
+int kedr_coi_global_map_add_key(const void* key)
 {
     return global_map_add_key(map, key);
 }
 
-void kedr_coi_global_map_delete_key(void* key)
+void kedr_coi_global_map_delete_key(const void* key)
 {
     return global_map_remove_key(map, key);
 }
@@ -261,7 +268,7 @@ static void global_map_fill_from(
                 hlist_entry(head_old->first, struct global_map_elem, node);
             
             hlist_del(&elem->node);
-            hlist_add_head(&elem->node, &heads_new[hash_ptr(elem->key, bits_new)]);
+            hlist_add_head(&elem->node, &heads_new[hash_function(elem->key, bits_new)]);
         }
         
     }

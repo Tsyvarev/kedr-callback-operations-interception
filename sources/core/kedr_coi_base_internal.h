@@ -35,7 +35,7 @@ struct kedr_coi_interceptor_operations
         struct kedr_coi_payload_foreign* payload);
 
     void* (*get_orig_operation)(struct kedr_coi_interceptor* interceptor,
-        void* object,
+        const void* object,
         size_t operation_offset);
 
     int (*foreign_restore_copy)(struct kedr_coi_interceptor* interceptor,

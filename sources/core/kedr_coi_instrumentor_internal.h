@@ -27,7 +27,7 @@ struct kedr_coi_instrumentor_operations
         void* object, int norestore);
     
     void* (*get_orig_operation)(struct kedr_coi_instrumentor* instrumentor,
-        void* object,
+        const void* object,
         size_t operation_offset);
 
     int (*foreign_restore_copy)(struct kedr_coi_instrumentor* instrumentor,
@@ -78,7 +78,7 @@ kedr_coi_instrumentor_destroy(struct kedr_coi_instrumentor* instrumentor)
 static inline void*
 kedr_coi_instrumentor_get_orig_operation(
     struct kedr_coi_instrumentor* instrumentor,
-    void* object,
+    const void* object,
     size_t operation_offset)
 {
     BUG_ON(instrumentor->ops->get_orig_operation == NULL);
@@ -101,21 +101,21 @@ kedr_coi_instrumentor_foreign_restore_copy(
 /* Constructors */
 struct kedr_coi_instrumentor*
 kedr_coi_instrumentor_create_indirect(
-    size_t operations_field_offest,
+    size_t operations_field_offset,
     size_t operations_struct_size,
-    struct kedr_coi_instrumentor_replacement* replace_pairs);
+    struct kedr_coi_instrumentor_replacement* replacements);
 
 struct kedr_coi_instrumentor*
 kedr_coi_instrumentor_create_direct(
     size_t object_struct_size,
-    struct kedr_coi_instrumentor_replacement* replace_pairs);
+    struct kedr_coi_instrumentor_replacement* replacements);
 
 struct kedr_coi_instrumentor*
 kedr_coi_instrumentor_create_indirect_with_foreign(
-    size_t operations_field_offest,
+    size_t operations_field_offset,
     size_t operations_struct_size,
     size_t foreign_operations_field_offset,
-    struct kedr_coi_instrumentor_replacement* replace_pairs);
+    struct kedr_coi_instrumentor_replacement* replacements);
 
 
 

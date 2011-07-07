@@ -24,7 +24,7 @@ struct kedr_coi_hash_table* kedr_coi_hash_table_create(void);
  */
 void*
 kedr_coi_hash_table_add(struct kedr_coi_hash_table* table,
-    void* key,
+    const void* key,
     void* data);
 
 /*
@@ -36,7 +36,7 @@ kedr_coi_hash_table_add(struct kedr_coi_hash_table* table,
  */
 void*
 kedr_coi_hash_table_get(struct kedr_coi_hash_table* table,
-    void* key);
+    const void* key);
 
 /*
  * Remove key from the hash table and return data associated with it.
@@ -44,7 +44,7 @@ kedr_coi_hash_table_get(struct kedr_coi_hash_table* table,
  * Return ERR_PTR(-ENOENT) if key was not registered.
  */
 void* kedr_coi_hash_table_remove(struct kedr_coi_hash_table* table,
-    void* key);
+    const void* key);
 
 /*
  * Destroy table.
@@ -56,7 +56,7 @@ void* kedr_coi_hash_table_remove(struct kedr_coi_hash_table* table,
  */
 
 void kedr_coi_hash_table_destroy(struct kedr_coi_hash_table* table,
-    void (*free_data)(void* data, void* key, void *user_data),
+    void (*free_data)(void* data, const void* key, void *user_data),
     void* user_data);
 
 #endif /* KEDR_COI_HASH_TABLE_INTERNAL_H */

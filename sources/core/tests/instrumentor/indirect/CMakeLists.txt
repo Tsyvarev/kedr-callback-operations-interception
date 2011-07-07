@@ -1,0 +1,6 @@
+kedr_coi_test_add_prefix("indirect")
+add_subdirectory(base)
+add_subdirectory(update)
+add_subdirectory(several_objects)
+add_subdirectory(foreign)
+add_subdirectory(conflicted)

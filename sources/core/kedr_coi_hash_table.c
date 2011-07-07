@@ -36,6 +36,13 @@
 
 #define SIZE_MIN (1 << BITS_MIN)
 
+static inline unsigned long hash_function(const char* key, unsigned int bits)
+{
+    // really hash_ptr process first argument as unsigned long, so
+    // its constantness has no sence
+    return hash_ptr((void*)key, bits);
+}
+
 static void init_hlist_heads(struct hlist_head* heads, unsigned int bits)
 {
     int i;
@@ -47,7 +54,7 @@ struct hash_table_elem
 {
     struct hlist_node node;
     
-    void* key;
+    const void* key;
     void* data;
 };
 
@@ -129,7 +136,7 @@ hash_table_add_elem(struct kedr_coi_hash_table* table, struct hash_table_elem* e
  */
 void*
 kedr_coi_hash_table_add(struct kedr_coi_hash_table* table,
-    void* key,
+    const void* key,
     void* data)
 {
     unsigned long flags;
@@ -175,7 +182,7 @@ kedr_coi_hash_table_add(struct kedr_coi_hash_table* table,
 }
 
 static struct hash_table_elem*
-hash_table_get_elem(struct kedr_coi_hash_table* table, void* key);
+hash_table_get_elem(struct kedr_coi_hash_table* table, const void* key);
 
 /*
  * Return data, previousely added to the table.
@@ -186,7 +193,7 @@ hash_table_get_elem(struct kedr_coi_hash_table* table, void* key);
  */
 void*
 kedr_coi_hash_table_get(struct kedr_coi_hash_table* table,
-    void* key)
+    const void* key)
 {
     unsigned long flags;
 
@@ -207,10 +214,10 @@ kedr_coi_hash_table_get(struct kedr_coi_hash_table* table,
 }
 
 static void* hash_table_remove(struct kedr_coi_hash_table* table,
-    void* key);
+    const void* key);
 
 void* kedr_coi_hash_table_remove(struct kedr_coi_hash_table* table,
-    void* key)
+    const void* key)
 {
     unsigned long flags;
 
@@ -235,7 +242,7 @@ void* kedr_coi_hash_table_remove(struct kedr_coi_hash_table* table,
  */
 
 void kedr_coi_hash_table_destroy(struct kedr_coi_hash_table* table,
-    void (*free_data)(void* data, void* key, void *user_data),
+    void (*free_data)(void* data, const void* key, void *user_data),
     void* user_data)
 {
     int i;
@@ -249,7 +256,7 @@ void kedr_coi_hash_table_destroy(struct kedr_coi_hash_table* table,
         while(!hlist_empty(head))
         {
             void* data;
-            void* key;
+            const void* key;
             struct hash_table_elem* elem =
                 hlist_entry(head->first, struct hash_table_elem, node);
             data = elem->data;
@@ -282,7 +289,7 @@ static void hash_table_fill_from(
                 hlist_entry(head_old->first, struct hash_table_elem, node);
             
             hlist_del(&elem->node);
-            hlist_add_head(&elem->node, &heads_new[hash_ptr(elem->key, bits_new)]);
+            hlist_add_head(&elem->node, &heads_new[hash_function(elem->key, bits_new)]);
         }
         
     }
@@ -374,7 +381,7 @@ hash_table_add_elem(struct kedr_coi_hash_table* table, struct hash_table_elem* e
     BUG_ON(table == NULL);
     BUG_ON(elem_new == NULL);
     
-    head = &table->heads[hash_ptr(elem_new->key, table->bits)];
+    head = &table->heads[hash_function(elem_new->key, table->bits)];
     
     hlist_for_each_entry(elem, node_tmp, head, node)
     {
@@ -384,7 +391,7 @@ hash_table_add_elem(struct kedr_coi_hash_table* table, struct hash_table_elem* e
     if(is_need_expand(table))
     {
         kedr_coi_hash_table_realloc(table, table->bits + 1);
-        head = &table->heads[hash_ptr(elem_new->key, table->bits)];
+        head = &table->heads[hash_function(elem_new->key, table->bits)];
     }
     
     hlist_add_head(&elem_new->node, head);
@@ -394,13 +401,13 @@ hash_table_add_elem(struct kedr_coi_hash_table* table, struct hash_table_elem* e
 }
 
 struct hash_table_elem*
-hash_table_get_elem(struct kedr_coi_hash_table* table, void* key)
+hash_table_get_elem(struct kedr_coi_hash_table* table, const void* key)
 {
     struct hlist_head* head;
     struct hash_table_elem* elem;
     struct hlist_node* node_tmp;
     
-    head = &table->heads[hash_ptr(key, table->bits)];
+    head = &table->heads[hash_function(key, table->bits)];
     
     hlist_for_each_entry(elem, node_tmp, head, node)
     {
@@ -411,13 +418,13 @@ hash_table_get_elem(struct kedr_coi_hash_table* table, void* key)
 }
 
 void* hash_table_remove(struct kedr_coi_hash_table* table,
-    void* key)
+    const void* key)
 {
     struct hlist_head* head;
     struct hash_table_elem* elem;
     struct hlist_node* node_tmp;
     
-    head = &table->heads[hash_ptr(key, table->bits)];
+    head = &table->heads[hash_function(key, table->bits)];
     
     hlist_for_each_entry(elem, node_tmp, head, node)
     {

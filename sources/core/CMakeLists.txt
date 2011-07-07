@@ -26,5 +26,10 @@ kbuild_add_module(${kmodule_name}
 kedr_coi_install_kmodule(${kmodule_name})
 kedr_coi_install_symvers(${kmodule_name})
 
+# For KEDR COI users
+set(KEDR_COI_CORE "${KEDR_COI_INSTALL_PREFIX_KMODULE}/${kmodule_name}.ko"
+	CACHE INTERNAL "Path to KEDR COI core module"
+)
+
 # The tests
-#kedr_test_add_subdirectory (tests)
+kedr_coi_test_add_subdirectory (tests)

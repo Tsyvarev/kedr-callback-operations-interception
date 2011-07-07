@@ -52,18 +52,18 @@ struct kedr_coi_instrumentor_indirect
 
 #define instrumentor_indirect(instrumentor) container_of(instrumentor, struct kedr_coi_instrumentor_indirect, base)
 
-static inline void*
+static inline const void*
 instrumentor_indirect_object_key(
     struct kedr_coi_instrumentor_indirect* instrumentor,
-    void* object)
+    const void* object)
 {
-    return (char*)object + instrumentor->operations_field_offset;
+    return (const char*)object + instrumentor->operations_field_offset;
 }
 
-static inline void*
+static inline const void*
 instrumentor_indirect_object_key_global(
     struct kedr_coi_instrumentor_indirect* instrumentor,
-    void* object)
+    const void* object)
 {
     return instrumentor_indirect_object_key(instrumentor, object);
 }
@@ -87,12 +87,6 @@ instrumentor_indirect_object_data_fill(
     BUG_ON(object_data == NULL);
     BUG_ON(object_ops == NULL);
     
-    //pr_info("instrumentor_indirect_object_data_fill: object_data->ops is %p.",
-    //    object_data->ops);
-    
-    //pr_info("instrumentor_indirect_object_data_fill: instrumentor->operations_struct_size is %zu.",
-    //    instrumentor->operations_struct_size);
-
     object_data->ops_orig = object_ops;
     memcpy(object_data->ops, object_ops,
         instrumentor->operations_struct_size);
@@ -215,7 +209,7 @@ instrumentor_indirect_ops_watch(
     struct kedr_coi_instrumentor* instrumentor,
     void* object)
 {
-    void* key;
+    const void* key;
     struct instrumentor_indirect_object_data* object_data_new;
     struct instrumentor_indirect_object_data* object_data;
     const char** object_ops_p;
@@ -258,7 +252,7 @@ instrumentor_indirect_ops_watch(
         // New data was successfully added
         // Add key to the global map
         int result;
-        void* global_key = instrumentor_indirect_object_key_global(
+        const void* global_key = instrumentor_indirect_object_key_global(
             instrumentor_real,
             object);
 
@@ -268,7 +262,7 @@ instrumentor_indirect_ops_watch(
         {
             // Rollback because of error.
             void* object_data_tmp = kedr_coi_hash_table_remove(instrumentor_real->objects, key);
-            BUG_ON(object_data_tmp != object_data);
+            BUG_ON(object_data_tmp != object_data_new);
 
             instrumentor_indirect_object_data_free(object_data_new);
             if(result == -EBUSY)
@@ -291,7 +285,7 @@ instrumentor_indirect_ops_forget(
     void* object,
     int norestore)
 {
-    void* key;
+    const void* key;
     struct instrumentor_indirect_object_data* object_data;
     const char** object_ops_p;
     
@@ -327,7 +321,7 @@ instrumentor_indirect_ops_forget(
     instrumentor_indirect_object_data_free(object_data);
 
     {
-        void* global_key = instrumentor_indirect_object_key_global(
+        const void* global_key = instrumentor_indirect_object_key_global(
             instrumentor_real,
             object);
         
@@ -338,58 +332,16 @@ instrumentor_indirect_ops_forget(
     return 0;
 }
 
-//static int
-//instrumentor_indirect_ops_forget_norestore(
-    //struct kedr_coi_instrumentor* instrumentor,
-    //void* object)
-//{
-    //void* key;
-    //struct instrumentor_indirect_object_data* object_data;
-    
-    //struct kedr_coi_instrumentor_indirect* instrumentor_real =
-        //instrumentor_indirect(instrumentor);
-
-    //key = instrumentor_indirect_object_key(instrumentor_real, object);
-    
-    //object_data = kedr_coi_hash_table_remove(instrumentor_real->objects, key);
-    
-    //if(IS_ERR(object_data))
-    //{
-        //if(PTR_ERR(object_data) == -EEXIST)
-        //{
-            ///*
-             //*  Object wasn't watched.
-             //* Not an error because wacth_for_object may has failed before.
-             //*/
-            //return 1;
-        //}
-        
-        //return 1;// some other error
-    //}
-
-    //// Remove key from the global map.
-    //{
-        //void* global_key = instrumentor_indirect_object_key_global(
-            //instrumentor_real,
-            //object);
-        
-        //kedr_coi_global_map_delete_key(global_key);
-    //}
-    
-    //instrumentor_indirect_object_data_free(object_data);
-
-    //return 0;
-//}
 
 static void*
 instrumentor_indirect_ops_get_orig_operation(
     struct kedr_coi_instrumentor* instrumentor,
-    void* object,
+    const void* object,
     size_t operation_offset)
 {
     void* orig_operation;
 
-    void* key;
+    const void* key;
     struct instrumentor_indirect_object_data* object_data;
     
     unsigned long flags;
@@ -412,7 +364,7 @@ instrumentor_indirect_ops_get_orig_operation(
     return orig_operation;
 }
 
-static void instrumentor_indirect_table_free_data(void* data, void* key,
+static void instrumentor_indirect_table_free_data(void* data, const void* key,
     void* user_data)
 {
     instrumentor_indirect_object_data_free(data);
@@ -445,7 +397,6 @@ static struct kedr_coi_instrumentor_operations instrumentor_indirect_ops =
 {
     .watch = instrumentor_indirect_ops_watch,
     .forget = instrumentor_indirect_ops_forget,
-    //.forget_norestore = instrumentor_indirect_ops_forget_norestore,
     
     .get_orig_operation = instrumentor_indirect_ops_get_orig_operation,
     
@@ -529,18 +480,18 @@ struct kedr_coi_instrumentor_direct
 
 #define instrumentor_direct(instrumentor) container_of(instrumentor, struct kedr_coi_instrumentor_direct, base)
 
-static inline void*
+static inline const void*
 instrumentor_direct_object_key(
     struct kedr_coi_instrumentor_direct* instrumentor,
-    void* object)
+    const void* object)
 {
     return object;
 }
 
-static inline void*
+static inline const void*
 instrumentor_direct_object_key_global(
     struct kedr_coi_instrumentor_direct* instrumentor,
-    void* object)
+    const void* object)
 {
     return instrumentor_direct_object_key(instrumentor, object);
 }
@@ -548,7 +499,7 @@ instrumentor_direct_object_key_global(
 static struct instrumentor_direct_object_data*
 instrumentor_direct_object_data_create(
     struct kedr_coi_instrumentor_direct* instrumentor,
-    void* object)
+    const void* object)
 {
     // TODO: kmem_cache may be more appropriate
     struct instrumentor_direct_object_data* object_data =
@@ -581,7 +532,7 @@ instrumentor_direct_ops_watch(
     struct kedr_coi_instrumentor* instrumentor,
     void* object)
 {
-    void* key;
+    const void* key;
     struct instrumentor_direct_object_data* object_data_new;
     struct instrumentor_direct_object_data* object_data;
     
@@ -616,13 +567,40 @@ instrumentor_direct_ops_watch(
     }
 
     // New data was successfully added
+    // Add key to the global map
+    {
+        int result;
+        const void* global_key = instrumentor_direct_object_key_global(
+            instrumentor_real,
+            object);
+
+        result = kedr_coi_global_map_add_key(global_key);
+        
+        if(result < 0)
+        {
+            // Rollback because of error.
+            void* object_data_tmp = kedr_coi_hash_table_remove(instrumentor_real->objects, key);
+            BUG_ON(object_data_tmp != object_data_new);
+
+            instrumentor_direct_object_data_free(object_data_new);
+            if(result == -EBUSY)
+            {
+                pr_err("Object is already instrumented by another instrumentor.");
+            }
+            return result;
+        }
+    }
+    
     if(instrumentor_real->replacements)
     {
         struct kedr_coi_instrumentor_replacement* replacement;
         for(replacement = instrumentor_real->replacements;
             replacement->operation_offset != -1;
             replacement++)
-            *((void**)((char*)object + replacement->operation_offset)) = replacement->repl;
+            {
+                void* operation_addr = (char*)object + replacement->operation_offset;
+                *((void**)operation_addr) = replacement->repl;
+            }
     }
 
     return 0;
@@ -634,7 +612,7 @@ instrumentor_direct_ops_forget(
     void* object,
     int norestore)
 {
-    void* key;
+    const void* key;
     struct instrumentor_direct_object_data* object_data;
     
     struct kedr_coi_instrumentor_direct* instrumentor_real =
@@ -662,12 +640,16 @@ instrumentor_direct_ops_forget(
     if(!norestore && instrumentor_real->replacements)
     {
         struct kedr_coi_instrumentor_replacement* replacement;
+        
         for(replacement = instrumentor_real->replacements;
             replacement->operation_offset != -1;
             replacement++)
         {
-            void* op_orig = *(void**)(object_data->object_ops_orig + replacement->operation_offset);
-            *((void**)((char*)object + replacement->operation_offset)) = op_orig;
+            void* operation_addr = (char*)object + replacement->operation_offset;
+            void* operation_orig_addr =
+                object_data->object_ops_orig + replacement->operation_offset;
+
+            *((void**)operation_addr) = *((void**)operation_orig_addr);
         }
     }
 
@@ -675,7 +657,7 @@ instrumentor_direct_ops_forget(
     instrumentor_direct_object_data_free(object_data);
 
     {
-        void* global_key = instrumentor_direct_object_key_global(
+        const void* global_key = instrumentor_direct_object_key_global(
             instrumentor_real,
             object);
         
@@ -686,57 +668,13 @@ instrumentor_direct_ops_forget(
     return 0;
 }
 
-//static int
-//instrumentor_direct_ops_forget_norestore(
-    //struct kedr_coi_instrumentor* instrumentor,
-    //void* object)
-//{
-    //void* key;
-    //struct instrumentor_direct_object_data* object_data;
-    
-    //struct kedr_coi_instrumentor_direct* instrumentor_real =
-        //instrumentor_direct(instrumentor);
-
-    //key = instrumentor_direct_object_key(instrumentor_real, object);
-    
-    //object_data = kedr_coi_hash_table_remove(instrumentor_real->objects, key);
-
-    //if(IS_ERR(object_data))
-    //{
-        //int error = PTR_ERR(object_data);
-        //if(error == -ENOENT)
-        //{
-            ///*
-             //*  Object wasn't watched.
-             //* Not an error because wacth_for_object may has failed before.
-             //*/
-            //return 1;
-        //}
-        
-        //return 1;// some other error
-    //}
-  
-    //instrumentor_direct_object_data_free(object_data);
-
-    //{
-        //void* global_key = instrumentor_direct_object_key_global(
-            //instrumentor_real,
-            //object);
-        
-        //kedr_coi_global_map_delete_key(global_key);
-
-    //}
-
-    //return 0;
-//}
-
 static void*
 instrumentor_direct_ops_get_orig_operation(
     struct kedr_coi_instrumentor* instrumentor,
-    void* object,
+    const void* object,
     size_t operation_offset)
 {
-    void* key;
+    const void* key;
     struct instrumentor_direct_object_data* object_data;
     
     struct kedr_coi_instrumentor_direct* instrumentor_real =
@@ -751,7 +689,7 @@ instrumentor_direct_ops_get_orig_operation(
     return *(void**)(object_data->object_ops_orig + operation_offset);
 }
 
-static void instrumentor_direct_table_free_data(void* data, void* key,
+static void instrumentor_direct_table_free_data(void* data, const void* key,
     void* user_data)
 {
     instrumentor_direct_object_data_free(data);
@@ -774,7 +712,6 @@ static struct kedr_coi_instrumentor_operations instrumentor_direct_ops =
 {
     .watch = instrumentor_direct_ops_watch,
     .forget = instrumentor_direct_ops_forget,
-    //.forget_norestore = instrumentor_direct_ops_forget_norestore,
     
     .get_orig_operation = instrumentor_direct_ops_get_orig_operation,
     
@@ -807,6 +744,7 @@ kedr_coi_instrumentor_create_direct(
         return NULL;
     }
 
+    instrumentor->object_struct_size = object_struct_size;
     instrumentor->replacements = replacements;
     
     return &instrumentor->base;
@@ -835,7 +773,7 @@ static int instrumentor_foreign_ops_foreign_restore_copy(
     const char* orig_operations;
     const char** foreign_operations_p;
 
-    void* key;
+    const void* key;
     struct instrumentor_indirect_object_data* object_data;
     
     unsigned long flags;

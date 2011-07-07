@@ -1,9 +1,9 @@
-static <$if operation.returnType$><$operation.returnType$><$else$>void<$endif$> intermediate_operation_default_<$operation.name$>(<$argumentSpec$>)
+<$if operation.default$>static <$if operation.returnType$><$operation.returnType$><$else$>void<$endif$> intermediate_operation_default_<$operation.name$>(<$argumentSpec$>)
 {
-    <$if operation.default$><$operation.default$><$else$>BUG();<$endif$>
+    <$operation.default$>
 }
 
-static <$if operation.returnType$><$operation.returnType$><$else$>void<$endif$> intermediate_operation_<$operation.name$>(<$argumentSpec$>)
+<$endif$>static <$if operation.returnType$><$operation.returnType$><$else$>void<$endif$> intermediate_operation_<$operation.name$>(<$argumentSpec$>)
 {
     <$if operation.returnType$><$operation.returnType$><$else$>void<$endif$> (*orig)(<$argumentSpec$>);
     foreign_object_t *foreign_object = <$operation.foreign_object$>;
@@ -22,6 +22,6 @@ static <$if operation.returnType$><$operation.returnType$><$else$>void<$endif$> 
     }
     
     orig = get_foreign_operations(foreign_object)-><$operation.name$>;
-    <$if operation.returnType$>return <$endif$>orig? orig(<$argumentList$>)
-        : intermediate_operation_default_<$operation.name$>(<$argumentList$>);
+    <$if operation.returnType$>return <$endif$><$if operation.default$>orig? orig(<$argumentList$>)
+        : intermediate_operation_default_<$operation.name$>(<$argumentList$>)<$else$>orig(<$argumentList$>)<$endif$>;
 }

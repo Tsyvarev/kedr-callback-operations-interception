@@ -1,11 +1,18 @@
+#define intermediate_operation_<$operation.name$>    {\
+        .operation_offset = OPERATION_OFFSET(<$operation.name$>),\
+        .repl = OPERATION_CHECKED_TYPE(&intermediate_repl_<$operation.name$>, <$operation.name$>),\
+        <$if operation.group_id$>.group_id = <$operation.group_id$>,\
+        <$endif$>.info = &intermediate_info_<$operation.name$>\
+    }
+
 static struct kedr_coi_intermediate_info intermediate_info_<$operation.name$>;
 
-static <$if operation.returnType$><$operation.returnType$><$else$>void<$endif$> intermediate_operation_default_<$operation.name$>(<$argumentSpec$>)
+<$if operation.default$>static <$if operation.returnType$><$operation.returnType$><$else$>void<$endif$> intermediate_operation_default_<$operation.name$>(<$argumentSpec$>)
 {
-    <$if operation.default$><$operation.default$><$else$>BUG();<$endif$>
+    <$operation.default$>
 }
 
-static <$if operation.returnType$><$operation.returnType$><$else$><$void$><$endif$> intermediate_operation_<$operation.name$>(<$argumentSpec$>)
+<$endif$>static <$if operation.returnType$><$operation.returnType$><$else$>void<$endif$> intermediate_repl_<$operation.name$>(<$argumentSpec$>)
 {
     struct kedr_coi_operation_call_info call_info;
     <$if operation.returnType$><$operation.returnType$> returnValue;
@@ -26,8 +33,8 @@ static <$if operation.returnType$><$operation.returnType$><$else$><$void$><$endi
             (*pre_function)(<$argumentList_comma$>&call_info);
     }
     
-    <$if operation.returnType$>returnValue = <$endif$>orig ? orig(<$argumentList$>)
-        : intermediate_operation_default_<$operation.name$>(<$argumentList$>);
+    <$if operation.returnType$>returnValue = <$endif$><$if operation.default$>orig ? orig(<$argumentList$>)
+        : intermediate_operation_default_<$operation.name$>(<$argumentList$>)<$else$>orig(<$argumentList$>)<$endif$>;
 
     if(intermediate_info_<$operation.name$>.post != NULL)
     {

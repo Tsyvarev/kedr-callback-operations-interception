@@ -339,7 +339,7 @@ struct kedr_coi_intermediate_info
 
 void* kedr_coi_interceptor_get_orig_operation(
     struct kedr_coi_interceptor* interceptor,
-    void* object,
+    const void* object,
     size_t operation_offset);
 
 
@@ -351,6 +351,39 @@ struct kedr_coi_intermediate
 {
     size_t operation_offset;
     void* repl;
+    
+    /* 
+     * If not 0, this is a group identifier of the intermediate function.
+     * 
+     * All intermediate functions used for particular interceptor
+     * which share group identifier either are used together or aren't
+     * used at all.
+     * 
+     * The thing is that default behaviour of some operations cannot be
+     * implemented exactly as in the kernel(not all kernel functions are
+     * available for modules).
+     * 
+     * Example of such operation is alloc_inode() operations in
+     * 'struct super_operations': default behaviour in the kernel is 
+     * allocate inode in some kmem_cache, but this cache is not available
+     * for kernel module.
+     * For correctness it is enough to implement this operation
+     * consistently with destroy_inode(), which should destroy inode
+     * allocated by alloc_inode(), so both these operations may use
+     * shared kmem_cache, which is differ from kernel implementation's one.
+     * 
+     * But if one would like to intercept alloc_inode() without
+     * interception of destroy_inode(), default behaviour of KEDR COI
+     * is to use intermediate operation for alloc_inode() but do not use
+     * intermediate operation for detroy_inode(), which lead to incon-
+     * systency between this two operations: kernel implementation of
+     * default destory_inode() operation unable to destroy inode, created
+     * by default destroy_inode() in intermediate implementation.
+     * 
+     * Grouping force using of intermediate for destroy_inode() even
+     * without interception of this operation.
+     */
+    int group_id;
     
     struct kedr_coi_intermediate_info* info;
 };

@@ -7,4 +7,5 @@ set (KEDR_COI_TEST_INCLUDE_DIR "${CMAKE_BINARY_DIR}/include/install")
 
 if(KEDR_INSTALL_DIR)
     add_subdirectory(read_counter)
+    add_subdirectory(file_access_counter)
 endif(KEDR_INSTALL_DIR)

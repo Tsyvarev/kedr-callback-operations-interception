@@ -188,7 +188,7 @@ void kedr_coi_payload_foreign_unregister(
 
 void* kedr_coi_interceptor_get_orig_operation(
 	struct kedr_coi_interceptor* interceptor,
-	void* object,
+	const void* object,
 	size_t operation_offset)
 {
 	/*

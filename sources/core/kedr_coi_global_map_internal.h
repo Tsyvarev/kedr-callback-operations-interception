@@ -17,14 +17,14 @@ int kedr_coi_global_map_init(void);
  * 
  * If key already added, return -EBUSY.
  */
-int kedr_coi_global_map_add_key(void* key);
+int kedr_coi_global_map_add_key(const void* key);
 
 /*
  * Remove key from the map.
  * 
  * It is an error to delete unexistent key.
  */
-void kedr_coi_global_map_delete_key(void* key);
+void kedr_coi_global_map_delete_key(const void* key);
 
 void kedr_coi_global_map_destroy(void);
 

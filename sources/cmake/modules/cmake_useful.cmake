@@ -1,4 +1,4 @@
-#Create rule for obtain one file by copying another one
+# Create rule for obtain one file by copying another one
 function(rule_copy_file target_file source_file)
     add_custom_command(OUTPUT ${target_file}
                     COMMAND cp -p ${source_file} ${target_file}
@@ -6,10 +6,34 @@ function(rule_copy_file target_file source_file)
                     )
 endfunction(rule_copy_file target_file source_file)
 
-#Create rule for obtain file in binary tree by copiing it from source tree
-function(rule_copy_source rel_source_file)
-    rule_copy_file(${CMAKE_CURRENT_BINARY_DIR}/${rel_source_file} ${CMAKE_CURRENT_SOURCE_DIR}/${rel_source_file})
-endfunction(rule_copy_source rel_source_file)
+# rule_copy_source([source_dir] file ...)
+#
+# Create rule for obtain file(s) in binary tree by copiing it from source tree.
+#
+# Files are given relative to ${source_dir}, if it is set, or
+# relative to ${CMAKE_CURRENT_SOURCE_DIR}.
+#
+# Files will be copied into ${CMAKE_CURRENT_BINARY_DIR} with same
+# relative paths.
+#
+# ${source_dir} should be absolute path(that is, starts from '/').
+# Otherwise first argument is treated as first file to copy.
+
+function(rule_copy_source file)
+    string(REGEX MATCH "^/" is_abs_path ${file})
+	if(is_abs_path)
+		set(source_dir ${file})
+		set(files ${ARGN})
+	else(is_abs_path)
+		set(source_dir ${CMAKE_CURRENT_SOURCE_DIR})
+		set(files ${file} ${ARGN})
+	endif(is_abs_path)
+	
+	foreach(file_real ${files})
+		rule_copy_file("${CMAKE_CURRENT_BINARY_DIR}/${file_real}"
+			${source_dir}/${file_real})
+	endforeach(file_real ${files})
+endfunction(rule_copy_source file)
 
 # to_abs_path(output_var path [...])
 #
@@ -49,65 +73,3 @@ macro(is_path_inside_dir output_var dir path)
         set(${output_var} "TRUE")
     endif(_is_not_inside_dir)
 endmacro(is_path_inside_dir output_var dir path)
-
-########################################################################
-# Test-related macros
-########################################################################
-
-# When we are building KEDR COI for another system (cross-build), testing is
-# disabled. This is because the tests need the build tree.
-# In the future, the tests could be prepared that need only the installed 
-# components of KEDR COI. It could be a separate test suite.
-
-# This macro enables testing support and performs other initialization tasks.
-# It should be used in the top-level CMakeLists.txt file before 
-# add_subdirectory () calls.
-macro (kedr_coi_test_init)
-	if (NOT CMAKE_CROSSCOMPILING)
-	    enable_testing ()
-	    add_custom_target (check 
-	        COMMAND ${CMAKE_CTEST_COMMAND}
-	    )
-	    add_custom_target (build_tests)
-	    add_dependencies (check build_tests)
-	endif (NOT CMAKE_CROSSCOMPILING)
-endmacro (kedr_coi_test_init)
-
-# Use this macro to specify an additional target to be built before the tests
-# are executed.
-macro (kedr_coi_test_add_target target_name)
-	if (NOT CMAKE_CROSSCOMPILING)
-	    set_target_properties (${target_name}
-	        PROPERTIES EXCLUDE_FROM_ALL true
-	    )
-	    add_dependencies (build_tests ${target_name})
-	endif (NOT CMAKE_CROSSCOMPILING)
-endmacro (kedr_coi_test_add_target target_name)
-
-# This function adds a test script (a Bash script, actually) to the set of
-# tests for the package. The script may reside in current source or binary 
-# directory (the source directory is searched first).
-function (kedr_coi_test_add_script test_name script_file)
-	if (NOT CMAKE_CROSSCOMPILING)
-	    set (TEST_SCRIPT_FILE)
-	    to_abs_path (TEST_SCRIPT_FILE ${script_file})
-	        
-	    add_test (${test_name}
-	        /bin/bash ${TEST_SCRIPT_FILE} ${ARGN}
-	    )
-	endif (NOT CMAKE_CROSSCOMPILING)
-endfunction (kedr_coi_test_add_script)
-
-# Use this macro instead of add_subdirectory() for the subtrees related to 
-# testing of the package.
-
-# We could use other kedr_coi_*test* macros to disable the tests when 
-# cross-building, but the rules of Kbuild system (concerning .symvers,
-# etc.) still need to be disabled explicitly. So it is more reliable to 
-# just turn off each add_subdirectory(tests) in this case.
-macro (kedr_coi_test_add_subdirectory subdir)
-	if (NOT CMAKE_CROSSCOMPILING)
-		add_subdirectory(${subdir})
-	endif (NOT CMAKE_CROSSCOMPILING)
-endmacro (kedr_coi_test_add_subdirectory subdir)
-########################################################################

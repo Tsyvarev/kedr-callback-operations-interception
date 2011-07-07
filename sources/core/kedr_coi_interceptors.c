@@ -100,7 +100,7 @@ interceptor_normal_forget(
 static void*
 interceptor_normal_get_orig_operation(
     struct kedr_coi_interceptor* interceptor,
-    void* object,
+    const void* object,
     size_t operation_offset)
 {
     struct kedr_coi_interceptor_normal* interceptor_real =
