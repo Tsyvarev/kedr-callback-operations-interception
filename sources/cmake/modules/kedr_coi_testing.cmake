@@ -84,7 +84,9 @@ function (kedr_coi_test_add_script test_name script_file)
 	endif (NOT CMAKE_CROSSCOMPILING)
 endfunction (kedr_coi_test_add_script)
 
-# This function adds test which verify kernel space code.
+# kedr_coi_test_add_kernel(test_name module_name sources ... [DEPENDS module ...])
+#
+# This function adds test as kernel space code.
 # This code is wrapped into kernel module, which is built during
 # 'build_tests' target and loaded into kernel during 'check'ing.
 #
@@ -104,6 +106,9 @@ endfunction (kedr_coi_test_add_script)
 # and everything that affects on module created by kbuild_add_module()
 # function is affects on the test module created by this function
 # (e.g. kbuild_include_directory).
+#
+# If test code use definitions from other modules, these modules
+# should be enumerated after DEPENDS keyword.
 
 function(kedr_coi_test_add_kernel test_name module_name source)
 	if (NOT CMAKE_CROSSCOMPILING)
@@ -128,9 +133,23 @@ function(kedr_coi_test_add_kernel test_name module_name source)
         
         add_test ("${test_full_name}" /bin/bash ${test_kernel_code_script}
             "${CMAKE_CURRENT_BINARY_DIR}/${module_name}.ko"
+            ${kedr_coi_test_kernel_dependencies}
         )
 	endif (NOT CMAKE_CROSSCOMPILING)
 endfunction(kedr_coi_test_add_kernel test_name module_name source)
+
+# kedr_coi_test_add_kernel_dependency(module_name ...)
+#
+# If test's kernel code (kedr_coi_test_add_kernel())
+# use symbols from other modules, this function should be called
+# before adding the test. Parameters, given to function,
+# will be interpreted as names of modules which should be loaded
+# before test and unloaded after it finished.
+
+function(kedr_coi_test_add_kernel_dependency module_name)
+    list(APPEND kedr_coi_test_kernel_dependencies ${module_name} ${ARGN})
+    set(kedr_coi_test_kernel_dependencies ${kedr_coi_test_kernel_dependencies} PARENT_SCOPE)
+endfunction(kedr_coi_test_add_kernel_dependency module_name)
 
 # Use this macro instead of add_subdirectory() for the subtrees related to 
 # testing of the package.

@@ -104,9 +104,9 @@ static void cdev_file_operations_on_create_handler(struct file* filp)
     file_operations_interceptor_watch(filp);
 }
 
-void* cdev_file_operations_on_create_handlers[] =
+kedr_coi_handler_foreign_t cdev_file_operations_on_create_handlers[] =
 {
-    cdev_file_operations_on_create_handler,
+    (kedr_coi_handler_foreign_t)cdev_file_operations_on_create_handler,
     NULL
 };
 

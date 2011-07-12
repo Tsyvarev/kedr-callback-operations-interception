@@ -50,7 +50,7 @@ static int
 payload_elem_release(struct payload_elem* elem);
 
 
-struct kedr_coi_payload_foreign_container
+struct kedr_coi_payloads_foreign_container
 {
     struct list_head payload_elems;
     
@@ -71,7 +71,7 @@ struct kedr_coi_payload_foreign_container
  */
 static int
 payload_foreign_containter_init_intermediate_info(
-    struct kedr_coi_payload_foreign_container* container,
+    struct kedr_coi_payloads_foreign_container* container,
     struct kedr_coi_intermediate_foreign_info* intermediate_info);
 
 static void
@@ -84,16 +84,25 @@ payload_foreign_containter_destroy_intermediate_info(
  */
 static int
 payload_foreign_containter_create_replacements(
-    struct kedr_coi_payload_foreign_container* container);
+    struct kedr_coi_payloads_foreign_container* container);
+
+
+/*
+ *  Create replacement pairs in case when no replacements is need -
+ * there is no handlers are registered.
+ */
+static int
+payload_foreign_containter_create_replacements_empty(
+    struct kedr_coi_payloads_foreign_container* container);
 
 /************** Implementation of API ********************************/
 
-struct kedr_coi_payload_foreign_container*
-kedr_coi_payload_foreign_container_create(
+struct kedr_coi_payloads_foreign_container*
+kedr_coi_payloads_foreign_container_create(
     struct kedr_coi_intermediate_foreign* intermediate_operations,
     struct kedr_coi_intermediate_foreign_info* intermediate_info)
 {
-    struct kedr_coi_payload_foreign_container* container =
+    struct kedr_coi_payloads_foreign_container* container =
         kmalloc(sizeof(*container), GFP_KERNEL);
     if(container == NULL)
     {
@@ -116,8 +125,8 @@ kedr_coi_payload_foreign_container_create(
 }
 
 void
-kedr_coi_payload_foreign_container_destroy(
-    struct kedr_coi_payload_foreign_container* container,
+kedr_coi_payloads_foreign_container_destroy(
+    struct kedr_coi_payloads_foreign_container* container,
         const char* interceptor_name)
 {
     BUG_ON(container->payloads_are_used);
@@ -139,7 +148,7 @@ kedr_coi_payload_foreign_container_destroy(
 // Shoud be executed with mutex hold.
 static int
 payload_foreign_container_register_payload_internal(
-    struct kedr_coi_payload_foreign_container* container,
+    struct kedr_coi_payloads_foreign_container* container,
     struct payload_elem* payload_element_new)
 {
     struct payload_elem* payload_element;
@@ -165,8 +174,8 @@ payload_foreign_container_register_payload_internal(
 }
 
 int
-kedr_coi_payload_foreign_container_register_payload(
-    struct kedr_coi_payload_foreign_container* container,
+kedr_coi_payloads_foreign_container_register_payload(
+    struct kedr_coi_payloads_foreign_container* container,
     struct kedr_coi_payload_foreign* payload)
 {
     int result;
@@ -197,7 +206,7 @@ kedr_coi_payload_foreign_container_register_payload(
 // Should be executed with mutex hold.
 static void
 payload_foreign_container_unregister_payload_internal(
-    struct kedr_coi_payload_foreign_container* container,
+    struct kedr_coi_payloads_foreign_container* container,
     struct kedr_coi_payload_foreign* payload)
 {
     struct payload_elem* payload_element;
@@ -222,8 +231,8 @@ payload_foreign_container_unregister_payload_internal(
 }
 
 void
-kedr_coi_payload_foreign_container_unregister_payload(
-    struct kedr_coi_payload_foreign_container* container,
+kedr_coi_payloads_foreign_container_unregister_payload(
+    struct kedr_coi_payloads_foreign_container* container,
     struct kedr_coi_payload_foreign* payload)
 {
     if(mutex_lock_killable(&container->m))
@@ -239,8 +248,8 @@ kedr_coi_payload_foreign_container_unregister_payload(
 
 
 struct kedr_coi_instrumentor_replacement*
-kedr_coi_payload_foreign_container_fix_payloads(
-    struct kedr_coi_payload_foreign_container* container)
+kedr_coi_payloads_foreign_container_fix_payloads(
+    struct kedr_coi_payloads_foreign_container* container)
 {
     int result;
 
@@ -263,7 +272,9 @@ kedr_coi_payload_foreign_container_fix_payloads(
 
     if(result) goto intermediate_info_err;
     
-    result = payload_foreign_containter_create_replacements(container);
+    result = container->intermediate_info->on_create_handlers
+        ?  payload_foreign_containter_create_replacements(container)
+        :  payload_foreign_containter_create_replacements_empty(container);
     if(result) goto replacements_err;
     
     container->payloads_are_used = 1;
@@ -290,8 +301,8 @@ intermediate_info_err:
 }
 
 void
-kedr_coi_payload_foreign_container_release_payloads(
-    struct kedr_coi_payload_foreign_container* container)
+kedr_coi_payloads_foreign_container_release_payloads(
+    struct kedr_coi_payloads_foreign_container* container)
 {
     struct payload_elem* payload_element;
 
@@ -386,7 +397,7 @@ payload_elem_release(struct payload_elem* elem)
  */
 int
 payload_foreign_containter_init_intermediate_info(
-    struct kedr_coi_payload_foreign_container* container,
+    struct kedr_coi_payloads_foreign_container* container,
     struct kedr_coi_intermediate_foreign_info* intermediate_info)
 {
     struct payload_elem* payload_element;
@@ -400,7 +411,7 @@ payload_foreign_containter_init_intermediate_info(
         
         if(payload->on_create_handlers)
         {
-            void** on_create_handler;
+            kedr_coi_handler_foreign_t* on_create_handler;
             for(on_create_handler = payload->on_create_handlers;
                 *on_create_handler !=  NULL;
                 on_create_handler++)
@@ -408,12 +419,19 @@ payload_foreign_containter_init_intermediate_info(
         }
         
     }
+
+    if(on_create_handlers_n == 0)
+    {
+        // This is an indicator that no replacements should be made
+        intermediate_info->on_create_handlers = NULL;
+        return 0;
+    }
     
-    intermediate_info->handlers =
-        kmalloc(sizeof(*intermediate_info->handlers) * (on_create_handlers_n + 1),
+    intermediate_info->on_create_handlers =
+        kmalloc(sizeof(*intermediate_info->on_create_handlers) * (on_create_handlers_n + 1),
         GFP_KERNEL);
     
-    if(intermediate_info->handlers == NULL)
+    if(intermediate_info->on_create_handlers == NULL)
     {
         pr_err("Failed to allocate array of handlers");
         return -ENOMEM;
@@ -428,12 +446,12 @@ payload_foreign_containter_init_intermediate_info(
         
         if(payload->on_create_handlers)
         {
-            void** on_create_handler;
+            kedr_coi_handler_foreign_t* on_create_handler;
             for(on_create_handler = payload->on_create_handlers;
                 *on_create_handler !=  NULL;
                 on_create_handler++)
                 {
-                    intermediate_info->handlers[i] = *on_create_handler;
+                    intermediate_info->on_create_handlers[i] = *on_create_handler;
                     i++;
                 }
         }
@@ -441,7 +459,7 @@ payload_foreign_containter_init_intermediate_info(
     }
     BUG_ON(i != on_create_handlers_n);
     
-    intermediate_info->handlers[on_create_handlers_n] = NULL;
+    intermediate_info->on_create_handlers[on_create_handlers_n] = NULL;
 
     return 0;
 }
@@ -450,8 +468,8 @@ void
 payload_foreign_containter_destroy_intermediate_info(
     struct kedr_coi_intermediate_foreign_info* intermediate_info)
 {
-    kfree(intermediate_info->handlers);
-    intermediate_info->handlers = NULL;
+    kfree(intermediate_info->on_create_handlers);
+    intermediate_info->on_create_handlers = NULL;
 }
 
 
@@ -460,7 +478,7 @@ payload_foreign_containter_destroy_intermediate_info(
  */
 int
 payload_foreign_containter_create_replacements(
-    struct kedr_coi_payload_foreign_container* container)
+    struct kedr_coi_payloads_foreign_container* container)
 {
     struct kedr_coi_intermediate_foreign* intermediate_operation;
     int replacements_n = 0;
@@ -490,8 +508,8 @@ payload_foreign_containter_create_replacements(
             struct kedr_coi_instrumentor_replacement* replacement =
                 &container->replacements[i];
             
-            replacement[i].operation_offset = intermediate_operation->operation_offset;
-            replacement[i].repl = intermediate_operation->repl;
+            replacement->operation_offset = intermediate_operation->operation_offset;
+            replacement->repl = intermediate_operation->repl;
             
             i++;
         }
@@ -499,5 +517,22 @@ payload_foreign_containter_create_replacements(
     
     container->replacements[replacements_n].operation_offset = -1;
 
+    return 0;
+}
+
+int
+payload_foreign_containter_create_replacements_empty(
+    struct kedr_coi_payloads_foreign_container* container)
+{
+    container->replacements =
+        kmalloc(sizeof(*container->replacements), GFP_KERNEL);
+    if(container->replacements == NULL)
+    {
+        pr_err("Failed to allocate replacements");
+        return -ENOMEM;
+    }
+
+    container->replacements[0].operation_offset = -1;
+    
     return 0;
 }

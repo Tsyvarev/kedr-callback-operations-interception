@@ -113,7 +113,7 @@ static int
 payload_elem_release(struct payload_elem* elem);
 
 
-struct kedr_coi_payload_container
+struct kedr_coi_payloads_container
 {
     struct list_head payload_elems;
     
@@ -139,7 +139,7 @@ struct kedr_coi_payload_container
  */
 static struct kedr_coi_intermediate*
 payload_container_get_intermediate(
-    struct kedr_coi_payload_container* container,
+    struct kedr_coi_payloads_container* container,
     size_t operation_offset);
 
 
@@ -148,7 +148,7 @@ payload_container_get_intermediate(
  */
 static int
 payload_containter_create_replacements(
-    struct kedr_coi_payload_container* container,
+    struct kedr_coi_payloads_container* container,
     struct operations_interception_info* interception_info);
 
 /*
@@ -162,16 +162,16 @@ payload_containter_create_replacements(
  */
 static int
 payload_container_replacements_close_groups(
-    struct kedr_coi_payload_container* container,
+    struct kedr_coi_payloads_container* container,
     struct kedr_coi_instrumentor_replacement** replacements);
 
 /************** Implementation of API ********************************/
 
-struct kedr_coi_payload_container*
-kedr_coi_payload_container_create(
+struct kedr_coi_payloads_container*
+kedr_coi_payloads_container_create(
     struct kedr_coi_intermediate* intermediate_operations)
 {
-    struct kedr_coi_payload_container* container =
+    struct kedr_coi_payloads_container* container =
         kmalloc(sizeof(*container), GFP_KERNEL);
     if(container == NULL)
     {
@@ -194,8 +194,8 @@ kedr_coi_payload_container_create(
 }
 
 void
-kedr_coi_payload_container_destroy(
-    struct kedr_coi_payload_container* container,
+kedr_coi_payloads_container_destroy(
+    struct kedr_coi_payloads_container* container,
     const char* interceptor_name)
 {
     BUG_ON(container->payloads_are_used);
@@ -217,7 +217,7 @@ kedr_coi_payload_container_destroy(
 // Shoud be executed with mutex hold.
 static int
 container_register_payload_internal(
-    struct kedr_coi_payload_container* container,
+    struct kedr_coi_payloads_container* container,
     struct payload_elem* payload_element_new)
 {
     struct payload_elem* payload_element;
@@ -243,8 +243,8 @@ container_register_payload_internal(
 }
 
 int
-kedr_coi_payload_container_register_payload(
-    struct kedr_coi_payload_container* container,
+kedr_coi_payloads_container_register_payload(
+    struct kedr_coi_payloads_container* container,
     struct kedr_coi_payload* payload)
 {
     int result;
@@ -312,7 +312,7 @@ kedr_coi_payload_container_register_payload(
 // Should be executed with mutex hold.
 static void
 container_unregister_payload_internal(
-    struct kedr_coi_payload_container* container,
+    struct kedr_coi_payloads_container* container,
     struct kedr_coi_payload* payload)
 {
     struct payload_elem* payload_element;
@@ -337,8 +337,8 @@ container_unregister_payload_internal(
 }
 
 void
-kedr_coi_payload_container_unregister_payload(
-    struct kedr_coi_payload_container* container,
+kedr_coi_payloads_container_unregister_payload(
+    struct kedr_coi_payloads_container* container,
     struct kedr_coi_payload* payload)
 {
     if(mutex_lock_killable(&container->m))
@@ -354,8 +354,8 @@ kedr_coi_payload_container_unregister_payload(
 
 
 struct kedr_coi_instrumentor_replacement*
-kedr_coi_payload_container_fix_payloads(
-    struct kedr_coi_payload_container* container)
+kedr_coi_payloads_container_fix_payloads(
+    struct kedr_coi_payloads_container* container)
 {
     int result;
 
@@ -420,8 +420,8 @@ interception_info_create_err:
 }
 
 void
-kedr_coi_payload_container_release_payloads(
-    struct kedr_coi_payload_container* container)
+kedr_coi_payloads_container_release_payloads(
+    struct kedr_coi_payloads_container* container)
 {
     struct payload_elem* payload_element;
 
@@ -692,7 +692,7 @@ payload_elem_release(struct payload_elem* elem)
  */
 struct kedr_coi_intermediate*
 payload_container_get_intermediate(
-    struct kedr_coi_payload_container* container,
+    struct kedr_coi_payloads_container* container,
     size_t operation_offset)
 {
     if(container->intermediate_operations)
@@ -716,7 +716,7 @@ payload_container_get_intermediate(
  */
 int
 payload_containter_create_replacements(
-    struct kedr_coi_payload_container* container,
+    struct kedr_coi_payloads_container* container,
     struct operations_interception_info* interception_info)
 {
     int result;
@@ -763,7 +763,7 @@ payload_containter_create_replacements(
 
     result = payload_container_replacements_close_groups(container,
         &container->replacements);
-    if(!result)
+    if(result)
     {
         kfree(container->replacements);
         return result;
@@ -871,7 +871,7 @@ static void intermediate_group_destroy(
 // Return list of all intermediates with given group_id.
 static struct intermediate_group*
 payload_container_get_intermediate_group(
-    struct kedr_coi_payload_container* container,
+    struct kedr_coi_payloads_container* container,
     int group_id)
 {
     struct kedr_coi_intermediate* intermediate_operation;
@@ -937,8 +937,6 @@ void intermediate_groups_destroy(struct intermediate_groups* groups)
         
         intermediate_group_destroy(group);
     }
-    
-    kfree(groups);
 }
 
 static struct intermediate_group*
@@ -964,9 +962,11 @@ intermediate_groups_get_group(struct intermediate_groups* groups,
  */
 int
 payload_container_replacements_close_groups(
-    struct kedr_coi_payload_container* container,
+    struct kedr_coi_payloads_container* container,
     struct kedr_coi_instrumentor_replacement** replacements)
 {
+    struct kedr_coi_instrumentor_replacement* replacements_new;
+    
     int replacements_n;
     int replacements_n_add;
     int i;
@@ -1035,10 +1035,10 @@ payload_container_replacements_close_groups(
     
     // Realloc replacements array for add new replacements to it.
     replacements_n = replacement - *replacements;
-    *replacements = kmalloc(sizeof(**replacements)
+    replacements_new = krealloc(*replacements, sizeof(**replacements)
         * (replacements_n + replacements_n_add + 1), GFP_KERNEL);
     
-    if(*replacements == NULL)
+    if(replacements_new == NULL)
     {
         pr_err("Failed to allocate replacements array closed for intermediate groups.");
         intermediate_groups_destroy(&groups);
@@ -1056,7 +1056,7 @@ payload_container_replacements_close_groups(
             if(!elem->is_added)
             {
                 struct kedr_coi_instrumentor_replacement* replacement =
-                    &(*replacements)[replacements_n + i];
+                    &replacements_new[replacements_n + i];
                 struct kedr_coi_intermediate* intermediate_operation =
                     elem->intermediate;
                 
@@ -1076,7 +1076,9 @@ payload_container_replacements_close_groups(
     }
     BUG_ON(i != replacements_n_add);
     
-    (*replacements)[replacements_n + replacements_n_add].operation_offset = -1;
+    replacements_new[replacements_n + replacements_n_add].operation_offset = -1;
+    
+    *replacements = replacements_new;
     
     intermediate_groups_destroy(&groups);
     

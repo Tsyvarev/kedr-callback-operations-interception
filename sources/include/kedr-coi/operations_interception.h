@@ -246,7 +246,7 @@ struct kedr_coi_payload
 int 
 kedr_coi_payload_register(
     struct kedr_coi_interceptor* interceptor,
-    struct kedr_coi_payload *payload);
+    struct kedr_coi_payload* payload);
 
 
 /*
@@ -260,7 +260,7 @@ kedr_coi_payload_register(
 void 
 kedr_coi_payload_unregister(
     struct kedr_coi_interceptor* interceptor,
-    struct kedr_coi_payload *payload);
+    struct kedr_coi_payload* payload);
 
 
 /*
@@ -450,6 +450,9 @@ kedr_coi_interceptor_destroy(
  * interceptor for foreign object.
  */
 
+// Type of handler functions for foreign interceptor.
+typedef void (*kedr_coi_handler_foreign_t)(void* foreign_object);
+
 /*
  * Information for intermediate foreign operation.
  * 
@@ -461,7 +464,7 @@ struct kedr_coi_intermediate_foreign_info
 {
     //NULL- terminated array of functions which should be called after
     // foreign object is created
-    void** handlers;
+    kedr_coi_handler_foreign_t* on_create_handlers;
 };
 
 
@@ -509,13 +512,13 @@ struct kedr_coi_intermediate_foreign
  */
 
 struct kedr_coi_interceptor*
-kedr_coi_interceptor_create_foreign(const char* name,
+kedr_coi_interceptor_create_foreign(
+    const char* name,
     size_t operations_field_offset,
     size_t operations_struct_size,
     size_t foreign_operations_field_offset,
     struct kedr_coi_intermediate_foreign* intermediate_operations,
-    struct kedr_coi_intermediate_foreign_info* intermediate_info
-);
+    struct kedr_coi_intermediate_foreign_info* intermediate_info);
 
 /*
  * Contain information about what operations one want to intercept
@@ -527,11 +530,8 @@ struct kedr_coi_payload_foreign
     /*
      * NULL-terminated array of functions, which are called when
      * foreign object is created.
-     * 
-     * Such functions should take only one argument - foreign object,
-     * and do not return value.
      */
-    void** on_create_handlers;
+    kedr_coi_handler_foreign_t* on_create_handlers;
 };
 
 /* Registers a payload module with the foreign operations interceptor. 

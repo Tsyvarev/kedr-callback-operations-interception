@@ -24,7 +24,7 @@
 #include "kedr_coi_global_map_internal.h"
 #include "kedr_coi_hash_table_internal.h"
 
-/* Instrumentor for indirect operations (most used)*/
+/* Instrumentor for indirect operations (mostly used)*/
 struct instrumentor_indirect_object_data
 {
     // Replaced operations of object
@@ -78,6 +78,17 @@ instrumentor_indirect_object_ops(
     return (const char**)operations_offset;
 }
 
+
+// Whether need to replace operations in particular object
+static int instrumentor_indirect_is_need_replace_operations(
+    struct kedr_coi_instrumentor_indirect* instrumentor,
+    const char* object_ops)
+{
+    return instrumentor->replacements
+        && (instrumentor->replacements[0].operation_offset != -1);
+}
+
+
 static void
 instrumentor_indirect_object_data_fill(
     struct instrumentor_indirect_object_data* object_data,
@@ -87,6 +98,9 @@ instrumentor_indirect_object_data_fill(
     BUG_ON(object_data == NULL);
     BUG_ON(object_ops == NULL);
     
+    if(!instrumentor_indirect_is_need_replace_operations(instrumentor,
+        object_ops)) return;//object data will no be used, so it needn't to fill
+
     object_data->ops_orig = object_ops;
     memcpy(object_data->ops, object_ops,
         instrumentor->operations_struct_size);
@@ -99,6 +113,7 @@ instrumentor_indirect_object_data_fill(
             *((void**)(object_data->ops + replacement->operation_offset)) = replacement->repl;
     }
 }
+
 
 static struct instrumentor_indirect_object_data*
 instrumentor_indirect_object_data_create(
@@ -135,20 +150,20 @@ instrumentor_indirect_object_data_free(
     kfree(object_data);
 }
 
-
-
-//object_data should be flushed at that moment(barrier)
-static int
+static void
 instrumentor_indirect_replace_operations(
     struct kedr_coi_instrumentor_indirect* instrumentor,
     const char** object_ops_p,
     struct instrumentor_indirect_object_data* object_data)
 {
-    *object_ops_p = object_data->ops;
-    return 0;
+    if(instrumentor_indirect_is_need_replace_operations(instrumentor,
+        object_data->ops_orig))
+    {
+        *object_ops_p = object_data->ops;
+    }
 }
 
-static int
+static void
 instrumentor_indirect_update_operations(
     struct kedr_coi_instrumentor_indirect* instrumentor,
     const char** object_ops_p,
@@ -157,22 +172,19 @@ instrumentor_indirect_update_operations(
     /* 
      * Whether need to update operations in the object, assuming 
      * object_data already updated.
-     * 
-     * We want to update this operations AFTER
-     * object_data is flushed.
-     * 
-     * ~ volatile write
-     * 
-     * This DOES NOT provide 100% data coherence with calling of operations, 
-     * because we cannot control this call at all.
-     * But this may INCREASE this coherence, if operations call use some
-     * synchronization mechanizm.
      */
     int need_update_operations = 1;
 
     unsigned long flags;
-    // Only one dereference of object operations
+
     const char* object_ops = *object_ops_p;
+
+    if(!instrumentor_indirect_is_need_replace_operations(instrumentor,
+        object_data->ops_orig))
+    {
+        //needn't to change operations at all
+        return;
+    }
 
     spin_lock_irqsave(&object_data->lock, flags);
 
@@ -199,8 +211,6 @@ instrumentor_indirect_update_operations(
         //spin_unlock is a write memory barrier, so we needn't another one
         *object_ops_p = object_data->ops;
     }
-    
-    return 1;// '1' is a signal about 'update', not an error
 }
 
 
@@ -242,10 +252,12 @@ instrumentor_indirect_ops_watch(
         // Key already registered
         instrumentor_indirect_object_data_free(object_data_new);
         
-        return instrumentor_indirect_update_operations(
+        instrumentor_indirect_update_operations(
             instrumentor_real,
             object_ops_p,
             object_data);
+        
+        return 1;// '1' is a signal about 'update', not an error
     }
     else
     {
@@ -272,10 +284,12 @@ instrumentor_indirect_ops_watch(
             return result;
         }
 
-        return instrumentor_indirect_replace_operations(
+        instrumentor_indirect_replace_operations(
             instrumentor_real,
             object_ops_p,
             object_data_new);
+        
+        return 0;
     }
 }
 
@@ -315,8 +329,12 @@ instrumentor_indirect_ops_forget(
     if(!norestore)
     {
         // Without lock because object is deleted, so no one should access to it.
-        if(*object_ops_p == object_data->ops)
-            *object_ops_p = object_data->ops_orig;
+        if(instrumentor_indirect_is_need_replace_operations(instrumentor_real,
+            object_data->ops_orig))
+        {
+            if(*object_ops_p == object_data->ops)
+                *object_ops_p = object_data->ops_orig;
+        }
     }
     instrumentor_indirect_object_data_free(object_data);
 
@@ -354,6 +372,8 @@ instrumentor_indirect_ops_get_orig_operation(
     object_data = kedr_coi_hash_table_get(instrumentor_real->objects, key);
     
     BUG_ON(IS_ERR(object_data));
+    
+    BUG_ON(!instrumentor_indirect_is_need_replace_operations(instrumentor_real, object_data->ops_orig));
 
     spin_lock_irqsave(&object_data->lock, flags);
     
@@ -496,6 +516,14 @@ instrumentor_direct_object_key_global(
     return instrumentor_direct_object_key(instrumentor, object);
 }
 
+static int instrumentor_direct_is_need_replace_operations(
+    struct kedr_coi_instrumentor_direct* instrumentor,
+    const void* object)
+{
+    return instrumentor->replacements
+        && (instrumentor->replacements[0].operation_offset != -1);
+}
+
 static struct instrumentor_direct_object_data*
 instrumentor_direct_object_data_create(
     struct kedr_coi_instrumentor_direct* instrumentor,
@@ -591,7 +619,8 @@ instrumentor_direct_ops_watch(
         }
     }
     
-    if(instrumentor_real->replacements)
+    if(instrumentor_direct_is_need_replace_operations(instrumentor_real,
+        object_data->object_ops_orig))
     {
         struct kedr_coi_instrumentor_replacement* replacement;
         for(replacement = instrumentor_real->replacements;
@@ -637,19 +666,23 @@ instrumentor_direct_ops_forget(
         return 1;// some other error
     }
     
-    if(!norestore && instrumentor_real->replacements)
+    if(!norestore)
     {
-        struct kedr_coi_instrumentor_replacement* replacement;
-        
-        for(replacement = instrumentor_real->replacements;
-            replacement->operation_offset != -1;
-            replacement++)
+        if(instrumentor_direct_is_need_replace_operations(instrumentor_real,
+            object_data->object_ops_orig))
         {
-            void* operation_addr = (char*)object + replacement->operation_offset;
-            void* operation_orig_addr =
-                object_data->object_ops_orig + replacement->operation_offset;
+            struct kedr_coi_instrumentor_replacement* replacement;
+            
+            for(replacement = instrumentor_real->replacements;
+                replacement->operation_offset != -1;
+                replacement++)
+            {
+                void* operation_addr = (char*)object + replacement->operation_offset;
+                void* operation_orig_addr =
+                    object_data->object_ops_orig + replacement->operation_offset;
 
-            *((void**)operation_addr) = *((void**)operation_orig_addr);
+                *((void**)operation_addr) = *((void**)operation_orig_addr);
+            }
         }
     }
 
@@ -685,6 +718,9 @@ instrumentor_direct_ops_get_orig_operation(
     object_data = kedr_coi_hash_table_get(instrumentor_real->objects, key);
     
     BUG_ON(IS_ERR(object_data));
+    
+    BUG_ON(!instrumentor_direct_is_need_replace_operations(instrumentor_real,
+        object_data->object_ops_orig));
     
     return *(void**)(object_data->object_ops_orig + operation_offset);
 }

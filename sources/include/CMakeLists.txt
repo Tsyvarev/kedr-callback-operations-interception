@@ -38,7 +38,7 @@ if (NOT CMAKE_CROSSCOMPILING)
 # missing install headers at the testing stage.
 	foreach(include_file ${KEDR_COI_INCLUDE_FILES_INSTALL})
 	    set(include_file_src "${CMAKE_CURRENT_BINARY_DIR}/kedr-coi/${include_file}")
-		get_filename_component(dest_dir "${KEDR_COI_TEST_PREFIX_INCLUDE}/kedr-coi/${include_file}" PATH)
+		get_filename_component(dest_dir "${KEDR_COI_TEST_PREFIX_INCLUDE}/${include_file}" PATH)
 		file(MAKE_DIRECTORY "${dest_dir}")
 		execute_process(COMMAND cp -p "${include_file_src}" "${dest_dir}"
 			RESULT_VARIABLE copy_result)

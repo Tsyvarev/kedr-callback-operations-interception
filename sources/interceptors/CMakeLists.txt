@@ -15,7 +15,7 @@ execute_process(
 )
 
 execute_process(
-	COMMAND mkdir -p "${KEDR_COI_TEST_PREFIX_INCLUDE}/kedr-coi/interceptors"
+	COMMAND mkdir -p "${KEDR_COI_TEST_PREFIX_INCLUDE}/interceptors"
 )
 
 
@@ -49,9 +49,9 @@ function(create_predefined_interceptor_header header_filename data_file)
 	endif(generate_result)
     # Install this header file
     install(FILES "${header_files_dir}/${header_filename}"
-        DESTINATION "${KEDR_COI_INSTALL_PREFIX_INCLUDE}/kedr-coi/interceptors")
+        DESTINATION "${KEDR_COI_INSTALL_PREFIX_INCLUDE}/interceptors")
     # Make this header file available for testing
-    execute_process(COMMAND cp -p -t "${KEDR_COI_TEST_PREFIX_INCLUDE}/kedr-coi/interceptors"
+    execute_process(COMMAND cp -p -t "${KEDR_COI_TEST_PREFIX_INCLUDE}/interceptors"
         "${header_files_dir}/${header_filename}"
         )
 endfunction(create_predefined_interceptor_header header data_file)

@@ -147,7 +147,7 @@ endforeach(var_suffix ${KEDR_COI_ALL_PATH_SUFFIXES})
 # Root of include tree in building package
 #
 # NOTE: this path is used only for tests, not for building package itself.
-set(KEDR_COI_TEST_PREFIX_INCLUDE "${CMAKE_BINARY_DIR}/include/install")
+set(KEDR_COI_TEST_PREFIX_INCLUDE "${CMAKE_BINARY_DIR}/include/install/kedr-coi")
 
 set(KEDR_COI_TEST_PREFIX_TEMPLATES "${CMAKE_SOURCE_DIR}/templates")
 set(KEDR_COI_TEST_PREFIX_INTERCEPTORS "${CMAKE_BINARY_DIR}/interceptors")

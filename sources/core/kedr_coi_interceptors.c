@@ -35,7 +35,7 @@ struct kedr_coi_interceptor_normal
 {
     struct kedr_coi_interceptor base;
     
-    struct kedr_coi_payload_container* payload_container;
+    struct kedr_coi_payloads_container* payload_container;
     struct kedr_coi_instrumentor *instrumentor;
 };
 
@@ -46,14 +46,14 @@ static struct kedr_coi_instrumentor_replacement*
 interceptor_normal_fix_payloads(
     struct kedr_coi_interceptor_normal* interceptor)
 {
-    return kedr_coi_payload_container_fix_payloads(interceptor->payload_container);
+    return kedr_coi_payloads_container_fix_payloads(interceptor->payload_container);
 }
 
 static void
 interceptor_normal_release_payloads(
     struct kedr_coi_interceptor_normal* interceptor)
 {
-    kedr_coi_payload_container_release_payloads(interceptor->payload_container);
+    kedr_coi_payloads_container_release_payloads(interceptor->payload_container);
 }
 
 
@@ -119,7 +119,7 @@ static int interceptor_normal_payload_register(
     struct kedr_coi_interceptor_normal* interceptor_real =
         interceptor_normal(interceptor);
     
-    return kedr_coi_payload_container_register_payload(
+    return kedr_coi_payloads_container_register_payload(
         interceptor_real->payload_container, payload);
 }
 
@@ -130,7 +130,7 @@ static void interceptor_normal_payload_unregister(
     struct kedr_coi_interceptor_normal* interceptor_real =
         interceptor_normal(interceptor);
     
-    kedr_coi_payload_container_unregister_payload(
+    kedr_coi_payloads_container_unregister_payload(
         interceptor_real->payload_container, payload);
 }
 
@@ -146,7 +146,7 @@ interceptor_normal_init(struct kedr_coi_interceptor_normal* interceptor,
         name,
         ops);
     
-    interceptor->payload_container = kedr_coi_payload_container_create(
+    interceptor->payload_container = kedr_coi_payloads_container_create(
         intermediate_operations);
 
     return interceptor->payload_container ? 0 : -EINVAL;
@@ -155,7 +155,7 @@ interceptor_normal_init(struct kedr_coi_interceptor_normal* interceptor,
 static void
 interceptor_normal_destroy(struct kedr_coi_interceptor_normal* interceptor)
 {
-    kedr_coi_payload_container_destroy(interceptor->payload_container,
+    kedr_coi_payloads_container_destroy(interceptor->payload_container,
         interceptor->base.name);
 }
 
@@ -367,6 +367,8 @@ kedr_coi_interceptor_create_direct(const char* name,
         return NULL;
     }
     
+    interceptor->object_struct_size = object_struct_size;
+    
     return &interceptor->normal.base;
 }
 
@@ -375,7 +377,7 @@ struct kedr_coi_interceptor_foreign
 {
     struct kedr_coi_interceptor base;
     
-    struct kedr_coi_payload_foreign_container* payload_container;
+    struct kedr_coi_payloads_foreign_container* payload_container;
     struct kedr_coi_instrumentor* instrumentor;
     
     size_t operations_field_offset;
@@ -395,7 +397,7 @@ interceptor_foreign_start(
     struct kedr_coi_interceptor_foreign* interceptor_real =
         interceptor_foreign(interceptor);
     
-    replacements = kedr_coi_payload_foreign_container_fix_payloads(
+    replacements = kedr_coi_payloads_foreign_container_fix_payloads(
         interceptor_real->payload_container);
     
     if(IS_ERR(replacements))
@@ -409,7 +411,7 @@ interceptor_foreign_start(
 
     if(instrumentor == NULL)
     {
-        kedr_coi_payload_foreign_container_release_payloads(
+        kedr_coi_payloads_foreign_container_release_payloads(
             interceptor_real->payload_container);
         
         return -EINVAL;//some error
@@ -430,7 +432,7 @@ interceptor_foreign_stop(
     
     kedr_coi_instrumentor_destroy(interceptor_real->instrumentor);
     
-    kedr_coi_payload_foreign_container_release_payloads(
+    kedr_coi_payloads_foreign_container_release_payloads(
         interceptor_real->payload_container);
 }
 
@@ -484,7 +486,7 @@ static int interceptor_foreign_payload_register(
     struct kedr_coi_interceptor_foreign* interceptor_real =
         interceptor_foreign(interceptor);
     
-    return kedr_coi_payload_foreign_container_register_payload(
+    return kedr_coi_payloads_foreign_container_register_payload(
         interceptor_real->payload_container, payload);
 }
 
@@ -495,7 +497,7 @@ static void interceptor_foreign_payload_unregister(
     struct kedr_coi_interceptor_foreign* interceptor_real =
         interceptor_foreign(interceptor);
     
-    kedr_coi_payload_foreign_container_unregister_payload(
+    kedr_coi_payloads_foreign_container_unregister_payload(
         interceptor_real->payload_container, payload);
 }
 
@@ -505,7 +507,7 @@ interceptor_foreign_destroy(struct kedr_coi_interceptor* interceptor)
     struct kedr_coi_interceptor_foreign* interceptor_real =
         interceptor_foreign(interceptor);
     
-    kedr_coi_payload_foreign_container_destroy(interceptor_real->payload_container,
+    kedr_coi_payloads_foreign_container_destroy(interceptor_real->payload_container,
         interceptor->name);
     
     kfree(interceptor_real);
@@ -547,7 +549,7 @@ kedr_coi_interceptor_create_foreign(
         return NULL;
     }
     
-    interceptor->payload_container = kedr_coi_payload_foreign_container_create(
+    interceptor->payload_container = kedr_coi_payloads_foreign_container_create(
         intermediate_operations,
         intermediate_info);
     

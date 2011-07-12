@@ -11,11 +11,11 @@
     kedr_coi_interceptor_foreign_restore_copy(interceptor,
         <$operation.object$>, foreign_object);
     
-    if(intermediate_info.handlers != NULL)
+    if(intermediate_info.on_create_handlers != NULL)
     {
-        void (**on_create_handler)(foreign_object_t *foreign_object);
+        kedr_coi_handler_foreign_t* on_create_handler;
         
-        for(on_create_handler = (typeof(on_create_handler))intermediate_info.handlers;
+        for(on_create_handler = intermediate_info.on_create_handlers;
             *on_create_handler != NULL;
             on_create_handler++)
             (*on_create_handler)(foreign_object);

@@ -117,7 +117,7 @@ message (STATUS "Build type is \"${CMAKE_BUILD_TYPE}\"")
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     kbuild_add_definitions(
-        "-DKEDR_COI_DEBUG"
+        "-DKEDR_COI_DEBUG -g"
     )
 endif()
 
