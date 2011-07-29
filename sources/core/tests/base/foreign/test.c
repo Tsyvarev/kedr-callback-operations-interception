@@ -29,20 +29,20 @@ struct test_object_foreign
 };
 
 
-struct kedr_coi_interceptor* interceptor;
-
-static struct kedr_coi_intermediate_foreign_info intermediate_info;
+struct kedr_coi_foreign_interceptor* interceptor;
 
 static int repl_was_called;
 //Model implementation of intermediate function
 static int do_something_repl(struct test_object_foreign* object_foreign, int value)
 {
+    struct kedr_coi_foreign_intermediate_info intermediate_info;
     struct test_object* object = object_foreign->object;
     repl_was_called = 1;
     
-    if(kedr_coi_interceptor_foreign_restore_copy(interceptor,
+    if(kedr_coi_foreign_interceptor_restore_copy(interceptor,
         object,
-        object_foreign))
+        object_foreign,
+        &intermediate_info))
     {
         pr_err("Failed to restore copy of foreign operations.");
         test_failed = 1;
@@ -50,7 +50,7 @@ static int do_something_repl(struct test_object_foreign* object_foreign, int val
 
     if(intermediate_info.on_create_handlers)
     {
-        kedr_coi_handler_foreign_t* on_create_handler;
+        const kedr_coi_foreign_handler_t* on_create_handler;
         for(on_create_handler = intermediate_info.on_create_handlers;
             *on_create_handler != NULL;
             on_create_handler++)
@@ -64,7 +64,7 @@ static int do_something_repl(struct test_object_foreign* object_foreign, int val
         : 0;
 }
 
-static struct kedr_coi_intermediate_foreign intermediates[] =
+static struct kedr_coi_foreign_intermediate intermediates[] =
 {
     {
         .operation_offset = offsetof(struct test_operations_foreign, do_something),
@@ -100,14 +100,14 @@ void on_foreign_object_create(void* object_foreign)
     }
 }
 
-static kedr_coi_handler_foreign_t on_create_handlers[] =
+static kedr_coi_foreign_handler_t on_create_handlers[] =
 {
     &on_foreign_object_create,
     NULL
 };
 
 
-static struct kedr_coi_payload_foreign payload =
+static struct kedr_coi_foreign_payload payload =
 {
     .on_create_handlers = on_create_handlers
 };
@@ -117,12 +117,11 @@ static struct kedr_coi_payload_foreign payload =
 int test_init(void)
 {
     int result;
-    interceptor = kedr_coi_interceptor_create_foreign("test_interceptor",
+    interceptor = kedr_coi_foreign_interceptor_create("test_interceptor",
         offsetof(struct test_object, ops_foreign),
         sizeof(struct test_operations_foreign),
         offsetof(struct test_object_foreign, ops),
-        intermediates,
-        &intermediate_info);
+        intermediates);
     
     if(interceptor == NULL)
     {
@@ -130,20 +129,20 @@ int test_init(void)
         return -EINVAL;
     }
     
-    result = kedr_coi_payload_foreign_register(interceptor, &payload);
+    result = kedr_coi_foreign_payload_register(interceptor, &payload);
     if(result)
     {
         pr_err("Failed to register payload.");
-        kedr_coi_interceptor_destroy(interceptor);
+        kedr_coi_foreign_interceptor_destroy(interceptor);
         return result;
     }
     
-    result = kedr_coi_interceptor_start(interceptor);
+    result = kedr_coi_foreign_interceptor_start(interceptor);
     if(result)
     {
         pr_err("Failed to start interceptor");
-        kedr_coi_payload_foreign_unregister(interceptor, &payload);
-        kedr_coi_interceptor_destroy(interceptor);
+        kedr_coi_foreign_payload_unregister(interceptor, &payload);
+        kedr_coi_foreign_interceptor_destroy(interceptor);
         return result;
     }
     
@@ -152,9 +151,9 @@ int test_init(void)
 
 void test_cleanup(void)
 {
-    kedr_coi_interceptor_stop(interceptor);
-    kedr_coi_payload_foreign_unregister(interceptor, &payload);
-    kedr_coi_interceptor_destroy(interceptor);
+    kedr_coi_foreign_interceptor_stop(interceptor, NULL);
+    kedr_coi_foreign_payload_unregister(interceptor, &payload);
+    kedr_coi_foreign_interceptor_destroy(interceptor);
 }
 
 int test_run(void)
@@ -166,7 +165,7 @@ int test_run(void)
         .ops_foreign = &ops_foreign
     };
     
-    result = kedr_coi_interceptor_watch(interceptor, &object);
+    result = kedr_coi_foreign_interceptor_watch(interceptor, &object);
     
     if(result < 0)
     {
@@ -176,7 +175,7 @@ int test_run(void)
     
     if(result > 0)
     {
-        pr_err("kedr_coi_interceptor_watch() returns positive value for "
+        pr_err("kedr_coi_foreign_interceptor_watch() returns positive value for "
             "first watching for an object.");
         return -EINVAL;
     }
@@ -213,7 +212,7 @@ int test_run(void)
     }
     
     
-    result = kedr_coi_interceptor_forget(interceptor, &object);
+    result = kedr_coi_foreign_interceptor_forget(interceptor, &object);
     if(result < 0)
     {
         pr_err("Failed to forget object.");

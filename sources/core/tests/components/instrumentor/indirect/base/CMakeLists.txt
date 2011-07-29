@@ -6,15 +6,11 @@ kedr_coi_test_add_kernel("base"
     ${module_name}
     "test.c"
     "instrumentor_test_common.c"
-    "kedr_coi_instrumentors.c"
-    "kedr_coi_global_map.c"
-    "kedr_coi_hash_table.c"
+    ${instrumentor_sources}
 )
 
 rule_copy_source("${core_dir}"
-    "kedr_coi_instrumentors.c"
-    "kedr_coi_global_map.c"
-    "kedr_coi_hash_table.c"
+    ${instrumentor_sources}
 )
 
 rule_copy_source("${instrumentor_test_common_dir}"

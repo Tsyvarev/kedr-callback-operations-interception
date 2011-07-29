@@ -1,0 +1,225 @@
+interceptor.name = dentry_operations_interceptor
+interceptor.operations_prefix = dentry_operations
+
+header =>>
+/* ========================================================================
+ * Copyright (C) 2011, Andrey V. Tsyvarev  <tsyvarev@ispras.ru>
+ *
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ ======================================================================== */
+
+
+#include <linux/fs.h>
+<<
+
+implementation_header=>>
+
+static int prepend(char **buffer, int *buflen, const char *str, int namelen)
+{
+    *buflen -= namelen;
+    if (*buflen < 0)
+         return -ENAMETOOLONG;
+    *buffer -= namelen;
+    memcpy(*buffer, str, namelen);
+    return 0;
+}
+
+static int prepend_name(char **buffer, int *buflen, struct qstr *name)
+{
+    return prepend(buffer, buflen, name->name, name->len);
+}
+
+
+static char *dentry_path_my(struct dentry *dentry, char *buf, int buflen)
+{
+    char *end = buf + buflen;
+    char *retval;
+
+    spin_lock(&dcache_lock);
+    prepend(&end, &buflen, "\0", 1);
+    if (d_unlinked(dentry) &&
+         (prepend(&end, &buflen, "//deleted", 9) != 0))
+                 goto Elong;
+    if (buflen < 1)
+         goto Elong;
+    /* Get '/' right */
+    retval = end-1;
+    *retval = '/';
+
+    while (!IS_ROOT(dentry)) {
+         struct dentry *parent = dentry->d_parent;
+
+         prefetch(parent);
+         if ((prepend_name(&end, &buflen, &dentry->d_name) != 0) ||
+             (prepend(&end, &buflen, "/", 1) != 0))
+                 goto Elong;
+
+         retval = end;
+         dentry = parent;
+    }
+    spin_unlock(&dcache_lock);
+    return retval;
+Elong:
+    spin_unlock(&dcache_lock);
+    return ERR_PTR(-ENAMETOOLONG);
+}
+
+<<
+
+object.type = struct dentry
+object.operations_field = d_op
+
+operations.type = struct dentry_operations
+
+[group]
+operation.name = d_revalidate
+operation.returnType = int
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = struct nameidata *
+operation.arg.name = nd
+
+operation.object = dentry
+
+operation.default = return 1;//always valid dentry
+
+[group]
+operation.name = d_hash
+operation.returnType = int
+
+#operation.arg.type = const struct dentry *
+#operation.arg.name = dentry
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+# New kernel has also following argument:
+
+#operation.arg.type = const struct inode *
+#operation.arg.name = inode
+
+operation.arg.type = struct qstr *
+operation.arg.name = qstr
+
+operation.object = dentry
+
+operation.default =>>
+// Some implementation of hash
+qstr->hash = full_name_hash(qstr->name, qstr->len);
+return 0;
+<<
+
+[group]
+operation.name = d_compare
+operation.returnType = int
+
+# New kernels has following signature:
+
+#operation.arg.type = const struct dentry *
+#operation.arg.name = dentry1
+
+#operation.arg.type = const struct inode *
+#operation.arg.name = inode1
+
+#operation.arg.type = const struct dentry *
+#operation.arg.name = dentry2
+
+#operation.arg.type = const struct inode *
+#operation.arg.name = inode2
+
+#operation.arg.type = unsigned int
+#operation.arg.name = len1
+
+#operation.arg.type = const char *
+#operation.arg.name = str1
+
+#operation.arg.type = const struct qstr *
+#operation.arg.name = qstr2
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry1
+
+operation.arg.type = struct qstr *
+operation.arg.name = qstr1
+
+operation.arg.type = struct qstr *
+operation.arg.name = qstr2
+
+
+operation.object = dentry1
+
+# Fow new kernel:
+#operation.default = return (len1 != qstr2->len) || memcmp(str1, qstr2->name, len1);//simple string comparision
+
+operation.default return (qstr1->len != qstr2->len) || memcmp(qstr1->name, qstr2->name, qstr1->len);//simple string comparision
+[group]
+operation.name = d_delete
+operation.returnType = int
+
+# In new kernels type is 'const struct dentry *'
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.object = dentry
+
+operation.default = return 0;// do not delete
+
+
+[group]
+operation.name = d_release
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.object = dentry
+
+operation.default = return;//do nothing
+
+
+[group]
+operation.name = d_iput
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = struct inode *
+operation.arg.name = inode
+
+operation.object = dentry
+
+operation.default = iput(inode);
+
+[group]
+operation.name = d_dname
+operation.returnType = char *
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = char *
+operation.arg.name = buf
+
+operation.arg.type = int
+operation.arg.name = buflen
+
+operation.object = dentry
+
+# In new kernel function name is 'dentry_path_raw'
+operation.default = return dentry_path_my(dentry, buf, buflen);
+
+
+## automount and manage operations should be added(conditionally)

@@ -10,8 +10,8 @@
 
 <$endif$>static struct kedr_coi_interceptor* interceptor = NULL;
 
-#define OPERATION_OFFSET(operation_name) offsetof(<$if interceptor.is_direct$><$object.type$><$else$><$operations.type$><$endif$>, operation_name)
-#define OPERATION_TYPE(operation_name) typeof(((<$if interceptor.is_direct$><$object.type$><$else$><$operations.type$><$endif$>*)0)->operation_name)
+#define OPERATION_OFFSET(operation_name) offsetof(<$operations_type$>, operation_name)
+#define OPERATION_TYPE(operation_name) typeof(((<$operations_type$>*)0)->operation_name)
 #define OPERATION_CHECKED_TYPE(op, operation_name) \
 (BUILD_BUG_ON_ZERO(!__builtin_types_compatible_p(typeof(op), OPERATION_TYPE(operation_name))) + op)
 
@@ -63,25 +63,22 @@ int <$interceptor.name$>_start(void)
     return kedr_coi_interceptor_start(interceptor);
 }
 
-void <$interceptor.name$>_stop(void)
+void <$interceptor.name$>_stop(void (*trace_unforgotten_object)(<$object.type$>* object))
 {
-    kedr_coi_interceptor_stop(interceptor);
+    kedr_coi_interceptor_stop(interceptor, (void (*) (void* object))trace_unforgotten_object);
 }
 
 int <$interceptor.name$>_watch(<$object.type$> *object)
 {
-    return kedr_coi_interceptor_watch(
-        interceptor, object);
+    return kedr_coi_interceptor_watch(interceptor, object);
 }
 
 int <$interceptor.name$>_forget(<$object.type$> *object)
 {
-    return kedr_coi_interceptor_forget(
-        interceptor, object);
+    return kedr_coi_interceptor_forget(interceptor, object);
 }
 
 int <$interceptor.name$>_forget_norestore(<$object.type$> *object)
 {
-    return kedr_coi_interceptor_forget_norestore(
-        interceptor, object);
+    return kedr_coi_interceptor_forget_norestore(interceptor, object);
 }

@@ -22,213 +22,289 @@
 
 #include <kedr-coi/operations_interception.h>
 
-#include "kedr_coi_base_internal.h"
 #include "kedr_coi_instrumentor_internal.h"
 
 #include "kedr_coi_payloads_internal.h"
-#include "kedr_coi_payloads_foreign_internal.h"
+#include "kedr_coi_payloads_internal.h"
 
-
-/* Interceptor for objects with its own operations. */
-
-struct kedr_coi_interceptor_normal
+/*
+ *  State of the interceptor.
+ * 
+ * Useful for selfchecking and for ignore some operations in incorrect state.
+ */
+enum interceptor_state
 {
-    struct kedr_coi_interceptor base;
-    
-    struct kedr_coi_payloads_container* payload_container;
-    struct kedr_coi_instrumentor *instrumentor;
+	interceptor_state_uninitialized = 0,
+	interceptor_state_initialized,
+	interceptor_state_started,
 };
 
-#define interceptor_normal(interceptor) container_of(interceptor, struct kedr_coi_interceptor_normal, base)
+//********** Interceptor for objects with its own operations **********
 
-/* For implementation of children's start() */
-static struct kedr_coi_instrumentor_replacement*
-interceptor_normal_fix_payloads(
-    struct kedr_coi_interceptor_normal* interceptor)
+/* 
+ * Operations which differs in interceptors of different types.
+ */
+struct interceptor_operations
 {
-    return kedr_coi_payloads_container_fix_payloads(interceptor->payload_container);
-}
+    // Return instrumentor for work with given replacements
+    struct kedr_coi_instrumentor* (*get_instrumentor)(
+        struct kedr_coi_interceptor* interceptor,
+        const struct kedr_coi_replacement* replacements);
+    // Free instance of the interceptor
+    void (*free_instance)(struct kedr_coi_interceptor* interceptor);
+};
 
-static void
-interceptor_normal_release_payloads(
-    struct kedr_coi_interceptor_normal* interceptor)
+
+struct kedr_coi_interceptor
 {
-    kedr_coi_payloads_container_release_payloads(interceptor->payload_container);
-}
-
-
-static void
-interceptor_normal_stop(
-    struct kedr_coi_interceptor* interceptor)
-{
-    struct kedr_coi_interceptor_normal* interceptor_real =
-        interceptor_normal(interceptor);
+    const char* name;
+    const struct interceptor_operations* ops;
     
-    kedr_coi_instrumentor_destroy(interceptor_real->instrumentor);
+    int state;
+
+    struct kedr_coi_payloads_container* payloads_container;
+    // Is used only in the interception state
+    struct kedr_coi_instrumentor* instrumentor;
+};
+
+
+/*
+ * Initialize fields of the base interceptor structure.
+ */
+int
+interceptor_init_common(
+    struct kedr_coi_interceptor* interceptor,
+    const char* name,
+    const struct interceptor_operations* ops,
+    struct kedr_coi_intermediate* intermediate_operations)
+{
+    interceptor->name = name;
+    interceptor->ops = ops;
     
-    interceptor_normal_release_payloads(interceptor_real);
+    interceptor->state = interceptor_state_initialized;
+    
+    interceptor->payloads_container = kedr_coi_payloads_container_create(
+        intermediate_operations);
+
+    return interceptor->payloads_container ? 0 : -EINVAL;
 }
 
-static int
-interceptor_normal_watch(
+int kedr_coi_interceptor_start(struct kedr_coi_interceptor* interceptor)
+{
+	int result;
+	
+    struct kedr_coi_instrumentor* instrumentor;
+    
+	BUG_ON(interceptor->state != interceptor_state_initialized);
+
+    result = kedr_coi_payloads_container_fix_payloads(
+        interceptor->payloads_container);
+    
+    if(result) return result;
+    
+    instrumentor = interceptor->ops->get_instrumentor(interceptor,
+        kedr_coi_payloads_container_get_replacements(interceptor->payloads_container));
+
+    if(instrumentor == NULL)
+    {
+        kedr_coi_payloads_container_release_payloads(
+            interceptor->payloads_container);
+        
+        return -EINVAL;//some error
+    }
+
+    interceptor->instrumentor = instrumentor;
+    
+    interceptor->state = interceptor_state_started;
+
+    return 0;
+}
+
+
+void kedr_coi_interceptor_stop(struct kedr_coi_interceptor* interceptor,
+	void (*trace_unforgotten_object)(void* object))
+{
+	BUG_ON(interceptor->state == interceptor_state_uninitialized);
+	
+	if(interceptor->state == interceptor_state_initialized)
+		return;// Assume that start() was called but failed
+
+    kedr_coi_instrumentor_destroy(interceptor->instrumentor,
+        trace_unforgotten_object);
+    
+    kedr_coi_payloads_container_release_payloads(
+         interceptor->payloads_container);
+	
+	interceptor->state = interceptor_state_initialized;
+}
+
+int kedr_coi_interceptor_watch(
     struct kedr_coi_interceptor* interceptor,
     void* object)
 {
-    struct kedr_coi_interceptor_normal* interceptor_real =
-        interceptor_normal(interceptor);
-    
+	if(interceptor->state == interceptor_state_initialized)
+		return -EPERM;
+
+	BUG_ON(interceptor->state != interceptor_state_started);
+	
     return kedr_coi_instrumentor_watch(
-        interceptor_real->instrumentor,
-        object);
+        interceptor->instrumentor, object);
 }
 
-static int
-interceptor_normal_forget(
+int kedr_coi_interceptor_forget(
     struct kedr_coi_interceptor* interceptor,
-    void* object,
-    int norestore)
+    void* object)
 {
-    struct kedr_coi_interceptor_normal* interceptor_real =
-        interceptor_normal(interceptor);
-    
+	if(interceptor->state == interceptor_state_initialized)
+		return -EPERM;
+
+	BUG_ON(interceptor->state != interceptor_state_started);
+
     return kedr_coi_instrumentor_forget(
-        interceptor_real->instrumentor,
+        interceptor->instrumentor,
         object,
-        norestore);
+        0);
 }
 
-static void*
-interceptor_normal_get_orig_operation(
+int kedr_coi_interceptor_forget_norestore(
     struct kedr_coi_interceptor* interceptor,
-    const void* object,
-    size_t operation_offset)
+    void* object)
 {
-    struct kedr_coi_interceptor_normal* interceptor_real =
-        interceptor_normal(interceptor);
-    
-    return kedr_coi_instrumentor_get_orig_operation(
-        interceptor_real->instrumentor,
+	if(interceptor->state == interceptor_state_initialized)
+		return -EPERM;
+
+	BUG_ON(interceptor->state != interceptor_state_started);
+
+    return kedr_coi_instrumentor_forget(
+        interceptor->instrumentor,
         object,
-        operation_offset);
+        1);
 }
 
-static int interceptor_normal_payload_register(
-    struct kedr_coi_interceptor* interceptor,
-    struct kedr_coi_payload* payload)
+int kedr_coi_payload_register(
+	struct kedr_coi_interceptor* interceptor,
+	struct kedr_coi_payload* payload)
 {
-    struct kedr_coi_interceptor_normal* interceptor_real =
-        interceptor_normal(interceptor);
-    
+	// "hot" registering of payload is permitted at abstract level
+	BUG_ON((interceptor->state != interceptor_state_initialized)
+		&& (interceptor->state != interceptor_state_started));
+
     return kedr_coi_payloads_container_register_payload(
-        interceptor_real->payload_container, payload);
+        interceptor->payloads_container, payload);
+
 }
 
-static void interceptor_normal_payload_unregister(
-    struct kedr_coi_interceptor* interceptor,
-    struct kedr_coi_payload* payload)
+void kedr_coi_payload_unregister(
+	struct kedr_coi_interceptor* interceptor,
+	struct kedr_coi_payload* payload)
 {
-    struct kedr_coi_interceptor_normal* interceptor_real =
-        interceptor_normal(interceptor);
-    
+	BUG_ON((interceptor->state != interceptor_state_initialized)
+		&& (interceptor->state != interceptor_state_started));
+
     kedr_coi_payloads_container_unregister_payload(
-        interceptor_real->payload_container, payload);
+        interceptor->payloads_container, payload);
 }
 
 
-/* For implementation of children's constructors ('create' method) */
-static int
-interceptor_normal_init(struct kedr_coi_interceptor_normal* interceptor,
-    const char* name,
-    const struct kedr_coi_interceptor_operations* ops,
-    struct kedr_coi_intermediate* intermediate_operations)
+int kedr_coi_interceptor_get_intermediate_info(
+	struct kedr_coi_interceptor* interceptor,
+	const void* object,
+	size_t operation_offset,
+	struct kedr_coi_intermediate_info* info)
 {
-    interceptor_common_init(&interceptor->base,
-        name,
-        ops);
+    int result;
+    const void* ops_orig;
     
-    interceptor->payload_container = kedr_coi_payloads_container_create(
-        intermediate_operations);
-
-    return interceptor->payload_container ? 0 : -EINVAL;
+	BUG_ON(interceptor->state != interceptor_state_started);
+    
+    result = kedr_coi_instrumentor_get_orig_operations(
+        interceptor->instrumentor,
+        object,
+        &ops_orig);
+    
+    if(result < 0) return result;
+    info->op_orig = *(void**)((const char*)ops_orig + operation_offset);
+    if(result == 0)
+    {
+        result = kedr_coi_payloads_container_get_handlers(
+            interceptor->payloads_container,
+            operation_offset,
+            &info->pre,
+            &info->post);
+        
+        if(result)
+        {
+            // as if no handlers
+            info->pre = NULL;
+            info->post = NULL;
+        }
+    }
+    else
+    {
+        // without handlers - as if no interception at all.
+        info->pre = NULL;
+        info->post = NULL;
+    }
+    
+    return 0;
 }
 
-static void
-interceptor_normal_destroy(struct kedr_coi_interceptor_normal* interceptor)
+
+void kedr_coi_interceptor_destroy(
+	struct kedr_coi_interceptor* interceptor)
 {
-    kedr_coi_payloads_container_destroy(interceptor->payload_container,
-        interceptor->base.name);
+	BUG_ON(interceptor->state != interceptor_state_initialized);
+	
+	// For selfcontrol
+	interceptor->state = interceptor_state_uninitialized;
+	
+    kedr_coi_payloads_container_destroy(interceptor->payloads_container,
+        interceptor->name);
+    
+    interceptor->ops->free_instance(interceptor);
 }
 
 /* Interceptor for objects with indirect operations(mostly used). */
 
 struct kedr_coi_interceptor_indirect
 {
-    struct kedr_coi_interceptor_normal normal;
+    struct kedr_coi_interceptor base;
     
     size_t operations_field_offset;
     size_t operations_struct_size;
 };
 
-#define interceptor_indirect(interceptor) container_of(interceptor_normal(interceptor), struct kedr_coi_interceptor_indirect, normal)
+#define interceptor_indirect(interceptor) container_of(interceptor, struct kedr_coi_interceptor_indirect, base)
 
-static int
-interceptor_indirect_start(
-    struct kedr_coi_interceptor* interceptor)
+static struct kedr_coi_instrumentor*
+interceptor_indirect_op_get_instrumentor(
+    struct kedr_coi_interceptor* interceptor,
+    const struct kedr_coi_replacement* replacements)
 {
-    struct kedr_coi_instrumentor* instrumentor;
-    struct kedr_coi_instrumentor_replacement* replacements;
     struct kedr_coi_interceptor_indirect* interceptor_real =
         interceptor_indirect(interceptor);
     
-    replacements = interceptor_normal_fix_payloads(
-        &interceptor_real->normal);
-    
-    if(IS_ERR(replacements))
-        return PTR_ERR(replacements);
-    
-    instrumentor = kedr_coi_instrumentor_create_indirect(
+    return kedr_coi_instrumentor_create_indirect(
         interceptor_real->operations_field_offset,
         interceptor_real->operations_struct_size,
         replacements);
-
-    if(instrumentor == NULL)
-    {
-        interceptor_normal_release_payloads(&interceptor_real->normal);
-        
-        return -EINVAL;//some error
-    }
-
-    interceptor_real->normal.instrumentor = instrumentor;
-    
-    return 0;
 }
 
+
 static void
-interceptor_indirect_destroy(struct kedr_coi_interceptor* interceptor)
+interceptor_indirect_op_free_instance(struct kedr_coi_interceptor* interceptor)
 {
     struct kedr_coi_interceptor_indirect* interceptor_real =
         interceptor_indirect(interceptor);
-    
-    interceptor_normal_destroy(&interceptor_real->normal);
     
     kfree(interceptor_real);
 }
 
 
-static struct kedr_coi_interceptor_operations interceptor_indirect_ops =
+static struct interceptor_operations interceptor_indirect_ops =
 {
-    .start = interceptor_indirect_start,
-    .stop = interceptor_normal_stop,
-
-    .watch = interceptor_normal_watch,
-    .forget = interceptor_normal_forget,
-    
-    .get_orig_operation = interceptor_normal_get_orig_operation,
-    
-    .payload_register = interceptor_normal_payload_register,
-    .payload_unregister = interceptor_normal_payload_unregister,
-    
-    .destroy = interceptor_indirect_destroy,
+    .get_instrumentor = interceptor_indirect_op_get_instrumentor,
+    .free_instance = interceptor_indirect_op_free_instance
 };
 
 struct kedr_coi_interceptor*
@@ -248,7 +324,7 @@ kedr_coi_interceptor_create(const char* name,
         return NULL;
     }
     
-    result = interceptor_normal_init(&interceptor->normal,
+    result = interceptor_init_common(&interceptor->base,
         name,
         &interceptor_indirect_ops,
         intermediate_operations);
@@ -264,7 +340,7 @@ kedr_coi_interceptor_create(const char* name,
     interceptor->operations_field_offset = operations_field_offset;
     interceptor->operations_struct_size = operations_struct_size;
     
-    return &interceptor->normal.base;
+    return &interceptor->base;
 }
 
 
@@ -272,70 +348,42 @@ kedr_coi_interceptor_create(const char* name,
 
 struct kedr_coi_interceptor_direct
 {
-    struct kedr_coi_interceptor_normal normal;
+    struct kedr_coi_interceptor base;
     
     size_t object_struct_size;
 };
 
-#define interceptor_direct(interceptor) container_of(interceptor_normal(interceptor), struct kedr_coi_interceptor_direct, normal)
+#define interceptor_direct(interceptor) container_of(interceptor, struct kedr_coi_interceptor_direct, base)
 
-static int
-interceptor_direct_start(
-    struct kedr_coi_interceptor* interceptor)
+
+static struct kedr_coi_instrumentor*
+interceptor_direct_op_get_instrumentor(
+    struct kedr_coi_interceptor* interceptor,
+    const struct kedr_coi_replacement* replacements)
 {
-    struct kedr_coi_instrumentor* instrumentor;
-    struct kedr_coi_instrumentor_replacement* replacements;
     struct kedr_coi_interceptor_direct* interceptor_real =
         interceptor_direct(interceptor);
     
-    replacements = interceptor_normal_fix_payloads(
-        &interceptor_real->normal);
-    
-    if(IS_ERR(replacements))
-        return PTR_ERR(replacements);
-    
-    instrumentor = kedr_coi_instrumentor_create_direct(
+    return kedr_coi_instrumentor_create_direct(
         interceptor_real->object_struct_size,
         replacements);
-
-    if(instrumentor == NULL)
-    {
-        interceptor_normal_release_payloads(&interceptor_real->normal);
-        
-        return -EINVAL;//some error
-    }
-
-    interceptor_real->normal.instrumentor = instrumentor;
-    
-    return 0;
 }
 
+
 static void
-interceptor_direct_destroy(struct kedr_coi_interceptor* interceptor)
+interceptor_direct_op_free_instance(struct kedr_coi_interceptor* interceptor)
 {
     struct kedr_coi_interceptor_direct* interceptor_real =
         interceptor_direct(interceptor);
-    
-    interceptor_normal_destroy(&interceptor_real->normal);
     
     kfree(interceptor_real);
 }
 
 
-static struct kedr_coi_interceptor_operations interceptor_direct_ops =
+static struct interceptor_operations interceptor_direct_ops =
 {
-    .start = interceptor_direct_start,
-    .stop = interceptor_normal_stop,
-
-    .watch = interceptor_normal_watch,
-    .forget = interceptor_normal_forget,
-
-    .get_orig_operation = interceptor_normal_get_orig_operation,
-
-    .payload_register = interceptor_normal_payload_register,
-    .payload_unregister = interceptor_normal_payload_unregister,
-    
-    .destroy = interceptor_direct_destroy,
+    .get_instrumentor = interceptor_direct_op_get_instrumentor,
+    .free_instance = interceptor_direct_op_free_instance
 };
 
 struct kedr_coi_interceptor*
@@ -354,7 +402,7 @@ kedr_coi_interceptor_create_direct(const char* name,
         return NULL;
     }
     
-    result = interceptor_normal_init(&interceptor->normal,
+    result = interceptor_init_common(&interceptor->base,
         name,
         &interceptor_direct_ops,
         intermediate_operations);
@@ -366,18 +414,21 @@ kedr_coi_interceptor_create_direct(const char* name,
         
         return NULL;
     }
-    
+
     interceptor->object_struct_size = object_struct_size;
     
-    return &interceptor->normal.base;
+    return &interceptor->base;
 }
 
+
 /* Interceptor for objects with foreign operations */
-struct kedr_coi_interceptor_foreign
+struct kedr_coi_foreign_interceptor
 {
-    struct kedr_coi_interceptor base;
+    const char* name;
     
-    struct kedr_coi_payloads_foreign_container* payload_container;
+    int state;
+    
+    struct kedr_coi_foreign_payloads_container* payloads_container;
     struct kedr_coi_instrumentor* instrumentor;
     
     size_t operations_field_offset;
@@ -386,159 +437,16 @@ struct kedr_coi_interceptor_foreign
     size_t foreign_operations_field_offset;
 };
 
-#define interceptor_foreign(interceptor) container_of(interceptor, struct kedr_coi_interceptor_foreign, base)
 
-static int
-interceptor_foreign_start(
-    struct kedr_coi_interceptor* interceptor)
-{
-    struct kedr_coi_instrumentor* instrumentor;
-    struct kedr_coi_instrumentor_replacement* replacements;
-    struct kedr_coi_interceptor_foreign* interceptor_real =
-        interceptor_foreign(interceptor);
-    
-    replacements = kedr_coi_payloads_foreign_container_fix_payloads(
-        interceptor_real->payload_container);
-    
-    if(IS_ERR(replacements))
-        return PTR_ERR(replacements);
-    
-    instrumentor = kedr_coi_instrumentor_create_indirect_with_foreign(
-        interceptor_real->operations_field_offset,
-        interceptor_real->operations_struct_size,
-        interceptor_real->foreign_operations_field_offset,
-        replacements);
-
-    if(instrumentor == NULL)
-    {
-        kedr_coi_payloads_foreign_container_release_payloads(
-            interceptor_real->payload_container);
-        
-        return -EINVAL;//some error
-    }
-
-    interceptor_real->instrumentor = instrumentor;
-    
-    return 0;
-}
-
-
-static void
-interceptor_foreign_stop(
-    struct kedr_coi_interceptor* interceptor)
-{
-    struct kedr_coi_interceptor_foreign* interceptor_real =
-        interceptor_foreign(interceptor);
-    
-    kedr_coi_instrumentor_destroy(interceptor_real->instrumentor);
-    
-    kedr_coi_payloads_foreign_container_release_payloads(
-        interceptor_real->payload_container);
-}
-
-static int
-interceptor_foreign_watch(
-    struct kedr_coi_interceptor* interceptor,
-    void* object)
-{
-    struct kedr_coi_interceptor_foreign* interceptor_real =
-        interceptor_foreign(interceptor);
-    
-    return kedr_coi_instrumentor_watch(
-        interceptor_real->instrumentor,
-        object);
-}
-
-static int
-interceptor_foreign_forget(
-    struct kedr_coi_interceptor* interceptor,
-    void* object,
-    int norestore)
-{
-    struct kedr_coi_interceptor_foreign* interceptor_real =
-        interceptor_foreign(interceptor);
-    
-    return kedr_coi_instrumentor_forget(
-        interceptor_real->instrumentor,
-        object,
-        norestore);
-}
-
-static int
-interceptor_foreign_restore_copy(
-    struct kedr_coi_interceptor* interceptor,
-    void* object,
-    void* foreign_object)
-{
-    struct kedr_coi_interceptor_foreign* interceptor_real =
-        interceptor_foreign(interceptor);
-    
-    return kedr_coi_instrumentor_foreign_restore_copy(
-        interceptor_real->instrumentor,
-        object,
-        foreign_object);
-}
-
-static int interceptor_foreign_payload_register(
-    struct kedr_coi_interceptor* interceptor,
-    struct kedr_coi_payload_foreign* payload)
-{
-    struct kedr_coi_interceptor_foreign* interceptor_real =
-        interceptor_foreign(interceptor);
-    
-    return kedr_coi_payloads_foreign_container_register_payload(
-        interceptor_real->payload_container, payload);
-}
-
-static void interceptor_foreign_payload_unregister(
-    struct kedr_coi_interceptor* interceptor,
-    struct kedr_coi_payload_foreign* payload)
-{
-    struct kedr_coi_interceptor_foreign* interceptor_real =
-        interceptor_foreign(interceptor);
-    
-    kedr_coi_payloads_foreign_container_unregister_payload(
-        interceptor_real->payload_container, payload);
-}
-
-static void
-interceptor_foreign_destroy(struct kedr_coi_interceptor* interceptor)
-{
-    struct kedr_coi_interceptor_foreign* interceptor_real =
-        interceptor_foreign(interceptor);
-    
-    kedr_coi_payloads_foreign_container_destroy(interceptor_real->payload_container,
-        interceptor->name);
-    
-    kfree(interceptor_real);
-}
-
-static struct kedr_coi_interceptor_operations interceptor_foreign_ops =
-{
-    .start = interceptor_foreign_start,
-    .stop = interceptor_foreign_stop,
-
-    .watch = interceptor_foreign_watch,
-    .forget = interceptor_foreign_forget,
-    
-    .foreign_restore_copy = interceptor_foreign_restore_copy,
-    
-    .payload_foreign_register = interceptor_foreign_payload_register,
-    .payload_foreign_unregister = interceptor_foreign_payload_unregister,
-    
-    .destroy = interceptor_foreign_destroy,
-};
-
-struct kedr_coi_interceptor*
-kedr_coi_interceptor_create_foreign(
+struct kedr_coi_foreign_interceptor*
+kedr_coi_foreign_interceptor_create(
     const char* name,
     size_t operations_field_offset,
     size_t operations_struct_size,
     size_t foreign_operations_field_offset,
-    struct kedr_coi_intermediate_foreign* intermediate_operations,
-    struct kedr_coi_intermediate_foreign_info* intermediate_info)
+    struct kedr_coi_foreign_intermediate* intermediate_operations)
 {
-    struct kedr_coi_interceptor_foreign* interceptor;
+    struct kedr_coi_foreign_interceptor* interceptor;
     
     interceptor = kmalloc(sizeof(*interceptor), GFP_KERNEL);
     
@@ -549,25 +457,207 @@ kedr_coi_interceptor_create_foreign(
         return NULL;
     }
     
-    interceptor->payload_container = kedr_coi_payloads_foreign_container_create(
-        intermediate_operations,
-        intermediate_info);
+    interceptor->payloads_container =
+        kedr_coi_foreign_payloads_container_create(
+            intermediate_operations);
     
-    if(interceptor->payload_container == NULL)
+    if(interceptor->payloads_container == NULL)
     {
         kfree(interceptor);
         
         return NULL;
     }
 
-    interceptor_common_init(&interceptor->base,
-        name,
-        &interceptor_foreign_ops);
-
-
+    interceptor->name = name;
+    interceptor->state = interceptor_state_initialized;
+    
     interceptor->operations_field_offset = operations_field_offset;
     interceptor->operations_struct_size = operations_struct_size;
     interceptor->foreign_operations_field_offset = foreign_operations_field_offset;
 
-    return &interceptor->base;
+    return interceptor;
+}
+
+
+
+int
+kedr_coi_foreign_interceptor_start(
+    struct kedr_coi_foreign_interceptor* interceptor)
+{
+    int result;
+    struct kedr_coi_instrumentor* instrumentor;
+
+	BUG_ON(interceptor->state != interceptor_state_initialized);
+    
+    result = kedr_coi_foreign_payloads_container_fix_payloads(
+        interceptor->payloads_container);
+    
+    if(result) return result;
+    
+    instrumentor = kedr_coi_instrumentor_create_indirect(
+        interceptor->operations_field_offset,
+        interceptor->operations_struct_size,
+        kedr_coi_foreign_payloads_container_get_replacements(interceptor->payloads_container));
+
+    if(instrumentor == NULL)
+    {
+        kedr_coi_foreign_payloads_container_release_payloads(
+            interceptor->payloads_container);
+        
+        return -EINVAL;//some error
+    }
+
+    interceptor->instrumentor = instrumentor;
+    
+    interceptor->state = interceptor_state_started;
+    
+    return 0;
+}
+
+
+void
+kedr_coi_foreign_interceptor_stop(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    void (*trace_unforgotten_object)(void* object))
+{
+	BUG_ON(interceptor->state == interceptor_state_uninitialized);
+	
+	if(interceptor->state == interceptor_state_initialized)
+		return;// Assume that start() was called but failed
+
+    kedr_coi_instrumentor_destroy(interceptor->instrumentor,
+        trace_unforgotten_object);
+    
+    kedr_coi_foreign_payloads_container_release_payloads(
+        interceptor->payloads_container);
+    
+    interceptor->state = interceptor_state_initialized;
+}
+
+int
+kedr_coi_foreign_interceptor_watch(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    void* object)
+{
+	if(interceptor->state == interceptor_state_initialized)
+		return -EPERM;
+
+	BUG_ON(interceptor->state != interceptor_state_started);
+    
+    return kedr_coi_instrumentor_watch(
+        interceptor->instrumentor,
+        object);
+}
+
+int
+kedr_coi_foreign_interceptor_forget(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    void* object)
+{
+	if(interceptor->state == interceptor_state_initialized)
+		return -EPERM;
+
+	BUG_ON(interceptor->state != interceptor_state_started);
+    
+    return kedr_coi_instrumentor_forget(
+        interceptor->instrumentor,
+        object,
+        0);
+}
+
+
+int
+kedr_coi_foreign_interceptor_forget_norestore(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    void* object)
+{
+	if(interceptor->state == interceptor_state_initialized)
+		return -EPERM;
+
+	BUG_ON(interceptor->state != interceptor_state_started);
+    
+    return kedr_coi_instrumentor_forget(
+        interceptor->instrumentor,
+        object,
+        1);
+}
+
+int
+kedr_coi_foreign_interceptor_restore_copy(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    void* object,
+    void* foreign_object,
+    struct kedr_coi_foreign_intermediate_info* info)
+{
+    const void** ops_foreign;
+    const void* ops_orig;
+    int result;
+
+	BUG_ON(interceptor->state != interceptor_state_started);
+    
+    result = kedr_coi_instrumentor_get_orig_operations(
+        interceptor->instrumentor,
+        object,
+        &ops_orig);
+    
+    if(result < 0) return result;
+    
+    ops_foreign = (const void**)((char*)foreign_object
+        + interceptor->foreign_operations_field_offset);
+    
+    *ops_foreign = ops_orig;
+    
+    if(result == 0)
+    {
+        result = kedr_coi_foreign_payloads_container_get_handlers(
+            interceptor->payloads_container,
+            &info->on_create_handlers);
+        
+        if(result)
+        {
+            //as if no handlers
+            info->on_create_handlers = NULL;
+        }
+    }
+    else
+    {
+        // as if no interception(no handlers)
+        info->on_create_handlers = NULL;
+    }
+    return 0;
+}
+
+int kedr_coi_foreign_payload_register(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    struct kedr_coi_foreign_payload* payload)
+{
+	// "hot" registering of payload is permitted at abstract level
+	BUG_ON((interceptor->state != interceptor_state_initialized)
+		&& (interceptor->state != interceptor_state_started));
+    
+    return kedr_coi_foreign_payloads_container_register_payload(
+        interceptor->payloads_container, payload);
+}
+
+void
+kedr_coi_foreign_payload_unregister(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    struct kedr_coi_foreign_payload* payload)
+{
+	BUG_ON((interceptor->state != interceptor_state_initialized)
+		&& (interceptor->state != interceptor_state_started));
+    
+    kedr_coi_foreign_payloads_container_unregister_payload(
+        interceptor->payloads_container, payload);
+}
+
+void
+kedr_coi_foreign_interceptor_destroy(
+    struct kedr_coi_foreign_interceptor* interceptor)
+{
+    kedr_coi_foreign_payloads_container_destroy(
+        interceptor->payloads_container,
+        interceptor->name);
+    
+    kfree(interceptor);
 }

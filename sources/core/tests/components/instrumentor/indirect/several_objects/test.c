@@ -3,7 +3,8 @@
  */
 
 #include "kedr_coi_instrumentor_internal.h"
-#include "kedr_coi_global_map_internal.h"
+
+#include <linux/kernel.h> /*printk*/
 
 #include "instrumentor_test_common.h"
 
@@ -126,7 +127,7 @@ static const struct test_operations* ops[] =
     &ops3,
 };
 
-struct kedr_coi_instrumentor_replacement replacements[] =
+struct kedr_coi_replacement replacements[] =
 {
     {
         .operation_offset = offsetof(struct test_operations, do_something1),
@@ -262,10 +263,10 @@ int test_init(void)
 {
     int result;
     
-    result = kedr_coi_global_map_init();
+    result = kedr_coi_instrumentors_init();
     if(result)
     {
-        pr_err("Failed to init global map.");
+        pr_err("Failed to init instrumentors support.");
         return result;
     }
     
@@ -274,7 +275,7 @@ int test_init(void)
 
 void test_cleanup(void)
 {
-    kedr_coi_global_map_destroy();
+    kedr_coi_instrumentors_destroy();
 }
 
 // Test itself
@@ -315,7 +316,7 @@ int test_run(void)
             {
                 kedr_coi_instrumentor_forget(instrumentor, &objects[i], 0);
             }
-            kedr_coi_instrumentor_destroy(instrumentor);
+            kedr_coi_instrumentor_destroy(instrumentor, NULL);
             return result;
         }
     }
@@ -339,7 +340,7 @@ int test_run(void)
             {
                 kedr_coi_instrumentor_forget(instrumentor, &objects[i], 0);
             }
-            kedr_coi_instrumentor_destroy(instrumentor);
+            kedr_coi_instrumentor_destroy(instrumentor, NULL);
             return result;
         }
     }    
@@ -356,7 +357,7 @@ int test_run(void)
              * Do not uninstrument other objects. Memory should be freed
              * when instrumentor is destroyed.
              */
-            kedr_coi_instrumentor_destroy(instrumentor);
+            kedr_coi_instrumentor_destroy(instrumentor, NULL);
             return result;
         }
     }
@@ -388,7 +389,7 @@ int test_run(void)
                 if(objects_subset(i)) continue;// already unistrumented
                 kedr_coi_instrumentor_forget(instrumentor, &objects[i], 0);
             }
-            kedr_coi_instrumentor_destroy(instrumentor);
+            kedr_coi_instrumentor_destroy(instrumentor, NULL);
             return result;
         }
     }    
@@ -404,7 +405,7 @@ int test_run(void)
              * Do not uninstrument other objects. Memory should be freed
              * when instrumentor is destroyed.
              */
-            kedr_coi_instrumentor_destroy(instrumentor);
+            kedr_coi_instrumentor_destroy(instrumentor, NULL);
             return result;
         }
     }
@@ -425,11 +426,11 @@ int test_run(void)
         if(result)
         {
             pr_err("Uninstrumentation of object %d is incorrect.", i);
-            kedr_coi_instrumentor_destroy(instrumentor);
+            kedr_coi_instrumentor_destroy(instrumentor, NULL);
             return result;
         }
     }    
 
-    kedr_coi_instrumentor_destroy(instrumentor);
+    kedr_coi_instrumentor_destroy(instrumentor, NULL);
     return 0;
 }

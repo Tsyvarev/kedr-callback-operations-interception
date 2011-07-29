@@ -6,14 +6,15 @@
 <$endif$>static <$if operation.returnType$><$operation.returnType$><$else$>void<$endif$> intermediate_operation_<$operation.name$>(<$argumentSpec$>)
 {
     <$if operation.returnType$><$operation.returnType$><$else$>void<$endif$> (*orig)(<$argumentSpec$>);
+    struct kedr_coi_foreign_intermediate_info intermediate_info;
     foreign_object_t *foreign_object = <$operation.foreign_object$>;
     
-    kedr_coi_interceptor_foreign_restore_copy(interceptor,
-        <$operation.object$>, foreign_object);
+    kedr_coi_foreign_interceptor_restore_copy(interceptor,
+        <$operation.object$>, foreign_object, &intermediate_info);
     
     if(intermediate_info.on_create_handlers != NULL)
     {
-        kedr_coi_handler_foreign_t* on_create_handler;
+        const kedr_coi_foreign_handler_t* on_create_handler;
         
         for(on_create_handler = intermediate_info.on_create_handlers;
             *on_create_handler != NULL;

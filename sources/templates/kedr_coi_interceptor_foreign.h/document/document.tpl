@@ -9,11 +9,11 @@
 extern int <$interceptor.name$>_init(void);
 extern void <$interceptor.name$>_destroy(void);
 
-extern int <$interceptor.name$>_payload_register(struct kedr_coi_payload_foreign* payload);
-extern int <$interceptor.name$>_payload_unregister(struct kedr_coi_payload_foreign* payload);
+extern int <$interceptor.name$>_payload_register(struct kedr_coi_foreign_payload* payload);
+extern int <$interceptor.name$>_payload_unregister(struct kedr_coi_foreign_payload* payload);
 
 extern int <$interceptor.name$>_start(void);
-extern int <$interceptor.name$>_stop(void);
+extern int <$interceptor.name$>_stop(void (*trace_unforgotten_object)(<$object.type$>* object));
 
 extern int <$interceptor.name$>_watch(<$object.type$> *object);
 extern int <$interceptor.name$>_forget(<$object.type$> *object);

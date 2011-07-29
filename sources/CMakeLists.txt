@@ -273,8 +273,6 @@ add_subdirectory(interceptors)
 
 add_subdirectory(tools)
 
-
-
 if (NOT CMAKE_CROSSCOMPILING)
 	# Examples
 	add_subdirectory(examples)

@@ -29,29 +29,31 @@ typedef void (*do_something_post_t)(struct test_object* object, int value,
     int returnValue,
     struct kedr_coi_operation_call_info* call_info);
 
-static struct kedr_coi_intermediate_info do_something_intermediate_info;
-
 static int repl_was_called;
 //Model implementation of intermediate function
 static int do_something_repl(struct test_object* object, int value)
 {
     struct kedr_coi_operation_call_info call_info;
+    struct kedr_coi_intermediate_info intermediate_info;
     do_something_t orig;
     int returnValue;
     
     repl_was_called = 1;
     call_info.return_address = __builtin_return_address(0);
-    
-    orig = (do_something_t)kedr_coi_interceptor_get_orig_operation(
+
+    kedr_coi_interceptor_get_intermediate_info(
         interceptor,
         object,
-        offsetof(struct test_operations, do_something)
-    );
-            
-    if(do_something_intermediate_info.pre != NULL)
+        offsetof(struct test_operations, do_something),
+        &intermediate_info);
+    
+    call_info.op_orig = intermediate_info.op_orig;
+    orig = (do_something_t)intermediate_info.op_orig;
+    
+    if(intermediate_info.pre != NULL)
     {
         do_something_pre_t* pre;
-        for(pre = (do_something_pre_t*)do_something_intermediate_info.pre;
+        for(pre = (do_something_pre_t*)intermediate_info.pre;
             *pre != NULL;
             pre++)
         {
@@ -61,10 +63,10 @@ static int do_something_repl(struct test_object* object, int value)
     
     returnValue = orig ? orig(object, value) : 0;
 
-    if(do_something_intermediate_info.post != NULL)
+    if(intermediate_info.post != NULL)
     {
         do_something_post_t* post;
-        for(post = (do_something_post_t*)do_something_intermediate_info.post;
+        for(post = (do_something_post_t*)intermediate_info.post;
             *post != NULL;
             post++)
         {
@@ -80,7 +82,6 @@ static struct kedr_coi_intermediate intermediates[] =
     {
         .operation_offset = offsetof(struct test_operations, do_something),
         .repl = do_something_repl,
-        .info = &do_something_intermediate_info
     },
     {
         .operation_offset = -1
@@ -126,7 +127,7 @@ void do_something_handler_post(int value,
     }
 }
 
-static struct kedr_coi_handler_pre handlers_pre[] =
+static struct kedr_coi_pre_handler pre_handlers[] =
 {
     {
         .operation_offset = offsetof(struct test_operations, do_something),
@@ -138,7 +139,7 @@ static struct kedr_coi_handler_pre handlers_pre[] =
 
 };
 
-static struct kedr_coi_handler_post handlers_post[] =
+static struct kedr_coi_post_handler post_handlers[] =
 {
     {
         .operation_offset = offsetof(struct test_operations, do_something),
@@ -152,8 +153,8 @@ static struct kedr_coi_handler_post handlers_post[] =
 
 static struct kedr_coi_payload payload =
 {
-    .handlers_pre = handlers_pre,
-    .handlers_post = handlers_post,
+    .pre_handlers = pre_handlers,
+    .post_handlers = post_handlers,
 };
 
 //********************Test infrastructure*****************************
@@ -194,7 +195,7 @@ int test_init(void)
 
 void test_cleanup(void)
 {
-    kedr_coi_interceptor_stop(interceptor);
+    kedr_coi_interceptor_stop(interceptor, NULL);
     kedr_coi_payload_unregister(interceptor, &payload);
     kedr_coi_interceptor_destroy(interceptor);
 }

@@ -20,7 +20,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  ======================================================================== */
  
-#include "kedr_coi_hash_table_internal.h"
+#include "kedr_coi_hash_table.h"
 
 #include <linux/list.h> /* hash table organization */
 #include <linux/hash.h> /* hash function for pointers */
@@ -36,7 +36,7 @@
 
 #define SIZE_MIN (1 << BITS_MIN)
 
-static inline unsigned long hash_function(const char* key, unsigned int bits)
+static inline unsigned long hash_function(const void* key, unsigned int bits)
 {
     // really hash_ptr process first argument as unsigned long, so
     // its constantness has no sence
@@ -50,27 +50,14 @@ static void init_hlist_heads(struct hlist_head* heads, unsigned int bits)
         INIT_HLIST_HEAD(&heads[i]);
 }
 
-struct hash_table_elem
-{
-    struct hlist_node node;
-    
-    const void* key;
-    void* data;
-};
+/*
+ * Reallocate array of heads for hash table.
+ * 
+ * May be executed in atomic context.
+ * 
+ * Return 0 on success and negative error code on fail.
+ */
 
-struct kedr_coi_hash_table
-{
-    struct hlist_head* heads;
-    
-    unsigned int bits;
-    // Current number of elements
-    size_t n_elems;
-
-    spinlock_t lock;
-
-};
-
-// Should be executed with lock taken
 static int kedr_coi_hash_table_realloc(
     struct kedr_coi_hash_table* table, unsigned int bits_new);
 
@@ -79,197 +66,105 @@ static int is_need_expand(struct kedr_coi_hash_table* table);
 // Whether need to narrow table (called after removing element)
 static int is_need_narrow(struct kedr_coi_hash_table* table);
 
-struct kedr_coi_hash_table* kedr_coi_hash_table_create(void)
+int kedr_coi_hash_table_init(struct kedr_coi_hash_table* table)
 {
-    struct kedr_coi_hash_table* table =
-        kmalloc(sizeof(*table), GFP_KERNEL);
-    
-    if(table == NULL)
-    {
-        pr_err("Failed to allocate hash table structure");
-        
-        return NULL;
-    }
-    
-    table->bits = BITS_DEFAULT;
-    
     table->heads = kmalloc(sizeof(*table->heads) * SIZE_DEFAULT, GFP_ATOMIC);
     
     if(table->heads == NULL)
     {
         pr_err("Failed to allocate head nodes for hash table.");
-        
-        kfree(table);
-        
-        return NULL;
+        return -ENOMEM;
     }
     
     init_hlist_heads(table->heads, BITS_DEFAULT);
 
-    spin_lock_init(&table->lock);
-    
+    table->bits = BITS_DEFAULT;
     table->n_elems = 0;
     
-    return table;
+    return 0;
 }
 
-/*
- * Add element to the table.
- * 
- * Return NULL or old element or PTR_ERR.
- * 
- * Should be executed under lock.
- */
-
-static struct hash_table_elem*
-hash_table_add_elem(struct kedr_coi_hash_table* table, struct hash_table_elem* elem);
-
-/*
- * Add data for the key to the table.
- * 
- * Return NULL if data was added successfully.
- * 
- * If key was already added, return pointer to the data, which already associated
- * with the key.
- * 
- * Return ERR_PTR() on error.
- */
-void*
-kedr_coi_hash_table_add(struct kedr_coi_hash_table* table,
-    const void* key,
-    void* data)
+int kedr_coi_hash_table_add_elem(struct kedr_coi_hash_table* table,
+    struct kedr_coi_hash_elem* elem)
 {
-    unsigned long flags;
-
-    struct hash_table_elem* elem_new;
-    struct hash_table_elem* elem;
+    struct hlist_head* head;
     
-    elem_new = kmalloc(sizeof(*elem_new), GFP_KERNEL);
-
-    if(elem_new == NULL)
-    {
-        return ERR_PTR(-ENOMEM);
-    }
+    BUG_ON(table == NULL);
+    BUG_ON(elem == NULL);
     
-    INIT_HLIST_NODE(&elem_new->node);
-    elem_new->key = key;
-    elem_new->data = data;
+    if(is_need_expand(table))
+    {
+        kedr_coi_hash_table_realloc(table, table->bits + 1);
+    }
+    head = &table->heads[hash_function(elem->key, table->bits)];
     
-    spin_lock_irqsave(&table->lock, flags);
+    hlist_add_head(&elem->node, head);
+    table->n_elems++;
     
-    elem = hash_table_add_elem(table, elem_new);
-    /*
-     *  Element cannot be removing during addition
-     * (it should be enforced by the caller),
-     * so we may work with it outside critical section.
-     */
-    spin_unlock_irqrestore(&table->lock, flags);
-
-    if(IS_ERR(elem))
-    {
-        kfree(elem_new);
-        return ERR_PTR(PTR_ERR(elem));
-    }
-    else if(elem != NULL)
-    {
-        kfree(elem_new);
-        return elem->data;
-    }
-    else
-    {
-        return NULL;
-    }
+    return 0;
 }
 
-static struct hash_table_elem*
-hash_table_get_elem(struct kedr_coi_hash_table* table, const void* key);
-
-/*
- * Return data, previousely added to the table.
- * 
- * Return ERR_PTR() on fail.
- * 
- * Return ERR_PTR(-ENOENT) if key was not registered.
- */
-void*
-kedr_coi_hash_table_get(struct kedr_coi_hash_table* table,
+struct kedr_coi_hash_elem*
+kedr_coi_hash_table_find_elem(struct kedr_coi_hash_table* table,
     const void* key)
 {
-    unsigned long flags;
-
-    struct hash_table_elem* elem;
+    struct kedr_coi_hash_elem* elem;
+    struct hlist_head* head;
+    struct hlist_node* node_tmp;
     
-    spin_lock_irqsave(&table->lock, flags);
-
-    elem = hash_table_get_elem(table, key);
+    head = &table->heads[hash_function(key, table->bits)];
     
-    spin_unlock_irqrestore(&table->lock, flags);
-    
-    if(IS_ERR(elem))
+    hlist_for_each_entry(elem, node_tmp, head, node)
     {
-        return ERR_PTR(PTR_ERR(elem));
+        if(elem->key == key) return elem;
     }
-    else
-        return elem->data;
+    
+    return NULL;
 }
 
-static void* hash_table_remove(struct kedr_coi_hash_table* table,
-    const void* key);
-
-void* kedr_coi_hash_table_remove(struct kedr_coi_hash_table* table,
-    const void* key)
+void kedr_coi_hash_table_remove_elem(struct kedr_coi_hash_table* table,
+    struct kedr_coi_hash_elem* elem)
 {
-    unsigned long flags;
-
-    void* data;
-    
-    spin_lock_irqsave(&table->lock, flags);
-
-    data = hash_table_remove(table, key);
-    
-    spin_unlock_irqrestore(&table->lock, flags);
-    
-    return data;
+    hlist_del(&elem->node);
+    table->n_elems--;
+    if(is_need_narrow(table))
+        kedr_coi_hash_table_realloc(table, table->bits - 1);
 }
-
-/*
- * Destroy table.
- * 
- * Call 'free_data' for every data in this table.
- * 
- * Note, that normally table is empty at this stage,
- * so free_data is allowed to print warnings.
- */
 
 void kedr_coi_hash_table_destroy(struct kedr_coi_hash_table* table,
-    void (*free_data)(void* data, const void* key, void *user_data),
-    void* user_data)
+    void (*free_elem)(struct kedr_coi_hash_elem* elem,
+                        struct kedr_coi_hash_table* table))
 {
-    int i;
-    
-    struct hlist_head* heads = table->heads;
-    
-    for(i = 0; i < (1 << table->bits); i++)
+    struct hlist_head* head_end = table->heads + (1 << table->bits);
+    struct hlist_head* head;
+    // Look for first non-deleted element
+    for(head = table->heads; head < head_end; head++)
     {
-        struct hlist_head* head = &heads[i];
-        
-        while(!hlist_empty(head))
+        if(!hlist_empty(head))
         {
-            void* data;
-            const void* key;
-            struct hash_table_elem* elem =
-                hlist_entry(head->first, struct hash_table_elem, node);
-            data = elem->data;
-            key = elem->key;
-            hlist_del(&elem->node);
-            kfree(elem);
-            if(free_data)
-                free_data(data, key, user_data);
+            if(free_elem == NULL)
+            {
+                pr_warning("Hash table %p wasn't freed before deleting.",
+                    table);
+                // go to the end of cycle
+                head = head_end;
+                break;
+            }
         }
     }
-    
-    kfree(heads);
-    kfree(table);
+    // Remove all non-deleted elements with function supplied.
+    for(head = table->heads; head < head_end; head++)
+    {
+        while(!hlist_empty(head))
+        {
+            struct kedr_coi_hash_elem* elem =
+                hlist_entry(head->first, struct kedr_coi_hash_elem, node);
+            hlist_del(&elem->node);
+            free_elem(elem, table);
+        }
+    }    
+
+    kfree(table->heads);
 }
 
 /* Implementation of auxiliary functions */
@@ -285,8 +180,8 @@ static void hash_table_fill_from(
         struct hlist_head* head_old = &heads_old[i];
         while(!hlist_empty(head_old))
         {
-            struct hash_table_elem* elem =
-                hlist_entry(head_old->first, struct hash_table_elem, node);
+            struct kedr_coi_hash_elem* elem =
+                hlist_entry(head_old->first, struct kedr_coi_hash_elem, node);
             
             hlist_del(&elem->node);
             hlist_add_head(&elem->node, &heads_new[hash_function(elem->key, bits_new)]);
@@ -369,77 +264,4 @@ int is_need_narrow(struct kedr_coi_hash_table* table)
 {
     //not implemented yet
     return 0;
-}
-
-struct hash_table_elem*
-hash_table_add_elem(struct kedr_coi_hash_table* table, struct hash_table_elem* elem_new)
-{
-    struct hlist_head* head;
-    struct hash_table_elem* elem;
-    struct hlist_node* node_tmp;
-    
-    BUG_ON(table == NULL);
-    BUG_ON(elem_new == NULL);
-    
-    head = &table->heads[hash_function(elem_new->key, table->bits)];
-    
-    hlist_for_each_entry(elem, node_tmp, head, node)
-    {
-        if(elem->key == elem_new->key) return elem;
-    }
-
-    if(is_need_expand(table))
-    {
-        kedr_coi_hash_table_realloc(table, table->bits + 1);
-        head = &table->heads[hash_function(elem_new->key, table->bits)];
-    }
-    
-    hlist_add_head(&elem_new->node, head);
-    table->n_elems++;
-    
-    return NULL;
-}
-
-struct hash_table_elem*
-hash_table_get_elem(struct kedr_coi_hash_table* table, const void* key)
-{
-    struct hlist_head* head;
-    struct hash_table_elem* elem;
-    struct hlist_node* node_tmp;
-    
-    head = &table->heads[hash_function(key, table->bits)];
-    
-    hlist_for_each_entry(elem, node_tmp, head, node)
-    {
-        if(elem->key == key) return elem;
-    }
-    
-    return ERR_PTR(-ENOENT);
-}
-
-void* hash_table_remove(struct kedr_coi_hash_table* table,
-    const void* key)
-{
-    struct hlist_head* head;
-    struct hash_table_elem* elem;
-    struct hlist_node* node_tmp;
-    
-    head = &table->heads[hash_function(key, table->bits)];
-    
-    hlist_for_each_entry(elem, node_tmp, head, node)
-    {
-        if(elem->key == key)
-        {
-            void* data = elem->data;
-            hlist_del(&elem->node);
-            kfree(elem);
-            table->n_elems--;
-            if(is_need_narrow(table))
-                kedr_coi_hash_table_realloc(table, table->bits - 1);
-            
-            return data;
-        }
-    }
-    
-    return ERR_PTR(-ENOENT);
 }

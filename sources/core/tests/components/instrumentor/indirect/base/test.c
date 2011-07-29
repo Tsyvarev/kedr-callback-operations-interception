@@ -3,9 +3,10 @@
  */
 
 #include "kedr_coi_instrumentor_internal.h"
-#include "kedr_coi_global_map_internal.h"
 
 #include "instrumentor_test_common.h"
+
+#include <linux/kernel.h> /*printk*/
 
 /* Operations for test */
 struct test_operations
@@ -48,7 +49,7 @@ struct test_object object =
     .ops = &ops,
 };
 
-static struct kedr_coi_instrumentor_replacement replacements[] =
+static struct kedr_coi_replacement replacements[] =
 {
     {
         .operation_offset = offsetof(struct test_operations, do_something),
@@ -88,10 +89,10 @@ int test_init(void)
 {
     int result;
     
-    result = kedr_coi_global_map_init();
+    result = kedr_coi_instrumentors_init();
     if(result)
     {
-        pr_err("Failed to init global map.");
+        pr_err("Failed to init instrumentors support.");
         return result;
     }
     
@@ -100,7 +101,7 @@ int test_init(void)
 
 void test_cleanup(void)
 {
-    kedr_coi_global_map_destroy();
+    kedr_coi_instrumentors_destroy();
 }
 
 // Test itself
@@ -124,7 +125,7 @@ int test_run(void)
     if(result < 0)
     {
         pr_err("Fail to watch for an object.");
-        kedr_coi_instrumentor_destroy(instrumentor);
+        kedr_coi_instrumentor_destroy(instrumentor, NULL);
         return result;
     }
     
@@ -137,7 +138,7 @@ int test_run(void)
     {
         pr_err("Incorrect object instrumentation.");
         kedr_coi_instrumentor_forget(instrumentor, &object, 0);
-        kedr_coi_instrumentor_destroy(instrumentor);
+        kedr_coi_instrumentor_destroy(instrumentor, NULL);
         return result;
     }
     
@@ -145,7 +146,7 @@ int test_run(void)
     if(result < 0)
     {
         pr_err("Fail to forget object.");
-        kedr_coi_instrumentor_destroy(instrumentor);
+        kedr_coi_instrumentor_destroy(instrumentor, NULL);
         return -1;
     }
 
@@ -157,10 +158,10 @@ int test_run(void)
     if(result)
     {
         pr_err("Incorrect restoring instrumentation of object.");
-        kedr_coi_instrumentor_destroy(instrumentor);
+        kedr_coi_instrumentor_destroy(instrumentor, NULL);
         return result;
     }
     
-    kedr_coi_instrumentor_destroy(instrumentor);
+    kedr_coi_instrumentor_destroy(instrumentor, NULL);
     return 0;
 }

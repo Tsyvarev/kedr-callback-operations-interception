@@ -8,9 +8,7 @@
 
 <$endif$><$if concat(implementation_header)$><$implementation_header: join(\n)$>
 
-<$endif$>static struct kedr_coi_interceptor* interceptor = NULL;
-
-static struct kedr_coi_intermediate_foreign_info intermediate_info;
+<$endif$>static struct kedr_coi_foreign_interceptor* interceptor = NULL;
 
 typedef <$foreign_object.type$> foreign_object_t;
 static const <$operations.type$>* get_foreign_operations(<$foreign_object.type$>* foreign_object)
@@ -21,7 +19,7 @@ static const <$operations.type$>* get_foreign_operations(<$foreign_object.type$>
 <$block: join(\n)$>
 
 
-static struct kedr_coi_intermediate_foreign intermediate_operations[] =
+static struct kedr_coi_foreign_intermediate intermediate_operations[] =
 {
 <$intermediate_operation: join(\n)$>
     {
@@ -31,12 +29,11 @@ static struct kedr_coi_intermediate_foreign intermediate_operations[] =
 
 int <$interceptor.name$>_init(void)
 {
-    interceptor = kedr_coi_interceptor_create_foreign("<$interceptor.name$>",
+    interceptor = kedr_coi_foreign_interceptor_create("<$interceptor.name$>",
        offsetof(<$object.type$>, <$object.operations_field$>),
        sizeof(<$operations.type$>),
        offsetof(<$foreign_object.type$>, <$foreign_object.operations_field$>),
-       intermediate_operations,
-       &intermediate_info);
+       intermediate_operations);
     
     if(interceptor == NULL)
         return -EINVAL;//TODO: how to report concrete error?
@@ -46,44 +43,44 @@ int <$interceptor.name$>_init(void)
 
 void <$interceptor.name$>_destroy(void)
 {
-    kedr_coi_interceptor_destroy(interceptor);
+    kedr_coi_foreign_interceptor_destroy(interceptor);
 }
 
-int <$interceptor.name$>_payload_register(struct kedr_coi_payload_foreign* payload)
+int <$interceptor.name$>_payload_register(struct kedr_coi_foreign_payload* payload)
 {
-    return kedr_coi_payload_foreign_register(interceptor, payload);
+    return kedr_coi_foreign_payload_register(interceptor, payload);
 }
 
-void <$interceptor.name$>_payload_unregister(struct kedr_coi_payload_foreign* payload)
+void <$interceptor.name$>_payload_unregister(struct kedr_coi_foreign_payload* payload)
 {
-    kedr_coi_payload_foreign_unregister(interceptor, payload);
+    kedr_coi_foreign_payload_unregister(interceptor, payload);
 }
 
 
 int <$interceptor.name$>_start(void)
 {
-    return kedr_coi_interceptor_start(interceptor);
+    return kedr_coi_foreign_interceptor_start(interceptor);
 }
 
-void <$interceptor.name$>_stop(void)
+void <$interceptor.name$>_stop(void (*trace_unforgotten_object)(<$object.type$>* object))
 {
-    kedr_coi_interceptor_stop(interceptor);
+    kedr_coi_foreign_interceptor_stop(interceptor, (void (*)(void* object))trace_unforgotten_object);
 }
 
 int <$interceptor.name$>_watch(<$object.type$> *object)
 {
-    return kedr_coi_interceptor_watch(
+    return kedr_coi_foreign_interceptor_watch(
         interceptor, object);
 }
 
 int <$interceptor.name$>_forget(<$object.type$> *object)
 {
-    return kedr_coi_interceptor_forget(
+    return kedr_coi_foreign_interceptor_forget(
         interceptor, object);
 }
 
 int <$interceptor.name$>_forget_norestore(<$object.type$> *object)
 {
-    return kedr_coi_interceptor_forget_norestore(
+    return kedr_coi_foreign_interceptor_forget_norestore(
         interceptor, object);
 }

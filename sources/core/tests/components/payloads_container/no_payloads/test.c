@@ -19,13 +19,11 @@ struct test_operations
 };
 
 /* Intermediate operation1 */
-static struct kedr_coi_intermediate_info do_something1_intermediate_info;
 static void do_something1_repl(int value)
 {
 }
 
 /* Intermediate operation2 */
-static struct kedr_coi_intermediate_info do_something2_intermediate_info;
 static void do_something2_repl(int value)
 {
 }
@@ -35,12 +33,10 @@ static struct kedr_coi_intermediate intermediate_operations[] =
     {
         .operation_offset = offsetof(struct test_operations, do_something1),
         .repl = (void*)&do_something1_repl,
-        .info = &do_something1_intermediate_info
     },
     {
         .operation_offset = offsetof(struct test_operations, do_something2),
         .repl = (void*)&do_something2_repl,
-        .info = &do_something2_intermediate_info
     },
     {
         .operation_offset = -1
@@ -68,44 +64,34 @@ void test_cleanup(void)
 int test_run(void)
 {
     int result;
-    struct kedr_coi_instrumentor_replacement* replacements;
     
-    struct kedr_coi_payloads_container* payload_container =
+    struct kedr_coi_payloads_container* payloads_container =
         kedr_coi_payloads_container_create(intermediate_operations);
     
-    if(payload_container == NULL)
+    if(payloads_container == NULL)
     {
         pr_err("Failed to create payload container.");
         return -1;
     }
     
-    replacements =
-        kedr_coi_payloads_container_fix_payloads(payload_container);
-    if(IS_ERR(replacements))
+    result = kedr_coi_payloads_container_fix_payloads(payloads_container);
+    if(result)
     {
         pr_err("Failed to fix payloads in the container with no payloads.");
-        kedr_coi_payloads_container_destroy(payload_container,
+        kedr_coi_payloads_container_destroy(payloads_container,
             interceptor_name);
-        return PTR_ERR(replacements);
+        return result;
     }
     
-    if(replacements == NULL)
-    {
-        pr_err("Unexpected NULL array as replacements.");
-        kedr_coi_payloads_container_destroy(payload_container,
-            interceptor_name);
-        return -1;
-    }
+    result = check_payloads_container(payloads_container, replacements_expected);
     
-    result = check_replacements(replacements, replacements_expected);
-    
-    kedr_coi_payloads_container_release_payloads(payload_container);
-    kedr_coi_payloads_container_destroy(payload_container,
+    kedr_coi_payloads_container_release_payloads(payloads_container);
+    kedr_coi_payloads_container_destroy(payloads_container,
         interceptor_name);
 
     if(result)
     {
-        pr_err("kedr_coi_payloads_container_fix_payloads() returns incorrect replacements.");
+        pr_err("Payloads container gets incorrect interception information.");
         return result;
     }
     

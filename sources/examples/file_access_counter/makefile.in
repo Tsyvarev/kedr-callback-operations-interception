@@ -1,0 +1,59 @@
+module_name=@module_name@
+
+kedr_core_symbols=@KEDR_INSTALL_DIR@/lib/modules/$(shell uname -r)/symvers/kedr.symvers
+kedr_coi_core_symbols=@kedr_coi_core_symbols@
+
+kedr_gen_templates_dir := @KEDR_INSTALL_DIR@/share/kedr/templates
+kedr_gen_coi_templates_dir := @KEDR_COI_PREFIX_TEMPLATES@
+kedr_gen_tool := @kedr_gen_tool@
+
+kedr_coi_interceptors_dir := @KEDR_COI_PREFIX_INTERCEPTORS@
+
+KBUILD_DIR=@KBUILD_BUILD_DIR@
+PWD=`pwd`
+
+interceptors_normal = file_system_type super_operations inode_operations dentry_operations
+interceptors_foreign = inode_file_operations
+interceptors_standard = file_operations
+
+interceptors_created = $(interceptors_normal) $(interceptors_foreign)
+
+all: ${module_name}.ko
+
+${module_name}.ko: file_access_counter.c functions_support.c \
+	$(addsuffix _interceptor.c, $(interceptors_created)) \
+	$(addsuffix _interceptor.h, $(interceptors_created)) \
+	$(addsuffix _interceptor.c, $(interceptors_standard)) \
+	$(kedr_core_symbols) $(kedr_coi_core_symbols)
+	cat $(kedr_core_symbols) $(kedr_coi_core_symbols) > Module.symvers
+	$(MAKE) -C ${KBUILD_DIR} M=${PWD} modules
+
+
+$(addsuffix _interceptor.c, $(interceptors_normal)): %_interceptor.c: %.data
+	$(kedr_gen_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_interceptor.c/ $^ > $@
+
+$(addsuffix _interceptor.h, $(interceptors_normal)): %_interceptor.h: %.data
+	$(kedr_gen_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_interceptor.h/ $^ > $@
+
+
+$(addsuffix _interceptor.c, $(interceptors_foreign)): %_interceptor.c: %.data
+	$(kedr_gen_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_interceptor_foreign.c/ $^ > $@
+
+$(addsuffix _interceptor.h, $(interceptors_foreign)): %_interceptor.h: %.data
+	$(kedr_gen_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_interceptor_foreign.h/ $^ > $@
+
+
+$(addsuffix _interceptor.c, $(interceptors_standard)): %_interceptor.c: $(kedr_coi_interceptors_dir)/%_interceptor.c
+	cp -p $^ $@
+
+functions_support.c: functions.data
+	$(kedr_gen_tool) $(kedr_gen_templates_dir)/functions_support.c/ $^ > $@
+
+clean:
+	$(MAKE) -C ${KBUILD_DIR} M=${PWD} clean
+	rm -f functions_support.c
+	rm -f $(addsuffix _interceptor.c, $(interceptors_created)
+	rm -f $(addsuffix _interceptor.h, $(interceptors_created)
+	rm -f $(addsuffix _interceptor.c, $(interceptors_standard))
+
+.PHONY: all clean

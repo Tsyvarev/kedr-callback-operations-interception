@@ -1,3 +1,6 @@
+interceptor.name = file_operations_interceptor
+interceptor.operations_prefix = file_operations
+
 header =>>
 /* ========================================================================
  * Copyright (C) 2011, Andrey V. Tsyvarev  <tsyvarev@ispras.ru>
@@ -29,8 +32,6 @@ implementation_header =>>
 #include <linux/sched.h>
 #include <linux/mm_types.h>
 <<
-
-interceptor.name = file_operations_interceptor
 
 object.type = struct file
 object.operations_field = f_op

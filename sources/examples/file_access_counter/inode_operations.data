@@ -1,0 +1,291 @@
+interceptor.name = inode_operations_interceptor
+interceptor.operations_prefix = inode_operations
+
+header =>>
+/* ========================================================================
+ * Copyright (C) 2011, Andrey V. Tsyvarev  <tsyvarev@ispras.ru>
+ *
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ ======================================================================== */
+
+
+#include <linux/fs.h>
+<<
+
+object.type = struct inode
+object.operations_field = i_op
+
+operations.type = struct inode_operations
+
+[group]
+operation.name = create
+operation.returnType = int
+
+operation.arg.type = struct inode *
+operation.arg.name = dir
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = int
+operation.arg.name = mode
+
+operation.arg.type = struct nameidata *
+operation.arg.name = nd
+
+operation.object = dir
+
+[group]
+operation.name = lookup
+operation.returnType = struct dentry *
+
+operation.arg.type = struct inode *
+operation.arg.name = inode
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = struct nameidata *
+operation.arg.name = nd
+
+operation.object = inode
+
+operation.default = return ERR_PTR(-ENOTDIR);
+
+[group]
+operation.name = link
+operation.returnType = int
+
+operation.arg.type = struct dentry *
+operation.arg.name = old_dentry
+
+operation.arg.type = struct inode *
+operation.arg.name = dir
+
+operation.arg.type = struct dentry *
+operation.arg.name = new_dentry
+
+operation.object = dir
+
+operation.default = return -EPERM;
+
+
+[group]
+operation.name = unlink
+operation.returnType = int
+
+operation.arg.type = struct inode *
+operation.arg.name = dir
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.object = dir
+
+operation.default = return -EPERM;
+
+
+[group]
+operation.name = symlink
+operation.returnType = int
+
+operation.arg.type = struct inode *
+operation.arg.name = dir
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = const char *
+operation.arg.name = oldname
+
+operation.object = dir
+
+operation.default = return -EPERM;
+
+
+[group]
+operation.name = mkdir
+operation.returnType = int
+
+operation.arg.type = struct inode *
+operation.arg.name = dir
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = int
+operation.arg.name = mode
+
+operation.object = dir
+
+operation.default = return -EPERM;
+
+
+[group]
+operation.name = rmdir
+operation.returnType = int
+
+operation.arg.type = struct inode *
+operation.arg.name = dir
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.object = dir
+
+operation.default = return -EPERM;
+
+
+[group]
+operation.name = mknod
+operation.returnType = int
+
+operation.arg.type = struct inode *
+operation.arg.name = dir
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = int
+operation.arg.name = mode
+
+operation.arg.type = dev_t
+operation.arg.name = dev
+
+operation.object = dir
+
+operation.default = return -EPERM;
+
+
+[group]
+operation.name = rename
+operation.returnType = int
+
+operation.arg.type = struct inode *
+operation.arg.name = old_dir
+
+operation.arg.type = struct dentry *
+operation.arg.name = old_dentry
+
+operation.arg.type = struct inode *
+operation.arg.name = new_dir
+
+operation.arg.type = struct dentry *
+operation.arg.name = new_dentry
+
+operation.object = old_dentry
+
+operation.default = return -EPERM;
+
+
+[group]
+operation.name = readlink
+operation.returnType = int
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = char __user *
+operation.arg.name = buffer
+
+operation.arg.type = int
+operation.arg.name = buflen
+
+operation.object = dentry->d_inode
+
+## Who call this operation from the kernel???
+operation.default =
+
+
+[group]
+operation.name = follow_link
+operation.returnType = void*
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = struct nameidata *
+operation.arg.name = nd
+
+operation.object = dentry->d_inode
+## pointer to this operation is indicator itself. How to intercept?
+
+
+[group]
+operation.name = put_link
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = struct nameidata *
+operation.arg.name = nd
+
+operation.arg.type = void *
+operation.arg.name = cookie
+
+operation.object = dentry->d_inode
+
+operation.default = return;
+
+[group]
+operation.name = truncate
+
+operation.arg.type = struct inode *
+operation.arg.name = inode
+
+operation.object = inode
+
+operation.default = return;
+
+
+[group]
+operation.name = setattr
+operation.returnType = int
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = struct iattr *
+operation.arg.name = attr
+
+operation.object = dentry->d_inode
+
+# simple_setattr() in new kernels
+operation.default =>>
+int err = inode_change_ok(dentry->d_inode, attr);
+if(err) return err;
+return inode_setattr(dentry->d_inode, attr);
+<<
+
+
+[group]
+operation.name = getattr
+operation.returnType = int
+
+operation.arg.type = struct vfsmount *
+operation.arg.name = mnt
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = struct kstat *
+operation.arg.name = stat
+
+operation.object = dentry->d_inode
+
+operation.default = generic_fillattr(dentry->d_inode, stat); return 0;
+
+
+## to be continued...

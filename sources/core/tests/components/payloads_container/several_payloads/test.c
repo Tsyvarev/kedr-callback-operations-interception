@@ -21,19 +21,16 @@ struct test_operations
 };
 
 /* Intermediate operation1 */
-static struct kedr_coi_intermediate_info do_something1_intermediate_info;
 static void do_something1_repl(int value)
 {
 }
 
 /* Intermediate operation2 */
-static struct kedr_coi_intermediate_info do_something2_intermediate_info;
 static void do_something2_repl(int value)
 {
 }
 
 /* Intermediate operation3 */
-static struct kedr_coi_intermediate_info do_something3_intermediate_info;
 static void do_something3_repl(int value)
 {
 }
@@ -44,17 +41,14 @@ static struct kedr_coi_intermediate intermediate_operations[] =
     {
         .operation_offset = offsetof(struct test_operations, do_something1),
         .repl = (void*)&do_something1_repl,
-        .info = &do_something1_intermediate_info
     },
     {
         .operation_offset = offsetof(struct test_operations, do_something2),
         .repl = (void*)&do_something2_repl,
-        .info = &do_something2_intermediate_info
     },
     {
         .operation_offset = offsetof(struct test_operations, do_something3),
         .repl = (void*)&do_something3_repl,
-        .info = &do_something3_intermediate_info
     },
     {
         .operation_offset = -1
@@ -69,7 +63,7 @@ static void do_something1_pre1(int value,
 }
 
 // All handlers of the first payload
-static struct kedr_coi_handler_pre handlers_pre1[] =
+static struct kedr_coi_pre_handler pre_handlers1[] =
 {
     {
         .operation_offset = offsetof(struct test_operations, do_something1),
@@ -83,7 +77,7 @@ static struct kedr_coi_handler_pre handlers_pre1[] =
 // First payload
 static struct kedr_coi_payload payload1 =
 {
-    .handlers_pre = handlers_pre1,
+    .pre_handlers = pre_handlers1,
 };
 
 
@@ -114,7 +108,7 @@ static void do_something3_pre2(int value,
 }
 
 // All handlers of the second payload
-static struct kedr_coi_handler_pre handlers_pre2[] =
+static struct kedr_coi_pre_handler pre_handlers2[] =
 {
     {
         .operation_offset = offsetof(struct test_operations, do_something1),
@@ -130,7 +124,7 @@ static struct kedr_coi_handler_pre handlers_pre2[] =
 };
 
 
-static struct kedr_coi_handler_post handlers_post2[] =
+static struct kedr_coi_post_handler post_handlers2[] =
 {
     {
         .operation_offset = offsetof(struct test_operations, do_something3),
@@ -148,8 +142,8 @@ static struct kedr_coi_handler_post handlers_post2[] =
 // Second payload
 static struct kedr_coi_payload payload2 =
 {
-    .handlers_pre = handlers_pre2,
-    .handlers_post = handlers_post2
+    .pre_handlers = pre_handlers2,
+    .post_handlers = post_handlers2
 };
 
 // All functions which should be called before operation1
@@ -206,82 +200,68 @@ void test_cleanup(void)
 int test_run(void)
 {
     int result;
-    struct kedr_coi_instrumentor_replacement* replacements;
     
-    struct kedr_coi_payloads_container* payload_container =
+    struct kedr_coi_payloads_container* payloads_container =
         kedr_coi_payloads_container_create(intermediate_operations);
     
-    if(payload_container == NULL)
+    if(payloads_container == NULL)
     {
         pr_err("Failed to create payload container.");
         return -1;
     }
     
-    result = kedr_coi_payloads_container_register_payload(payload_container,
+    result = kedr_coi_payloads_container_register_payload(payloads_container,
         &payload1);
     
     if(result)
     {
         pr_err("Failed to register payload by the container.");
-        kedr_coi_payloads_container_destroy(payload_container,
+        kedr_coi_payloads_container_destroy(payloads_container,
             interceptor_name);
         return result;
     }
     
-    result = kedr_coi_payloads_container_register_payload(payload_container,
+    result = kedr_coi_payloads_container_register_payload(payloads_container,
         &payload2);
     
     if(result)
     {
         pr_err("Failed to register another payload by the container.");
-        kedr_coi_payloads_container_unregister_payload(payload_container,
+        kedr_coi_payloads_container_unregister_payload(payloads_container,
             &payload1);
-        kedr_coi_payloads_container_destroy(payload_container,
+        kedr_coi_payloads_container_destroy(payloads_container,
             interceptor_name);
         return result;
     }
 
 
-    replacements =
-        kedr_coi_payloads_container_fix_payloads(payload_container);
-    if(IS_ERR(replacements))
+    result = kedr_coi_payloads_container_fix_payloads(payloads_container);
+    if(result)
     {
         pr_err("Failed to fix payloads in the container.");
-        kedr_coi_payloads_container_unregister_payload(payload_container,
+        kedr_coi_payloads_container_unregister_payload(payloads_container,
             &payload2);
-        kedr_coi_payloads_container_unregister_payload(payload_container,
+        kedr_coi_payloads_container_unregister_payload(payloads_container,
             &payload1);
-        kedr_coi_payloads_container_destroy(payload_container,
+        kedr_coi_payloads_container_destroy(payloads_container,
             interceptor_name);
-        return PTR_ERR(replacements);
+        return result;
     }
     
-    if(replacements == NULL)
-    {
-        pr_err("Unexpected NULL array as replacements.");
-        kedr_coi_payloads_container_unregister_payload(payload_container,
-            &payload2);
-        kedr_coi_payloads_container_unregister_payload(payload_container,
-            &payload1);
-        kedr_coi_payloads_container_destroy(payload_container,
-            interceptor_name);
-        return -1;
-    }
+    result = check_payloads_container(payloads_container, replacements_expected);
     
-    result = check_replacements(replacements, replacements_expected);
-    
-    kedr_coi_payloads_container_release_payloads(payload_container);
+    kedr_coi_payloads_container_release_payloads(payloads_container);
     // Unregister payloads in same order - just for test
-    kedr_coi_payloads_container_unregister_payload(payload_container,
+    kedr_coi_payloads_container_unregister_payload(payloads_container,
         &payload1);
-    kedr_coi_payloads_container_unregister_payload(payload_container,
+    kedr_coi_payloads_container_unregister_payload(payloads_container,
         &payload2);
-    kedr_coi_payloads_container_destroy(payload_container,
+    kedr_coi_payloads_container_destroy(payloads_container,
         interceptor_name);
 
     if(result)
     {
-        pr_err("kedr_coi_payloads_container_fix_payloads() returns incorrect replacements.");
+        pr_err("Payloads container gets incorrect interception information.");
         return result;
     }
     

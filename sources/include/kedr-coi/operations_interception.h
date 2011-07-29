@@ -17,7 +17,8 @@
  * 2. Write payload (struct kedr_coi_payload) which should define
  * which operations you want to intercept and how.
  * 
- * 3. Register payload for operations interceptor created at step 2.
+ * 3. Register payload for operations interceptor created at step 1
+ * (kedr_coi_payload_register()).
  * 
  * 4. Then you need to determine when object interested your is created,
  * and call kedr_coi_interceptor_watch() at this moment.
@@ -29,7 +30,7 @@
  * in pre- or post- handlers of them.
  * 
  * b) some objects are created in operations of another objects. E.g.
- * super blocks (struct super_block) are created in mount() operation
+ * super blocks (struct super_block) are created in get_sb() operation
  * of file system type objects (struct file_system_type). So you need to
  * intercept operations of creator's objects, for which you should repeat
  * all steps from 1 of this description (perhaps, recursively).
@@ -47,7 +48,7 @@
  * (struct inode) object when file is created. You can intercept creation
  * of file if you use interceptor for file operations in inode object.
  * Such interceptor is referred as foreign, because it allows to intercept
- * operations which are called not for the owner, but for another object.
+ * operations which are called not for the owner object, but for another object.
  * Interceptors for foreign operations doesn't allow to set handlers for these
  * operations but allow to set handler to be executed when foreign object is created.
  * Creation of interceptors for foreign operations are described in
@@ -67,12 +68,12 @@
  * call kedr_coi_interceptor_start() for this interceptor.
  * This call will fix(prevent from changes) interception handlers
  * of this interceptor, and create some additional data used for interception.
- * Usually this function is called from corresponded callback of KEDR payload.
+ * Usually this function is called from target_load_callback() of KEDR payload.
  * 
  * Similar, after last object is forgot one should call
  * kedr_coi_interceptor_stop() for allow to unload payload modules or
  * load another ones.
- * Usually this function is called from corresponded callback of KEDR payload.
+ * Usually this function is called from target_unload_callback of KEDR payload.
  * 
  * 
  * 
@@ -94,32 +95,46 @@
  * sizeof(struct file_system_type).
  * 
  * b) write intermediate operations for all object operations which
- * is planned to intercept.
+ * is planned to intercept. This operations will be called instead of
+ * corresponded original operation of the object.
  * 
- * Each such operation should firstly call all pre- handlers, registered
- * for this operation, then original operation and then all post- handlers.
+ * Each such operation should locally allocate(e.g., on stack)
+ * intermediate info object(type 'struct kedr_coi_intermediate_info')
+ * and call kedr_coi_interceptor_get_intermediate_info() function for
+ * fill it.
+ * After filling, object will contain information about pre-handlers,
+ * post-handlers, and pointer to the original operation.
+ * Then, intermediate operation should call in order:
+ * - pre handlers(if exists)
+ * - original operation
+ * - post handlers(if exist)
  * 
- * Arrays of pre-handlers and post-handlers are static and filled by
- * interceptor in kedr_coi_interceptor_start()
- * call. Original operation is available via
- * kedr_coi_interceptor_get_orig_operation().
+ * If any handler exist, before calling handlers intermediate operation
+ * should locally allocate call info object (type
+ * 'struct kedr_coi_operation_call_info') and fill it. This object should
+ * be passed to the handlers.
  * 
- * Intermediate operations should correctly process the case when
- * pointer to the original operation is NULL. Usuall in that case
- * some default actions should be performed,
- * depended of concrete intercepted operation.
- * E.g., default behaviour of open() file operation is simple returning 0.
- * It is the behaviour which is emulated by filesystem when pointer
- * to open() file operation is NULL.
- * Another example - alloc_inode() operation of super block, which default
- * behaviour is simple allocation of memory for inode structure.
+ * If operation should return a value, result of original operation call
+ * should be stored and returned by intermediate operation. Also, when
+ * call post handlers, this value should be passed to them.
  * 
- * Interceptors are created with functions
- * kedr_coi_interceptor_create() and
- * kedr_coi_interceptor_create_direct().
- * Former function creates interceptor for objects which have field pointed
- * to structure of operations, the latter process objects which have
- * distinct fields for different operations.
+ * For some objects pointer to the original operation may be NULL.
+ * In that case, intermediate operation should perform some default
+ * actions instead of call of orignal operation.
+ * These actions should have similar effect
+ * to those ones which performed by the kernel when it found that
+ * object operation pointer is NULL.
+ * Examples of default actions for file object(struct file):
+ * - open() - set result to 0
+ * - read() - set result to -EIO
+ * - llseek() - call default_llseek() store its result
+ *              as result of operation call.
+ * 
+ * Interceptors are created with functions kedr_coi_interceptor_create()
+ * and kedr_coi_interceptor_create_direct().
+ * Former function creates interceptor for objects which have field
+ * pointed to structure of operations, the latter process objects which
+ * have distinct fields for different operations.
  * 
  * 
  * Foreign interceptor creation.
@@ -136,17 +151,30 @@
  * 
  * b) write intermediate operations for operations which are called just
  * after foreign object is created and its operations are copied from
- * initial object.
- * Normally it is one operation, which should firstly call
- * kedr_coi_interceptor_foreign_restore_copy() and pass to it 
- * pointer to the foreign object which is just created. This function
- * restore operations of the foreign object, which are copied from
- * changed operations of the initial object.
- * Intermediate operation then should call all handlers, registered for
- * interceptor. These handlers are organized into static array which is
- * filled inside kedr_coi_interceptor_start().
- * Finally, this operation should call original operation, pointer to
- * which is contained in operations structure, set for foreign object.
+ * initial object. Normally there is only one such operation.
+ * E.g., if foreign object is file('struct file'), one have to write
+ * intermediate operation for file operation open().
+ * 
+ * Intermediate operation should firstly locally allocate intermediate
+ * info object (type 'struct kedr_coi_foreign_intermediate_info') and
+ * call kedr_coi_interceptor_foreign_restore_copy() for fill it.
+ * 
+ * After filling, object will contain array of handlers for foreign object.
+ * Also, kedr_coi_interceptor_foreign_restore_copy() will restore
+ * operations of the foreign object, as them was a copy of operations
+ * without interception.
+ * 
+ * Intermediate operation should then call all handlers in order,
+ * and at the end call corresponded operation of the object.
+ * 
+ * Note, that object operations are changed after
+ * kedr_coi_interceptor_foreign_restore_copy() and may changed in handlers
+ * (see Section 4 in 'Standard use case', clause 'c'). So pointer to
+ * the object operation shouldn't be cached until last handler is executed.
+ * 
+ * Like an intermediate operation for standard interceptor,
+ * intermediate operation for interceptor for foreign operations should
+ * correctly process case when pointer to the object operation is NULL.
  * 
  * Foreign interceptor is created with kedr_coi_interceptor_create_foreign()
  * function.
@@ -169,57 +197,73 @@ struct kedr_coi_interceptor;
 
 /*
  * Information about original operation call,
- * which is passed to the functions, which intended to call
- * before or after it.
+ * which is passed to the handlers.
  */
 struct kedr_coi_operation_call_info
 {
+    // Return address of the operation
     void* return_address;
+    /*
+     * If handler need to check object's operation, it should use
+     * this pointer instead of operation field in the object itself.
+     * 
+     * The thing is that object's operations are replaced for
+     * implement interception mechanizm.
+     */
+    void* op_orig;
 };
 
 
 /*
- * Pair of operation which should be intercepted and function,
- * which should be called before it.
+ * Handler which should be executed before callback operation.
  * 
  * If original operation has signature
  * ret_type (*)(arg_type1,..., arg_typeN)
  * 
  * then function should have signature
  * 
- * void (*)(arg_type1,..., arg_typeN, kedr_operation_call_info*).
+ * void (*)(arg_type1,..., arg_typeN, kedr_coi_operation_call_info*).
  */
 
-struct kedr_coi_handler_pre
+struct kedr_coi_pre_handler
 {
+    // offset of the operation, for which handler is should be used.
     size_t operation_offset;
+    // function to execute
     void* func;
 };
 
+// End mark in pre-handlers array
+#define kedr_coi_pre_handler_end {.operation_offset = -1}
+
 /*
- * Pair of operation which should be intercepted and function,
- * which should be called after it.
+ * Handler whoc should be executed after callback operation.
  * 
  * If original operation has signature
  * ret_type (*)(arg_type1,..., arg_typeN)
  * 
  * and ret_type is not 'void', then function should have signature
  * 
- * void (*)(arg_type1,..., arg_typeN, ret_type, kedr_operation_call_info*).
+ * void (*)(arg_type1,..., arg_typeN, ret_type, kedr_coi_operation_call_info*).
  * 
  * If original operation has signature
  * void (*)(arg_type1,..., arg_typeN)
  * 
  * then function should have signature
  * 
- * void (*)(arg_type1,..., arg_typeN, kedr_operation_call_info*).
+ * void (*)(arg_type1,..., arg_typeN, kedr_coi_operation_call_info*).
  */
 
-struct kedr_coi_handler_post
+struct kedr_coi_post_handler
 {
+    // offset of the operation, for which handler is should be used.
     size_t operation_offset;
+    // function to execute
     void* func;
 };
+
+// End mark in post-handlers array
+#define kedr_coi_post_handler_end {.operation_offset = -1}
 
 
 /*
@@ -230,8 +274,10 @@ struct kedr_coi_payload
 {
     struct module* mod;
     
-    struct kedr_coi_handler_pre* handlers_pre;
-    struct kedr_coi_handler_post* handlers_post;
+    // Array of pre-handlers ended with mark
+    struct kedr_coi_pre_handler* pre_handlers;
+    // Array of post-handlers ended with mark
+    struct kedr_coi_post_handler* post_handlers;
 };
 
 
@@ -270,12 +316,6 @@ kedr_coi_payload_unregister(
  */
 int kedr_coi_interceptor_start(struct kedr_coi_interceptor* interceptor);
 
-/*
- * After call of this function payload set for interceptor become
- * flexible again.
- */
-void kedr_coi_interceptor_stop(struct kedr_coi_interceptor* interceptor);
-
 
 /*
  * Watch for the operations of the particular object and intercepts them.
@@ -312,40 +352,64 @@ int kedr_coi_interceptor_forget_norestore(
     struct kedr_coi_interceptor* interceptor,
     void* object);
 
+
+/*
+ * After call of this function payload set for interceptor become
+ * flexible again.
+ * 
+ * All objects which are watched at this stage will be forgotten
+ * using mechanism similar to kedr_coi_interceptor_forget_norestore.
+ * Usually existance of such objects is a bug in objects' lifetime
+ * determination mechanism (objects are alredy destroyed but interceptor
+ * wasn't notified about that with '_forget' methods).
+ * If 'trace_unforgotten_object' is not NULL it will be called for each
+ * unforgotten object.
+ * 
+ */
+void kedr_coi_interceptor_stop(struct kedr_coi_interceptor* interceptor,
+    void (*trace_unforgotten_object)(void* object));
+
+
+
 /**********Creation of the operations interceptor*******************/
 
 /*
- * Information for intermediate operation
+ * Information for intermediate operation.
  */
 struct kedr_coi_intermediate_info
 {
-    // NULL-terminated array of pre-functions
-    void** pre;
-    // NULL-terminated array of post-functions
-    void** post;
+    // Original operation
+    void* op_orig;
+    // NULL-terminated array of functions of pre handlers for this operation.
+    void* const* pre;
+    // NULL-terminated array of functions of post handlers for this operation.
+    void* const* post;
 };
 
 
 /*
- * Return operation which is replaced by intermediate one.
+ * Get information about intermediate for given operation in the given object.
+ * 
+ * After successfull call of this function 'info' structure will be filled.
  * 
  * This function is intended to be used ONLY in the implementation
  * of the intermediate operation.
  * 
- * Note: Function may return NULL, when operation is not defined
- * in the object initially. Intermediate operation should correctly
- * process this case.
+ * Return 0 on success or negative error code on fail.
+ * 
+ * NOTE: fail usually means unrecoverable bug.
  */
 
-void* kedr_coi_interceptor_get_orig_operation(
+int kedr_coi_interceptor_get_intermediate_info(
     struct kedr_coi_interceptor* interceptor,
     const void* object,
-    size_t operation_offset);
+    size_t operation_offset,
+    struct kedr_coi_intermediate_info* info);
 
 
 /*
- * Replacement for operation which call registered pre- and post-handlers
- * and original operation in correct order.
+ * Replacement for operation which should call registered pre- and
+ * post-handlers and original operation in correct order.
  */
 struct kedr_coi_intermediate
 {
@@ -384,8 +448,6 @@ struct kedr_coi_intermediate
      * without interception of this operation.
      */
     int group_id;
-    
-    struct kedr_coi_intermediate_info* info;
 };
 
 /*
@@ -431,8 +493,7 @@ kedr_coi_interceptor_create_direct(const char* name,
 
 
 void
-kedr_coi_interceptor_destroy(
-    struct kedr_coi_interceptor* interceptor);
+kedr_coi_interceptor_destroy(struct kedr_coi_interceptor* interceptor);
 
 
 /**************Interceptor for foreign operations*******************/
@@ -450,8 +511,78 @@ kedr_coi_interceptor_destroy(
  * interceptor for foreign object.
  */
 
+struct kedr_coi_foreign_interceptor;
+
 // Type of handler functions for foreign interceptor.
-typedef void (*kedr_coi_handler_foreign_t)(void* foreign_object);
+typedef void (*kedr_coi_foreign_handler_t)(void* foreign_object);
+
+/*
+ * Contain information about what operations one want to intercept
+ * and how.
+ */
+struct kedr_coi_foreign_payload
+{
+    struct module* mod;
+    /*
+     * NULL-terminated array of functions, which are called when
+     * foreign object is created.
+     */
+    kedr_coi_foreign_handler_t* on_create_handlers;
+};
+
+
+/* Registers a payload module with the foreign operations interceptor. 
+ * 'payload' should provide all the data the interceptor needs to use this 
+ * payload module.
+ * This function returns 0 if successful, an error code otherwise.
+ * 
+ * This function is usually called in the init function of a payload module.
+ * */
+int 
+kedr_coi_foreign_payload_register(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    struct kedr_coi_foreign_payload *payload);
+
+/*
+ *  Unregisters a payload module, the interceptor will not use it any more.
+ * 'payload' should be the same as passed to the corresponding call to
+ * operations_interceptor_payload_register().
+ * 
+ * This function is usually called in the cleanup function of a payload 
+ * module.
+ * */
+void 
+kedr_coi_foreign_payload_unregister(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    struct kedr_coi_foreign_payload *payload);
+
+/*
+ * Next 5 functions for the foreign interceptor do the same as
+ * corresponded functions do for the normal interceptor.
+ */
+
+
+int kedr_coi_foreign_interceptor_start(
+    struct kedr_coi_foreign_interceptor* interceptor);
+
+int kedr_coi_foreign_interceptor_watch(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    void* object);
+
+int kedr_coi_foreign_interceptor_forget(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    void* object);
+
+int kedr_coi_foreign_interceptor_forget_norestore(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    void* object);
+
+void kedr_coi_foreign_interceptor_stop(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    void (*trace_unforgotten_object)(void* object));
+
+
+/*******Creation of the foreign operations interceptor****************/
 
 /*
  * Information for intermediate foreign operation.
@@ -460,32 +591,38 @@ typedef void (*kedr_coi_handler_foreign_t)(void* foreign_object);
  * is shared between all intermediate operations.
  * (But usually there is only one intermediate operation)
  */
-struct kedr_coi_intermediate_foreign_info
+struct kedr_coi_foreign_intermediate_info
 {
-    //NULL- terminated array of functions which should be called after
-    // foreign object is created
-    kedr_coi_handler_foreign_t* on_create_handlers;
+    /*
+     * NULL- terminated array of functions which should be called after
+     * foreign object is created.
+     * 
+     * NULL array means empty array.
+     */
+    const kedr_coi_foreign_handler_t* on_create_handlers;
 };
 
 
 /*
  * Return copied operations to their initial state.
  * 
+ * Also fill information for intermediate operation.
+ * 
  * This function is intended to be used ONLY in the implementation
  * of the intermediate foreign operation.
  */
 
-int kedr_coi_interceptor_foreign_restore_copy(
-    struct kedr_coi_interceptor* interceptor,
+int kedr_coi_foreign_interceptor_restore_copy(
+    struct kedr_coi_foreign_interceptor* interceptor,
     void* object,
-    void* foreign_object);
-
+    void* foreign_object,
+    struct kedr_coi_foreign_intermediate_info* info);
 
 /*
- * Replacement for operation which restore operations for foreign object,
- * call registered handlers and then call initial operation.
+ * Replacement for operation which should restore operations for
+ * foreign object, call registered handlers and then call initial operation.
  */
-struct kedr_coi_intermediate_foreign
+struct kedr_coi_foreign_intermediate
 {
     size_t operation_offset;
     void* repl;
@@ -506,58 +643,20 @@ struct kedr_coi_intermediate_foreign
  *      object is created. Last element in that array should have '-1'
  *      in 'operation_offset' field.
  *      Usually this array contains only one operation.
- * 'intermediate_info' is an information used by intermediate operation(s).
  * 
  * Function returns interceptor descriptor.
  */
 
-struct kedr_coi_interceptor*
-kedr_coi_interceptor_create_foreign(
+struct kedr_coi_foreign_interceptor*
+kedr_coi_foreign_interceptor_create(
     const char* name,
     size_t operations_field_offset,
     size_t operations_struct_size,
     size_t foreign_operations_field_offset,
-    struct kedr_coi_intermediate_foreign* intermediate_operations,
-    struct kedr_coi_intermediate_foreign_info* intermediate_info);
+    struct kedr_coi_foreign_intermediate* intermediate_operations);
 
-/*
- * Contain information about what operations one want to intercept
- * and how.
- */
-struct kedr_coi_payload_foreign
-{
-    struct module* mod;
-    /*
-     * NULL-terminated array of functions, which are called when
-     * foreign object is created.
-     */
-    kedr_coi_handler_foreign_t* on_create_handlers;
-};
-
-/* Registers a payload module with the foreign operations interceptor. 
- * 'payload' should provide all the data the interceptor needs to use this 
- * payload module.
- * This function returns 0 if successful, an error code otherwise.
- * 
- * This function is usually called in the init function of a payload module.
- * */
-int 
-kedr_coi_payload_foreign_register(
-    struct kedr_coi_interceptor* interceptor,
-    struct kedr_coi_payload_foreign *payload);
-
-/*
- *  Unregisters a payload module, the interceptor will not use it any more.
- * 'payload' should be the same as passed to the corresponding call to
- * operations_interceptor_payload_register().
- * 
- * This function is usually called in the cleanup function of a payload 
- * module.
- * */
-void 
-kedr_coi_payload_foreign_unregister(
-    struct kedr_coi_interceptor* interceptor,
-    struct kedr_coi_payload_foreign *payload);
+void kedr_coi_foreign_interceptor_destroy(
+    struct kedr_coi_foreign_interceptor* interceptor);
 
 /**************************************/
 

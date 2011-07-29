@@ -22,7 +22,7 @@
 
 #include <kedr-coi/operations_interception.h>
 
-#include "kedr_coi_base_internal.h"
+#include "kedr_coi_instrumentor_internal.h"
 
 #include <linux/version.h>
 #include <linux/module.h>
@@ -34,38 +34,51 @@ MODULE_LICENSE("GPL");
 static int __init
 kedr_coi_module_init(void)
 {
-    return kedr_coi_global_map_init();
+    return kedr_coi_instrumentors_init();
 }
 
 static void __exit
 kedr_coi_module_exit(void)
 {
-    kedr_coi_global_map_destroy();
+    kedr_coi_instrumentors_destroy();
 }
 
 module_init(kedr_coi_module_init);
 module_exit(kedr_coi_module_exit);
 
-// The only functions exported from the KEDR coi module.
+// The only functions exported from the KEDR COI module.
+
+// 'Normal' instrumentors
 EXPORT_SYMBOL(kedr_coi_payload_register);
 EXPORT_SYMBOL(kedr_coi_payload_unregister);
 
 EXPORT_SYMBOL(kedr_coi_interceptor_start);
 EXPORT_SYMBOL(kedr_coi_interceptor_stop);
 
-EXPORT_SYMBOL(kedr_coi_interceptor_create);
-EXPORT_SYMBOL(kedr_coi_interceptor_create_direct);
-EXPORT_SYMBOL(kedr_coi_interceptor_create_foreign);
-
 EXPORT_SYMBOL(kedr_coi_interceptor_watch);
 EXPORT_SYMBOL(kedr_coi_interceptor_forget);
 EXPORT_SYMBOL(kedr_coi_interceptor_forget_norestore);
 
-EXPORT_SYMBOL(kedr_coi_interceptor_get_orig_operation);
+EXPORT_SYMBOL(kedr_coi_interceptor_create);
+EXPORT_SYMBOL(kedr_coi_interceptor_create_direct);
 
-EXPORT_SYMBOL(kedr_coi_interceptor_foreign_restore_copy);
-
-EXPORT_SYMBOL(kedr_coi_payload_foreign_register);
-EXPORT_SYMBOL(kedr_coi_payload_foreign_unregister);
+EXPORT_SYMBOL(kedr_coi_interceptor_get_intermediate_info);
 
 EXPORT_SYMBOL(kedr_coi_interceptor_destroy);
+
+// Foreign instrumentor
+EXPORT_SYMBOL(kedr_coi_foreign_payload_register);
+EXPORT_SYMBOL(kedr_coi_foreign_payload_unregister);
+
+EXPORT_SYMBOL(kedr_coi_foreign_interceptor_start);
+EXPORT_SYMBOL(kedr_coi_foreign_interceptor_stop);
+
+EXPORT_SYMBOL(kedr_coi_foreign_interceptor_watch);
+EXPORT_SYMBOL(kedr_coi_foreign_interceptor_forget);
+EXPORT_SYMBOL(kedr_coi_foreign_interceptor_forget_norestore);
+
+EXPORT_SYMBOL(kedr_coi_foreign_interceptor_create);
+
+EXPORT_SYMBOL(kedr_coi_foreign_interceptor_restore_copy);
+
+EXPORT_SYMBOL(kedr_coi_foreign_interceptor_destroy);

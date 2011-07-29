@@ -58,50 +58,43 @@ static int check_function_array(void* const* funcs, void* const* funcs_expected)
     return 0;
 }
 
-/*
- * Verify that handlers is correctly set for the intermediate,
- * pointed in 'replacement_expected'.
- */
-static int check_replacement_fill(
-    const struct kedr_coi_test_replacement* replacement_expected)
-{
-    int result;
-    
-    result = check_function_array(
-        replacement_expected->intermediate->info->pre,
-        replacement_expected->pre);
-    
-    if(result)
-    {
-        pr_err("Incorrect array of pre-functions.");
-        return result;
-    }
-
-    result = check_function_array(
-        replacement_expected->intermediate->info->post,
-        replacement_expected->post);
-    
-    if(result)
-    {
-        pr_err("Incorrect array of post-functions.");
-        return result;
-    }
-
-    return 0;
-}
-
-int check_replacements(const struct kedr_coi_instrumentor_replacement* replacements,
+int check_payloads_container(
+    struct kedr_coi_payloads_container* container,
     const struct kedr_coi_test_replacement* replacements_expected)
 {
     int result;
+    
+    const struct kedr_coi_replacement* replacements;
 
-    const struct kedr_coi_instrumentor_replacement* replacement;
+    const struct kedr_coi_replacement* replacement;
     const struct kedr_coi_test_replacement* replacement_expected;
     
     int replacements_n = 0;
     int replacements_expected_n = 0;
     
-    // Count elements in both arrays
+    // Count elements in expected array
+    for(replacement_expected = replacements_expected;
+        replacement_expected->intermediate != NULL;
+        replacement_expected++)
+    {
+        replacements_expected_n ++;
+    }
+
+
+    replacements = kedr_coi_payloads_container_get_replacements(container);
+    if(replacements == NULL)
+    {
+        if(replacements_expected_n != 0)
+        {
+            pr_err("Expected number of replacements is %d, but" 
+                "kedr_coi_payloads_container_get_replacements() returns NULL.",
+                replacements_expected_n);
+            return -EINVAL;
+        }
+        return 0;
+    }
+    
+    // Count replacements return by container
     for(replacement = replacements;
         replacement->operation_offset != -1;
         replacement++)
@@ -109,16 +102,9 @@ int check_replacements(const struct kedr_coi_instrumentor_replacement* replaceme
         replacements_n ++;
     }
 
-    for(replacement_expected = replacements_expected;
-        replacement_expected->intermediate != NULL;
-        replacement_expected++)
-    {
-        replacements_expected_n ++;
-    }
-    
     if(replacements_n != replacements_expected_n)
     {
-        pr_err("Array of replacements containes %d elemens, but should %d.",
+        pr_err("Array of replacements contains %d elemens, but should %d.",
             replacements_n, replacements_expected_n);
         return -1;
     }
@@ -137,6 +123,9 @@ int check_replacements(const struct kedr_coi_instrumentor_replacement* replaceme
             replacement->operation_offset != -1;
             replacement++)
         {
+            void* const* pre_handlers;
+            void* const* post_handlers;
+            
             if(replacement->operation_offset != operation_offset) continue;
             if(replacement->repl != repl)
             {
@@ -145,11 +134,32 @@ int check_replacements(const struct kedr_coi_instrumentor_replacement* replaceme
                     replacement->repl, repl);
                 return -1;
             }
-            result = check_replacement_fill(replacement_expected);
+            
+            result = kedr_coi_payloads_container_get_handlers(container,
+                operation_offset,
+                &pre_handlers,
+                &post_handlers);
+            
             if(result)
             {
-                pr_err("Intermediate information for operation at offset %zu "
-                    "is incorrectly filled.", operation_offset);
+                pr_err("Failed to get handlers for operation at offset %zu.",
+                    operation_offset);
+                return result;
+            }
+            
+            result = check_function_array(pre_handlers, replacement_expected->pre);
+            if(result)
+            {
+                pr_err("Incorrect pre-handlers for operation at offset %zu",
+                    operation_offset);
+                return result;
+            }
+            
+            result = check_function_array(post_handlers, replacement_expected->post);
+            if(result)
+            {
+                pr_err("Incorrect post-handlers for operation at offset %zu",
+                    operation_offset);
                 return result;
             }
             break;

@@ -4,7 +4,8 @@
  */
 
 #include "kedr_coi_instrumentor_internal.h"
-#include "kedr_coi_global_map_internal.h"
+
+#include <linux/kernel.h> /*printk*/
 
 #include "instrumentor_test_common.h"
 
@@ -50,7 +51,7 @@ struct test_object object =
     .ops = &ops,
 };
 
-static struct kedr_coi_instrumentor_replacement replacements[] =
+static struct kedr_coi_replacement replacements[] =
 {
     {
         .operation_offset = offsetof(struct test_operations, do_something),
@@ -67,10 +68,10 @@ int test_init(void)
 {
     int result;
     
-    result = kedr_coi_global_map_init();
+    result = kedr_coi_instrumentors_init();
     if(result)
     {
-        pr_err("Failed to init global map.");
+        pr_err("Failed to init instrumentors support.");
         return result;
     }
     
@@ -79,7 +80,7 @@ int test_init(void)
 
 void test_cleanup(void)
 {
-    kedr_coi_global_map_destroy();
+    kedr_coi_instrumentors_destroy();
 }
 
 // Test itself
@@ -108,7 +109,7 @@ int test_run(void)
     if(instrumentor_another == NULL)
     {
         pr_err("Failed to create another indirect instrumentor.");
-        kedr_coi_instrumentor_destroy(instrumentor);
+        kedr_coi_instrumentor_destroy(instrumentor, NULL);
         return -1;
     }
 
@@ -117,8 +118,8 @@ int test_run(void)
     if(result < 0)
     {
         pr_err("Fail to watch for an object.");
-        kedr_coi_instrumentor_destroy(instrumentor_another);
-        kedr_coi_instrumentor_destroy(instrumentor);
+        kedr_coi_instrumentor_destroy(instrumentor_another, NULL);
+        kedr_coi_instrumentor_destroy(instrumentor, NULL);
         return result;
     }
     
@@ -126,8 +127,8 @@ int test_run(void)
     if(result >= 0)
     {
         pr_err("Another instrumentor watch for the same operations of the same object. This shouldn't be possible.");
-        kedr_coi_instrumentor_destroy(instrumentor_another);
-        kedr_coi_instrumentor_destroy(instrumentor);
+        kedr_coi_instrumentor_destroy(instrumentor_another, NULL);
+        kedr_coi_instrumentor_destroy(instrumentor, NULL);
         return result;
     }
 
@@ -135,12 +136,12 @@ int test_run(void)
     if(result < 0)
     {
         pr_err("Fail to forget object.");
-        kedr_coi_instrumentor_destroy(instrumentor_another);
-        kedr_coi_instrumentor_destroy(instrumentor);
+        kedr_coi_instrumentor_destroy(instrumentor_another, NULL);
+        kedr_coi_instrumentor_destroy(instrumentor, NULL);
         return result;
     }
 
-    kedr_coi_instrumentor_destroy(instrumentor_another);
-    kedr_coi_instrumentor_destroy(instrumentor);
+    kedr_coi_instrumentor_destroy(instrumentor_another, NULL);
+    kedr_coi_instrumentor_destroy(instrumentor, NULL);
     return 0;
 }

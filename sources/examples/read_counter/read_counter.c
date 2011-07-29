@@ -71,7 +71,7 @@ static void file_operation_release_post(struct inode* inode,
     }
 }
 
-static struct kedr_coi_handler_post file_operations_handlers_post[] =
+static struct kedr_coi_post_handler file_operations_post_handlers[] =
 {
     {
         .operation_offset = offsetof(struct file_operations, read),
@@ -94,7 +94,7 @@ struct kedr_coi_payload file_operations_payload =
 {
     .mod = THIS_MODULE,
     
-    .handlers_post = file_operations_handlers_post,
+    .post_handlers = file_operations_post_handlers,
 };
 
 
@@ -104,14 +104,14 @@ static void cdev_file_operations_on_create_handler(struct file* filp)
     file_operations_interceptor_watch(filp);
 }
 
-kedr_coi_handler_foreign_t cdev_file_operations_on_create_handlers[] =
+kedr_coi_foreign_handler_t cdev_file_operations_on_create_handlers[] =
 {
-    (kedr_coi_handler_foreign_t)cdev_file_operations_on_create_handler,
+    (kedr_coi_foreign_handler_t)cdev_file_operations_on_create_handler,
     NULL
 };
 
 
-struct kedr_coi_payload_foreign cdev_file_operations_payload =
+struct kedr_coi_foreign_payload cdev_file_operations_payload =
 {
     .mod = THIS_MODULE,
     
@@ -174,8 +174,8 @@ void on_target_load(struct module* m)
 
 void on_target_unload(struct module* m)
 {
-    file_operations_interceptor_stop();
-    cdev_file_operations_interceptor_stop();
+    file_operations_interceptor_stop(NULL);
+    cdev_file_operations_interceptor_stop(NULL);
 }
 
 
