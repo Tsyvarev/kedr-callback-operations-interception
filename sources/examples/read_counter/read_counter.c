@@ -97,27 +97,6 @@ struct kedr_coi_payload file_operations_payload =
     .post_handlers = file_operations_post_handlers,
 };
 
-
-/* Set watching for the file(cdev foreign operations interceptor) */
-static void cdev_file_operations_on_create_handler(struct file* filp)
-{
-    file_operations_interceptor_watch(filp);
-}
-
-kedr_coi_foreign_handler_t cdev_file_operations_on_create_handlers[] =
-{
-    (kedr_coi_foreign_handler_t)cdev_file_operations_on_create_handler,
-    NULL
-};
-
-
-struct kedr_coi_foreign_payload cdev_file_operations_payload =
-{
-    .mod = THIS_MODULE,
-    
-    .on_create_handlers = cdev_file_operations_on_create_handlers,
-};
-
 /* Set wathcing for the file operations in cdev(KEDR payloads) */
 static void cdev_add_pre(struct cdev* dev, dev_t devno, unsigned count)
 {
@@ -167,15 +146,13 @@ struct kedr_post_pair post_pairs[] =
 void on_target_load(struct module* m)
 {
     file_operations_interceptor_start();
-    cdev_file_operations_interceptor_start();
     
     read_counter = 0;
 }
 
 void on_target_unload(struct module* m)
 {
-    file_operations_interceptor_stop(NULL);
-    cdev_file_operations_interceptor_stop(NULL);
+    file_operations_interceptor_stop();
 }
 
 
@@ -197,17 +174,17 @@ static int __init read_counter_module_init(void)
 {
     int result;
     
-    result = file_operations_interceptor_init();
+    result = file_operations_interceptor_init(NULL);
     if(result) goto err_file_operations;
     
-    result = cdev_file_operations_interceptor_init();
+    result = cdev_file_operations_interceptor_init(
+        file_operations_interceptor_foreign_interceptor_create,
+        NULL);
+
     if(result) goto err_cdev_file_operations;
 
     result = file_operations_interceptor_payload_register(&file_operations_payload);
     if(result) goto err_file_operations_payload;
-
-    result = cdev_file_operations_interceptor_payload_register(&cdev_file_operations_payload);
-    if(result) goto err_cdev_file_operations_payload;
 
     result = functions_support_register();
     if(result) goto err_functions_support;
@@ -220,8 +197,6 @@ static int __init read_counter_module_init(void)
 err_payload:
     functions_support_unregister();
 err_functions_support:
-    cdev_file_operations_interceptor_payload_unregister(&cdev_file_operations_payload);
-err_cdev_file_operations_payload:
     file_operations_interceptor_payload_unregister(&file_operations_payload);
 err_file_operations_payload:
     cdev_file_operations_interceptor_destroy();
@@ -236,7 +211,6 @@ static void __exit read_counter_module_exit(void)
 {
     kedr_payload_unregister(&payload);
     functions_support_unregister();
-    cdev_file_operations_interceptor_payload_unregister(&cdev_file_operations_payload);
     file_operations_interceptor_payload_unregister(&file_operations_payload);
     cdev_file_operations_interceptor_destroy();
     file_operations_interceptor_destroy();

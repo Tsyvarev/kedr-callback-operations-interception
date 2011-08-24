@@ -50,7 +50,9 @@
  * Such interceptor is referred as foreign, because it allows to intercept
  * operations which are called not for the owner object, but for another object.
  * Interceptors for foreign operations doesn't allow to set handlers for these
- * operations but allow to set handler to be executed when foreign object is created.
+ * operations but allow to automatically watch for an object, which is 
+ * created by copiing operations from another object, which is already watched.
+ * 
  * Creation of interceptors for foreign operations are described in
  * section "Foreign interceptor creation".
  * 
@@ -139,15 +141,10 @@
  * 
  * Foreign interceptor creation.
  * 
- * Interceptor for foreign operations is created very similar to one
- * for normal operations, organized into one structure
- * (see section "Interceptor creation.")
+ * For create interceptor for foreign operations of object, one should:
  * 
- * a) One should describe "geometry" of such operations in term of:
+ * a) describe placement of such operations inside object:
  * -offset of the field pointed to operations struct inside object struct
- * -size of operations struct
- * -offset of the field pointer to operations struct inside struct of foreign
- * object, for which these operations are called.
  * 
  * b) write intermediate operations for operations which are called just
  * after foreign object is created and its operations are copied from
@@ -155,30 +152,24 @@
  * E.g., if foreign object is file('struct file'), one have to write
  * intermediate operation for file operation open().
  * 
- * Intermediate operation should firstly locally allocate intermediate
- * info object (type 'struct kedr_coi_foreign_intermediate_info') and
- * call kedr_coi_interceptor_foreign_restore_copy() for fill it.
+ * Intermediate operation should firstly allocate pointer to the chained
+ * operation and then call kedr_coi_bind_prototype_with_object(),
+ * which aside from other work will set this pointer.
  * 
- * After filling, object will contain array of handlers for foreign object.
- * Also, kedr_coi_interceptor_foreign_restore_copy() will restore
- * operations of the foreign object, as them was a copy of operations
- * without interception.
- * 
- * Intermediate operation should then call all handlers in order,
- * and at the end call corresponded operation of the object.
- * 
- * Note, that object operations are changed after
- * kedr_coi_interceptor_foreign_restore_copy() and may changed in handlers
- * (see Section 4 in 'Standard use case', clause 'c'). So pointer to
- * the object operation shouldn't be cached until last handler is executed.
+ * Then intermediate operation should call chained one and return
+ * its result (if operation return any value).
  * 
  * Like an intermediate operation for standard interceptor,
  * intermediate operation for interceptor for foreign operations should
  * correctly process case when pointer to the object operation is NULL.
  * 
+ * c) Choose 'normal' interceptor, which will be binded with foreign one.
+ * 'Binded interceptor' means that all objects will be automatically
+ * watched by this interceptor if it is created by copiing operations
+ * from prototype object, which is watched by foreign interceptor.
+ * 
  * Foreign interceptor is created with kedr_coi_interceptor_create_foreign()
  * function.
- * 
  */
 
 #ifndef OPERATIONS_INTERCEPTION_H
@@ -189,9 +180,12 @@
 /*
  * Operations interceptor.
  * 
- * It is responsible for intercept operations for objects of
- * particular types, making available to call user-defined functions
- * before or after these operations(pre- and post-handlers).
+ * It is responsible for intercept callback operations for objects of
+ * particular types.
+ * User-defined functions may be assigned for call before or after
+ * any of these operations (pre- and post- handlers).
+ * These handlers will be called whenever corresponded operation is 
+ * executed for the object, which is marked as 'watched'.
  */
 struct kedr_coi_interceptor;
 
@@ -311,66 +305,82 @@ kedr_coi_payload_unregister(
 
 /*
  * After call of this function payload set for interceptor become fixed
- * and interceptor may be applied to the objects for make their operations
- * available for interception.
+ * and interceptor goes into interception state.
  */
 int kedr_coi_interceptor_start(struct kedr_coi_interceptor* interceptor);
 
-
 /*
- * Watch for the operations of the particular object and intercepts them.
- * 
- * Object should have type for which interceptor is created.
- * 
- * This operation somewhat change content of object's fields concerning
- * operations. If these fields are changed outside of the replacer,
- * this function should be called again.
- * 
- */
-int kedr_coi_interceptor_watch(
-    struct kedr_coi_interceptor* interceptor,
-    void* object);
-
-/*
- * Stop to watch for the object and restore content of the
- * object's fields concerned operations.
- */
-int kedr_coi_interceptor_forget(
-    struct kedr_coi_interceptor* interceptor,
-    void* object);
-
-/*
- * Stop to watch for the object but do not restore content of the
- * object's operations field.
- * 
- * This function is intended to call instead of
- * kedr_operations_interceptor_forget_object()
- * when object may be already freed and access
- * to its operations field may cause memory fault.
- */
-int kedr_coi_interceptor_forget_norestore(
-    struct kedr_coi_interceptor* interceptor,
-    void* object);
-
-
-/*
- * After call of this function payload set for interceptor become
- * flexible again.
+ * After call of this function interceptor leaves interception state
+ * ans payload set for interceptor become flexible again.
  * 
  * All objects which are watched at this stage will be forgotten
  * using mechanism similar to kedr_coi_interceptor_forget_norestore.
  * Usually existance of such objects is a bug in objects' lifetime
  * determination mechanism (objects are alredy destroyed but interceptor
  * wasn't notified about that with '_forget' methods).
- * If 'trace_unforgotten_object' is not NULL it will be called for each
- * unforgotten object.
- * 
+ * If 'trace_unforgotten_object' passed to the interceptor constructor
+ * is not NULL it will be called for each unforgotten object.
  */
-void kedr_coi_interceptor_stop(struct kedr_coi_interceptor* interceptor,
-    void (*trace_unforgotten_object)(void* object));
+void kedr_coi_interceptor_stop(struct kedr_coi_interceptor* interceptor);
+
+/*
+ * Mark object as 'watched', callback operations for this object will
+ * be intercepted and pre- and post-handlers in the registered payloads
+ * will be called for them.
+ * 
+ * Object should have type for which interceptor is created.
+ * 
+ * This operation somewhat change content of object's fields concerned
+ * with operations. If these fields are changed outside of the replacer,
+ * this function should be called again.
+ * 
+ * NOTE: This operation should be called only in 'interception' state
+ * of the interceptor. Otherwise it will return error.
+ */
+int kedr_coi_interceptor_watch(
+    struct kedr_coi_interceptor* interceptor,
+    void* object);
+
+/*
+ * Stop to watch for the object, from that moment callback operations for
+ * that object will not be intercepted.
+ * 
+ * Also restore content of the object's fields concerned operations as 
+ * it was before watching.
+ * 
+ * Return 0 on success, negative error code on fail.
+ * If object wasn't watched, function return 1.
+ *
+ * NOTE: This operation should be called only in 'interception' state
+ * of the interceptor. Otherwise it will return error.
+ */
+int kedr_coi_interceptor_forget(
+    struct kedr_coi_interceptor* interceptor,
+    void* object);
+
+/*
+ * Forget interception information about object which was wached.
+ * 
+ * As opposed to kedr_operations_interceptor_forget_object(),
+ * this function does not restore objects operations and does not access
+ * to any fields of that object. So, this function may be used for
+ * objects which may be already freed.
+ * 
+ * Return 0 on success, negative error code on fail.
+ * If object wasn't watched, function return 1.
+ *
+ * NOTE: This operation should be called only in 'interception' state
+ * of the interceptor. Otherwise it will return error.
+ */
+
+int kedr_coi_interceptor_forget_norestore(
+    struct kedr_coi_interceptor* interceptor,
+    void* object);
 
 
-
+void
+kedr_coi_interceptor_destroy(
+    struct kedr_coi_interceptor* interceptor);
 /**********Creation of the operations interceptor*******************/
 
 /*
@@ -460,6 +470,9 @@ struct kedr_coi_intermediate
  * 'intermediate_operations' contain array of all known operations
  *      in the operations struct. Last element in that array should have '-1'
  *      in 'operation_offset' field.
+ * If not NULL, 'trace_unforgotten_object' will be called from 
+ * kedr_coi_interceptor_stop() for each object which will be watched
+ * at that moment.
  * 
  * Function return interceptor descriptor.
  */
@@ -468,7 +481,8 @@ struct kedr_coi_interceptor*
 kedr_coi_interceptor_create(const char* name,
     size_t operations_field_offset,
     size_t operations_struct_size,
-    struct kedr_coi_intermediate* intermediate_operations);
+    struct kedr_coi_intermediate* intermediate_operations,
+    void (*trace_unforgotten_object)(void* object));
 
 
 /*
@@ -483,144 +497,82 @@ kedr_coi_interceptor_create(const char* name,
  *      in the object struct. Last element in that array should have '-1'
  *      in 'operation_offset' field.
  * 
+ * If not NULL, 'trace_unforgotten_object' will be called from 
+ * kedr_coi_interceptor_stop() for each object which will be watched
+ * at that moment.
  * Function return interceptor descriptor.
  */
 
 struct kedr_coi_interceptor*
 kedr_coi_interceptor_create_direct(const char* name,
     size_t object_size,
-    struct kedr_coi_intermediate* intermediate_operations);
-
-
-void
-kedr_coi_interceptor_destroy(struct kedr_coi_interceptor* interceptor);
+    struct kedr_coi_intermediate* intermediate_operations,
+    void (*trace_unforgotten_object)(void* object));
 
 
 /**************Interceptor for foreign operations*******************/
 
 /*
- * This type of interceptor is intended to use for object's operations,
- * which are copied into another object('foreign object'),
- * and are called only for that object.
+ * This type of interceptor is intended to use for object's operations
+ * which are not executed at place, but are copied into another object(s)
+ * and are executed for it. Initial object is used as prototype for
+ * another object in that case.
  * 
- * Key difference of this interceptor from 'normal' interceptors is that,
- * even it may intercept any operation, it permit to register only
- * one type of handlers, which will be called after 'foreign object'
- * is created but before any of its operation is called.
- * For set handlers for particular operations, one need to use 'normal'
- * interceptor for foreign object.
+ * Unlike from normal interceptor, which is used for intercepts object's
+ * callback operations, this interceptor intercepts creation of another
+ * object. If such object was created from the prototype object, which
+ * is watched by this interceptor, then newly created object will be
+ * automatically watched by the normal interceptorNewly created object will automatically watched by 
+ * for an objects which operations are copied from another object.
+ * Last object is used as prototype in that case.
+ * 
+ * '*_watch'() '*_forget'() and '*_forget_norestore'() functions for
+ * interceptor of foreign operations has similar behavour as for
+ * interceptor of normal operations.
+ * But using these functions has a sence
+ * 
  */
 
 struct kedr_coi_foreign_interceptor;
 
-// Type of handler functions for foreign interceptor.
-typedef void (*kedr_coi_foreign_handler_t)(void* foreign_object);
-
-/*
- * Contain information about what operations one want to intercept
- * and how.
- */
-struct kedr_coi_foreign_payload
-{
-    struct module* mod;
-    /*
-     * NULL-terminated array of functions, which are called when
-     * foreign object is created.
-     */
-    kedr_coi_foreign_handler_t* on_create_handlers;
-};
-
-
-/* Registers a payload module with the foreign operations interceptor. 
- * 'payload' should provide all the data the interceptor needs to use this 
- * payload module.
- * This function returns 0 if successful, an error code otherwise.
- * 
- * This function is usually called in the init function of a payload module.
- * */
-int 
-kedr_coi_foreign_payload_register(
-    struct kedr_coi_foreign_interceptor* interceptor,
-    struct kedr_coi_foreign_payload *payload);
-
-/*
- *  Unregisters a payload module, the interceptor will not use it any more.
- * 'payload' should be the same as passed to the corresponding call to
- * operations_interceptor_payload_register().
- * 
- * This function is usually called in the cleanup function of a payload 
- * module.
- * */
-void 
-kedr_coi_foreign_payload_unregister(
-    struct kedr_coi_foreign_interceptor* interceptor,
-    struct kedr_coi_foreign_payload *payload);
-
-/*
- * Next 5 functions for the foreign interceptor do the same as
- * corresponded functions do for the normal interceptor.
- */
-
-
-int kedr_coi_foreign_interceptor_start(
-    struct kedr_coi_foreign_interceptor* interceptor);
-
 int kedr_coi_foreign_interceptor_watch(
     struct kedr_coi_foreign_interceptor* interceptor,
-    void* object);
+    void* prototype_object);
 
 int kedr_coi_foreign_interceptor_forget(
     struct kedr_coi_foreign_interceptor* interceptor,
-    void* object);
+    void* prototype_object);
 
 int kedr_coi_foreign_interceptor_forget_norestore(
     struct kedr_coi_foreign_interceptor* interceptor,
-    void* object);
+    void* prototype_object);
 
-void kedr_coi_foreign_interceptor_stop(
-    struct kedr_coi_foreign_interceptor* interceptor,
-    void (*trace_unforgotten_object)(void* object));
-
-
+void kedr_coi_foreign_interceptor_destroy(
+    struct kedr_coi_foreign_interceptor* interceptor);
 /*******Creation of the foreign operations interceptor****************/
 
 /*
- * Information for intermediate foreign operation.
- * 
- * Unlike information for 'normal' intermediate operation, this information
- * is shared between all intermediate operations.
- * (But usually there is only one intermediate operation)
- */
-struct kedr_coi_foreign_intermediate_info
-{
-    /*
-     * NULL- terminated array of functions which should be called after
-     * foreign object is created.
-     * 
-     * NULL array means empty array.
-     */
-    const kedr_coi_foreign_handler_t* on_create_handlers;
-};
-
-
-/*
- * Return copied operations to their initial state.
- * 
- * Also fill information for intermediate operation.
+ * If given prototype object is watched by foreign interceptor,
+ * watch for given object.
  * 
  * This function is intended to be used ONLY in the implementation
  * of the intermediate foreign operation.
+ * 
+ * 'op_chained' will be set to operation which should be called at the end
+ * of intermediate operation.
  */
 
-int kedr_coi_foreign_interceptor_restore_copy(
+int kedr_coi_bind_prototype_with_object(
     struct kedr_coi_foreign_interceptor* interceptor,
+    void* prototype_object,
     void* object,
-    void* foreign_object,
-    struct kedr_coi_foreign_intermediate_info* info);
+    size_t operation_offset,
+    void** op_chained);
 
 /*
- * Replacement for operation which should restore operations for
- * foreign object, call registered handlers and then call initial operation.
+ * Replacement for operation which should call
+ * kedr_coi_bind_prototype_with_object() and then call original operation.
+ * which is returned by that function.
  */
 struct kedr_coi_foreign_intermediate
 {
@@ -632,15 +584,16 @@ struct kedr_coi_foreign_intermediate
  * Create interceptor for specific type of object with operations
  * for foreign object(not for object itself).
  * 
- * 'name' is a name of the interceptor and used internally(in messages)
- * 'operations_field_offset' is an offset of the pointer
- *      to the operations struct inside object structure.
- * 'operations_struct_size' is a size of operations struct.
- * 'foreign_operations_field_offset' is an offset of the pointer
- *      to the operations struct inside foreign object structure.
+ * 'interceptor_indirect' - interceptor which is used for the operations
+ * with its natural object.
+ *
+ * 'name' is a name of the interceptor created and used internally(in messages).
+ * 
+ * 'prototype_operations_field_offset' is an offset of the pointer
+ *      to the operations struct inside prototype object structure.
  * 'intermediate_operations' contain array of all known operations
- *      in the operations struct, which are called when foreign
- *      object is created. Last element in that array should have '-1'
+ *      in the operations struct, which are called when object
+ *      is created. Last element in that array should have '-1'
  *      in 'operation_offset' field.
  *      Usually this array contains only one operation.
  * 
@@ -649,14 +602,11 @@ struct kedr_coi_foreign_intermediate
 
 struct kedr_coi_foreign_interceptor*
 kedr_coi_foreign_interceptor_create(
+    struct kedr_coi_interceptor* interceptor_indirect,
     const char* name,
-    size_t operations_field_offset,
-    size_t operations_struct_size,
     size_t foreign_operations_field_offset,
-    struct kedr_coi_foreign_intermediate* intermediate_operations);
-
-void kedr_coi_foreign_interceptor_destroy(
-    struct kedr_coi_foreign_interceptor* interceptor);
+    const struct kedr_coi_foreign_intermediate* intermediate_operations,
+    void (*trace_unforgotten_object)(void* object));
 
 /**************************************/
 

@@ -145,24 +145,6 @@ static void dentry_operations_all_interceptor_watch(struct dentry* dentry)
 //}
 
 
-/* Determine lifetime of file object(from inode object) */
-static void ifops_on_create_file_lifetime(void* filp)
-{
-     file_operations_interceptor_watch(filp);
-}
-
-// Combine all handlers for file operations in inode object
-static kedr_coi_foreign_handler_t inode_file_operations_on_create_handlers[] =
-{
-    ifops_on_create_file_lifetime,
-    NULL
-};
-
-static struct kedr_coi_foreign_payload inode_file_operations_payload =
-{
-    .on_create_handlers = inode_file_operations_on_create_handlers
-};
-
 /* Determine lifetime of dentry object from another inode object*/
 static void iops_lookup_post_dentry_lifetime(struct inode *inode,
 	struct dentry *dentry, struct nameidata *nd,
@@ -368,7 +350,6 @@ static void on_target_load(struct module* m)
 {
     file_operations_interceptor_start();
     inode_operations_interceptor_start();
-    inode_file_operations_interceptor_start();
     dentry_operations_interceptor_start();
     super_operations_interceptor_start();
     file_system_type_interceptor_start();
@@ -408,12 +389,11 @@ static void trace_unforgotten_fst(struct file_system_type* type)
 
 static void on_target_unload(struct module* m)
 {
-    file_system_type_interceptor_stop(&trace_unforgotten_fst);
-    super_operations_interceptor_stop(&trace_unforgotten_super);
-    dentry_operations_interceptor_stop(&trace_unforgotten_dentry);
-    inode_operations_interceptor_stop(&trace_unforgotten_inode);
-    inode_file_operations_interceptor_stop(&trace_unforgotten_inode_for_file);
-    file_operations_interceptor_stop(&trace_unforgotten_file);
+    file_system_type_interceptor_stop();
+    super_operations_interceptor_stop();
+    dentry_operations_interceptor_stop();
+    inode_operations_interceptor_stop();
+    file_operations_interceptor_stop();
 }
 
 
@@ -435,30 +415,29 @@ static int __init file_access_counter_module_init(void)
 {
     int result;
     
-    result = file_operations_interceptor_init();
+    result = file_operations_interceptor_init(&trace_unforgotten_file);
     if(result) goto err_file_operations;
     
-    result = file_system_type_interceptor_init();
+    result = file_system_type_interceptor_init(&trace_unforgotten_fst);
     if(result) goto err_file_system_type;
     
-    result = super_operations_interceptor_init();
+    result = super_operations_interceptor_init(&trace_unforgotten_super);
     if(result) goto err_super_operations;
     
-    result = dentry_operations_interceptor_init();
+    result = dentry_operations_interceptor_init(&trace_unforgotten_dentry);
     if(result) goto err_dentry_operations;
 
-    result = inode_operations_interceptor_init();
+    result = inode_operations_interceptor_init(&trace_unforgotten_inode);
     if(result) goto err_inode_operations;
     
-    result = inode_file_operations_interceptor_init();
+    result = inode_file_operations_interceptor_init(
+        file_operations_interceptor_foreign_interceptor_create,
+        &trace_unforgotten_inode_for_file);
     if(result) goto err_inode_file_operations;
 
     //
     result = file_operations_interceptor_payload_register(&file_operations_payload);
     if(result) goto err_file_operations_payload;
-
-    result = inode_file_operations_interceptor_payload_register(&inode_file_operations_payload);
-    if(result) goto err_inode_file_operations_payload;
 
     result = inode_operations_interceptor_payload_register(&inode_operations_payload);
     if(result) goto err_inode_operations_payload;
@@ -491,8 +470,6 @@ err_super_operations_payload:
 err_dentry_operations_payload:
     inode_operations_interceptor_payload_unregister(&inode_operations_payload);
 err_inode_operations_payload:
-    inode_file_operations_interceptor_payload_unregister(&inode_file_operations_payload);
-err_inode_file_operations_payload:
     file_operations_interceptor_payload_unregister(&file_operations_payload);
 err_file_operations_payload:
 //
@@ -520,7 +497,6 @@ static void __exit file_access_counter_module_exit(void)
     super_operations_interceptor_payload_unregister(&super_operations_payload);
     dentry_operations_interceptor_payload_unregister(&dentry_operations_payload);
     inode_operations_interceptor_payload_unregister(&inode_operations_payload);
-    inode_file_operations_interceptor_payload_unregister(&inode_file_operations_payload);
     file_operations_interceptor_payload_unregister(&file_operations_payload);
     //
     inode_file_operations_interceptor_destroy();

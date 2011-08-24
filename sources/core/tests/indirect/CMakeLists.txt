@@ -1,0 +1,10 @@
+kedr_coi_test_add_prefix("indirect")
+
+add_subdirectory(base)
+add_subdirectory(several_payloads)
+add_subdirectory(no_payloads)
+add_subdirectory(empty_payload)
+add_subdirectory(grouping)
+add_subdirectory(conflicted_interceptors)
+add_subdirectory(update)
+add_subdirectory(copy_operations)

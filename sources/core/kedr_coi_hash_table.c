@@ -146,14 +146,18 @@ void kedr_coi_hash_table_destroy(struct kedr_coi_hash_table* table,
             {
                 pr_warning("Hash table %p wasn't freed before deleting.",
                     table);
-                // go to the end of cycle
+                // go to the end of the cycle
                 head = head_end;
+                break;
+            }
+            else
+            {
                 break;
             }
         }
     }
     // Remove all non-deleted elements with function supplied.
-    for(head = table->heads; head < head_end; head++)
+    for(; head < head_end; head++)
     {
         while(!hlist_empty(head))
         {
@@ -163,7 +167,6 @@ void kedr_coi_hash_table_destroy(struct kedr_coi_hash_table* table,
             free_elem(elem, table);
         }
     }    
-
     kfree(table->heads);
 }
 

@@ -1,5 +1,0 @@
-kedr_coi_test_add_prefix("components")
-
-add_subdirectory(instrumentor)
-add_subdirectory(payloads_container)
-add_subdirectory(foreign_payloads_container)

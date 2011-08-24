@@ -26,15 +26,17 @@ static struct kedr_coi_intermediate intermediate_operations[] =
     }
 };
 
-int <$interceptor.name$>_init(void)
+int <$interceptor.name$>_init(void (*trace_unforgotten_object)(<$object.type$>* object))
 {
 <$if interceptor.is_direct$>    interceptor = kedr_coi_interceptor_create_direct("<$interceptor.name$>",
        sizeof(<$object.type$>),
-       intermediate_operations);
+       intermediate_operations,
+       (void (*)(void*))trace_unforgotten_object);
 <$else$>    interceptor = kedr_coi_interceptor_create("<$interceptor.name$>",
        offsetof(<$object.type$>, <$object.operations_field$>),
        sizeof(<$operations.type$>),
-       intermediate_operations);
+       intermediate_operations,
+       (void (*)(void*))trace_unforgotten_object);
 <$endif$>    
 
     if(interceptor == NULL)
@@ -63,9 +65,9 @@ int <$interceptor.name$>_start(void)
     return kedr_coi_interceptor_start(interceptor);
 }
 
-void <$interceptor.name$>_stop(void (*trace_unforgotten_object)(<$object.type$>* object))
+void <$interceptor.name$>_stop(void)
 {
-    kedr_coi_interceptor_stop(interceptor, (void (*) (void* object))trace_unforgotten_object);
+    kedr_coi_interceptor_stop(interceptor);
 }
 
 int <$interceptor.name$>_watch(<$object.type$> *object)
@@ -81,4 +83,20 @@ int <$interceptor.name$>_forget(<$object.type$> *object)
 int <$interceptor.name$>_forget_norestore(<$object.type$> *object)
 {
     return kedr_coi_interceptor_forget_norestore(interceptor, object);
-}
+}<$if interceptor.is_direct$><$else$>
+
+// For create foreign interceptors
+extern struct kedr_coi_foreign_interceptor*
+<$interceptor.name$>_foreign_interceptor_create(
+    const char* name,
+    size_t foreign_operations_field_offset,
+    const struct kedr_coi_foreign_intermediate* _intermediate_operations,
+    void (*trace_unforgotten_object)(void* object))
+{
+    return kedr_coi_foreign_interceptor_create(
+        interceptor,
+        name,
+        foreign_operations_field_offset,
+        _intermediate_operations,
+        trace_unforgotten_object);
+}<$endif$>
