@@ -36,42 +36,92 @@ struct kedr_coi_instrumentor_impl_iface
 {
     struct kedr_coi_interface base;
 
+    /*
+     * Called when 'watch' is called for a new object.
+     * 
+     * Should return object_data which will be set for that object,
+     * or NULL on error. May sleep.
+     */
     struct kedr_coi_instrumentor_object_data* (*alloc_object_data)(
-        struct kedr_coi_object* iface_impl);
+        struct kedr_coi_object* i_iface_impl);
 
-    void (*free_object_data)(
-        struct kedr_coi_object* iface_impl,
-        struct kedr_coi_instrumentor_object_data* object_data);
-    
+    /*
+     * Called when 'watch' is called for a new object.
+     * 
+     * 'object_data_new' are data allocated with 'alloc_object_data'.
+     * 
+     * Executed in atomic context.
+     * 
+     * Should replace operations and fill object_data_new with data
+     * described this replacement.
+     * 
+     * No other callback function which works with the same object may
+     * be called concurrently with this. 'object_data_new' become
+     * available for other functions only when this callback returns
+     * successfully.
+     */
     int (*replace_operations)(
-        struct kedr_coi_object* iface_impl,
+        struct kedr_coi_object* i_iface_impl,
         struct kedr_coi_instrumentor_object_data* object_data_new,
         void* object);
     
+    /*
+     * Called when 'forget' is called for an object, which is watched.
+     * 
+     * 'object_data' are data concerned with this object.
+     * 
+     * Executed in atomic context.
+     * 
+     * Should remove from object data information about replacement and,
+     * if norestore is 0, revert object's operations to their initial
+     * state.
+     *
+     * No other callback function which works with the same object may
+     * be called concurrently with this. 'object_data' become unavailable
+     * for other functions after this callback returns.
+     */
     void (*clean_replacement)(
-        struct kedr_coi_object* iface_impl,
+        struct kedr_coi_object* i_iface_impl,
         struct kedr_coi_instrumentor_object_data* object_data,
         void* object,
         int norestore);
     
     /*
-     *  Called when 'watch' is called for object for which we already watch for.
+     * Called after replace_operations() was failed, after
+     * clean_replacement() is called or after update_operations()
+     * returns 1.
+     * 
+     * Should free data previously allocated with alloc_object_data().
+     */
+    void (*free_object_data)(
+        struct kedr_coi_object* i_iface_impl,
+        struct kedr_coi_instrumentor_object_data* object_data);
+
+
+    /*
+     *  Called when 'watch' is called for object for which we already
+     * watch for.
      * 
      *  Should update object_data and operations in the object for
      * continue watch for an object.
      * 
-     * If need to recreate object_data, should restore operations in the object
-     * and return 1.
+     * If need to recreate object_data, should restore operations
+     * in the object and return 1. After that, replace_operations()
+     * will be called for newly created object data.
+     *
+     * No other callback function which works with the same object may
+     * be called concurrently with this. 'object_data' become
+     * unavailable for other functions after this callback returns 1.
      */
     int (*update_operations)(
-        struct kedr_coi_object* iface_impl,
+        struct kedr_coi_object* i_iface_impl,
         struct kedr_coi_instrumentor_object_data* object_data,
         void* object);
     
     /*
      * Called when instrumentor was destroyed.
      */
-    void (*destroy_impl)(struct kedr_coi_object* iface_impl);
+    void (*destroy_impl)(struct kedr_coi_object* i_iface_impl);
 };
 
 struct kedr_coi_instrumentor;
@@ -120,18 +170,42 @@ struct kedr_coi_instrumentor_normal_impl_iface
 {
     struct kedr_coi_instrumentor_impl_iface i_iface;
     
-    int (*get_orig_operation)(
-        struct kedr_coi_object* iface_impl_normal,
+    /*
+     * Called when 'get_orig_operation' is called for an object which
+     * is watched.
+     * 
+     * 'object_data' are data corresponded to this object.
+     * 
+     * Executed in atomic context.
+     * 
+     * Should return original object's operation at the given offset or
+     * ERR_PTR() on error.
+     *
+     * No other callback function which works with the same object may
+     * be called concurrently with this.
+     */
+    void* (*get_orig_operation)(
+        struct kedr_coi_object* in_iface_impl,
         struct kedr_coi_instrumentor_object_data* object_data,
         const void* object,
-        size_t operation_offset,
-        void** op_orig);
+        size_t operation_offset);
     
-    int (*get_orig_operation_nodata)(
-        struct kedr_coi_object* iface_impl_normal,
+    /*
+     * Called when 'get_orig_operation' is called for an object which
+     * is watched.
+     * 
+     * Executed in atomic context.
+     * 
+     * Should return original object's operation at the given offset or
+     * ERR_PTR() on error.
+     *
+     * No other callback function which works with the same object may
+     * be called concurrently with this.
+     */
+    void* (*get_orig_operation_nodata)(
+        struct kedr_coi_object* in_iface_impl,
         const void* object,
-        size_t operation_offset,
-        void** op_orig);
+        size_t operation_offset);
 
 };
 
@@ -180,6 +254,13 @@ kedr_coi_instrumentor_create_indirect(
     const struct kedr_coi_replacement* replacements);
 
 struct kedr_coi_instrumentor_normal*
+kedr_coi_instrumentor_create_indirect1(
+    size_t operations_field_offset,
+    size_t operations_struct_size,
+    const struct kedr_coi_replacement* replacements);
+
+
+struct kedr_coi_instrumentor_normal*
 kedr_coi_instrumentor_create_direct(
     size_t object_struct_size,
     const struct kedr_coi_replacement* replacements);
@@ -195,11 +276,21 @@ struct kedr_coi_foreign_instrumentor_impl_iface
      * Called when 'kedr_coi_bind_prototype_with_object' is called,
      * but neither prototype_object or normal object is watched.
      * 
-     * Operation should restore object operations
-     * and return original operation for object.
+     * Executed in atomic context.
      * 
-     * NOTE: 'Restore object operations' means that object operations
-     * will work AS original ones, but they may be not equal to original ones.
+     * Operation should restore object operations and 'op_orig' should 
+     * be set to original operation for object.
+     * 
+     * On any fail, function should return negative error code.
+     * If function fails to extract original operation, 'op_orig'
+     * should be set to ERR_PTR().
+     * 
+     * No other callback function which works with the same object or
+     * prototype object may be called concurrently with this.
+     *
+     * NOTE: 'restore object operations' means that object operations
+     * will work AS original ones, but they may be not equal to original
+     * ones.
      */
 
     int (*restore_foreign_operations_nodata)(
@@ -211,14 +302,24 @@ struct kedr_coi_foreign_instrumentor_impl_iface
 
     /*
      * Called when 'kedr_coi_bind_prototype_with_object' is called,
-     * for prototype_object watched, but allocation of the object_data
-     * for object was failed.
+     * prototype_object is watched, but allocation of the data for the
+     * object is failed.
      * 
-     * Operation should restore object operations
-     * and return original operation for object.
+     * Executed in atomic context.
      * 
-     * NOTE: 'Restore object operations' means that object operations
-     * will work AS original ones, but they may be not equal to original ones.
+     * Operation should restore object operations and 'op_orig' should 
+     * be set to original operation for object.
+     * 
+     * On any fail, function should return negative error code.
+     * If function fails to extract original operation, 'op_orig'
+     * should be set to ERR_PTR().
+     * 
+     * No other callback function which works with the same object or
+     * prototype object may be called concurrently with this.
+     *
+     * NOTE: 'restore object operations' means that object operations
+     * will work AS original ones, but they may be not equal to original
+     * ones.
      */
 
     int (*restore_foreign_operations)(
@@ -250,32 +351,54 @@ struct kedr_coi_instrumentor_with_foreign_impl_iface
         const struct kedr_coi_replacement* replacements);
 
     /*
-     * Called when 'kedr_coi_bind_prototype_with_object' is called for
-     * prototype_object which is watched.
+     * Called when 'kedr_coi_bind_prototype_with_object' is called and
+     * prototype_object is watched.
      * 
-     * 'object_data_new' are object data which are allocated for
-     * normal instrumentor.
+     * 'object_data_new' are data allocated for the object.
      * 
-     * Operation should return replaced operation for newly watched object.
+     * Executed in atomic context.
+     * 
+     * Operation should replace operations for an object and fill
+     * 'object_data_new' with information about this replacements.
+     * 'op_repl' should be set to replaced operation for an object.
+     * 
+     * If fail to replace operations, function should return negative
+     * error code and set 'op_repl' to original operation of the object.
+     * If original operation cannot be determined, 'op_repl' should be
+     * set to ERR_PTR().
+     * 
+     * No other callback function which works with the same object or
+     * prototype object may be called concurrently with this.
      */
+
     int (*replace_operations_from_prototype)(
         struct kedr_coi_object* iwf_iface_impl,
         struct kedr_coi_object* if_iface_impl,
         struct kedr_coi_instrumentor_object_data* object_data_new,
         void* object,
         struct kedr_coi_instrumentor_object_data* prototype_data,
-        void* protorype_object,
+        void* prototype_object,
         size_t operation_offset,
         void** op_repl);
     
     /*
-     * Called when 'kedr_coi_bind_prototype_with_object' is called for
-     * prototype_object which is watched when object itself is already watched.
+     * Called when 'kedr_coi_bind_prototype_with_object' is called and
+     * prototype_object is watched and object is watched also.
      * 
-     * 'object_data' are object data corresponded to the watched object.
+     * 'object_data' are data corresponded to the object.
      * 
-     * Operation should return replaced operation for watched
-     * object.
+     * Executed in atomic context.
+     * 
+     * Operation should update operations for an object.
+     * 'op_repl' should be set to replaced operation for an object.
+     * 
+     * If fail to update operations, function should return negative
+     * error code and set 'op_repl' to original operation of the object.
+     * If original operation cannot be determined, 'op_repl' should be
+     * set to ERR_PTR().
+     * 
+     * No other callback function which works with the same object or
+     * prototype object may be called concurrently with this.
      */
 
     int (*update_operations_from_prototype)(
@@ -284,31 +407,33 @@ struct kedr_coi_instrumentor_with_foreign_impl_iface
         struct kedr_coi_instrumentor_object_data* object_data,
         void* object,
         struct kedr_coi_instrumentor_object_data* prototype_data,
-        void* protorype_object,
+        void* prototype_object,
         size_t operation_offset,
         void** op_repl);
     
     /*
-     * Called when 'kedr_coi_bind_prototype_with_object' is called for
-     * prototype_object which is not watched when object itself is
-     * already watched.
+     * Called when 'kedr_coi_bind_prototype_with_object' is called,
+     * prototype_object is not watched but object is watched.
      * 
-     * Prototype object may be not watched if:
-     * 1) Operations for it was copied from another object
-     * which is watched.
-     * 2) It use same operations as watched object use.
-     *
-     * Normal object may be watched if:
-     * 1) Object with same address was previousely watched but is
-     * not forgotten when deleted.
-     * 2) Operation interception mechanizm is so, that foreign
-     * intermediate operation is called whenever object is already
-     * watched or not.
+     * 'object_data' are data corresponded to the object.
      * 
-     * 'object_data' are object data corresponded to the watched object.
+     * Executed in atomic context.
+     * 
+     * This is strange situation. Operation may do anything with
+     * object's operations that is applicable to that situation
+     * from the view of replacement mechanism. E.g, update operations
+     * in the object.
      *
-     * Functions should do whatever is required for correct behaviour of
-     * kedr_coi_bind_prototype_with_object() and return chained operation.
+     * Then 'op_chained' should be set to operation, which is intended
+     * to execute after. It may be object's replaced operation, or
+     * original one.
+     * 
+     * On any fail, function should return negative error code.
+     * If function fails to extract needed operation, 'op_chained'
+     * should be set to ERR_PTR().
+     * 
+     * No other callback function which works with the same object or
+     * prototype object may be called concurrently with this.
      */
 
     int (*chain_operation)(
@@ -316,7 +441,7 @@ struct kedr_coi_instrumentor_with_foreign_impl_iface
         struct kedr_coi_object* if_iface_impl,
         struct kedr_coi_instrumentor_object_data* object_data,
         void* object,
-        void* protorype_object,
+        void* prototype_object,
         size_t operation_offset,
         void** op_chained);
 };
@@ -356,6 +481,12 @@ kedr_coi_instrumentor_with_foreign_create_foreign_indirect(
  */
 struct kedr_coi_instrumentor_with_foreign*
 kedr_coi_instrumentor_with_foreign_create_indirect(
+    size_t operations_field_offset,
+    size_t operations_struct_size,
+    const struct kedr_coi_replacement* replacements);
+
+struct kedr_coi_instrumentor_with_foreign*
+kedr_coi_instrumentor_with_foreign_create_indirect1(
     size_t operations_field_offset,
     size_t operations_struct_size,
     const struct kedr_coi_replacement* replacements);

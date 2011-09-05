@@ -8,8 +8,9 @@
  * 0) Keys are pointers, hash function is hash_ptr()
  * 1) Dinamically change size (when number of elements became too big
  *     for fast search or too small and waste memory)
- * 2) Adding/removing/searching elements in the table may be performed in the atomic context.
- * 3) Not sync.(synchronization should be done by users)
+ * 2) Adding/removing/searching elements in the table may be performed
+ *     in the atomic context.
+ * 3) No sync.(synchronization should be done by users)
  */
  
 #include <linux/list.h> /* hash table organization */

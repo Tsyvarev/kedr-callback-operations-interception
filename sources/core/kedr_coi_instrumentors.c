@@ -398,33 +398,27 @@ kedr_coi_instrumentor_get_orig_operation(
     if(object_data == NULL)
     {
         // Object not watched
-        if(in_iface->get_orig_operation_nodata)
-        {
-            result = in_iface->get_orig_operation_nodata(
-                in_iface_impl,
-                object,
-                operation_offset,
-                op_orig);
-        }
-        else
-        {
-            result = -ENOENT;
-        }
-        if(result == 0) result = 1;// indicator of 'object not watched'
+        *op_orig = in_iface->get_orig_operation_nodata(
+            in_iface_impl,
+            object,
+            operation_offset);
+
+        result = 1;// indicator of 'object not watched'
     }
     else
     {
-        result = in_iface->get_orig_operation(
+        *op_orig = in_iface->get_orig_operation(
             in_iface_impl,
             object_data,
             object,
-            operation_offset,
-            op_orig);
+            operation_offset);
+        
+        result = 0;
     }
 
     spin_unlock_irqrestore(&instrumentor->instrumentor_common.lock, flags);
 
-    return result;
+    return IS_ERR(*op_orig)? PTR_ERR(*op_orig) : result;
 }
 
 struct kedr_coi_instrumentor_normal*

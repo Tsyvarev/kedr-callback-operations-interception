@@ -15,14 +15,15 @@
  * (see section "Interceptor creation" below).
  * 
  * 2. Write payload (struct kedr_coi_payload) which should define
- * which operations you want to intercept and how.
+ * which operations you want to intercept and what pre- and/or post-
+ * handlers should be called in that interception.
  * 
  * 3. Register payload for operations interceptor created at step 1
  * (kedr_coi_payload_register()).
  * 
  * 4. Then you need to determine when object interested your is created,
- * and call kedr_coi_interceptor_watch() at this moment.
- * Depended from how objects are created, there are several ways to do this:
+ * and call kedr_coi_interceptor_watch() at this moment. Depended on
+ * how objects are created, there are several ways to do this:
  * 
  * a) some objects are created by top-level kernel functions, such as 
  * cdev_add() or register_filesystem(). You may use KEDR for intercept
@@ -32,8 +33,8 @@
  * b) some objects are created in operations of another objects. E.g.
  * super blocks (struct super_block) are created in get_sb() operation
  * of file system type objects (struct file_system_type). So you need to
- * intercept operations of creator's objects, for which you should repeat
- * all steps from 1 of this description (perhaps, recursively).
+ * intercept operations of creator's objects, for which you should
+ * repeat all steps from 1 of this description (perhaps, recursively).
  * 
  * c) there are objects, which are created internally by the kernel.
  * File (struct file) is an example of such object:
@@ -44,55 +45,62 @@
  * by the interceptor, its open() operation is not intercepted,
  * and handler for it is not called.
  * 
- * But it is known, that operations for file object are copied from inode
- * (struct inode) object when file is created. You can intercept creation
- * of file if you use interceptor for file operations in inode object.
- * Such interceptor is referred as foreign, because it allows to intercept
- * operations which are called not for the owner object, but for another object.
- * Interceptors for foreign operations doesn't allow to set handlers for these
- * operations but allow to automatically watch for an object, which is 
- * created by copiing operations from another object, which is already watched.
+ * But it is known, that operations for file object are copied from
+ * inode (struct inode) object when file is created. You can intercept
+ * creation of file if you use interceptor for file operations in inode
+ * object. Such interceptor is referred as foreign, because it allows to
+ * intercept operations which are called not for the owner object, but
+ * for another object. Foreign interceptor doesn't allow to set handlers
+ * for these operations but allow to automatically watch for an new
+ * object, which is created by copiing operations from object, which is
+ * already watched by foreign interceptor.
  * 
- * Creation of interceptors for foreign operations are described in
- * section "Foreign interceptor creation".
+ * Creation of foreign interceptors are described in section
+ * "Foreign interceptor creation".
  * 
  * 5. Determine when objects interested your are destroyed, and call
- * kedr_coi_interceptor_forget() at that moment.
- * As in step 4, ways for doing depends from the way haw objects are destroyed.
+ * kedr_coi_interceptor_forget() at that moment. As in step 4, ways for
+ * doing this depends on the way haw objects are destroyed.
  * Cases a) and b) from step 4 are applicable for interception of
  * object destruction wihtout changes.
- * As for objects which are created internally, them are usually destroyed after
- * some of its operation. E.g., files objects are destroyed after their
- * release() method. So setting handler for this operation is sufficient
- * for intercept object destruction.
+ * As for objects which are created internally, them are usually
+ * destroyed after some of its operation. E.g., files objects are
+ * destroyed after their release() method. So setting handler for this
+ * operation is sufficient for intercept object destruction.
  * 
  * 6. Before the first object may be watched by the interceptor, one should
- * call kedr_coi_interceptor_start() for this interceptor.
- * This call will fix(prevent from changes) interception handlers
- * of this interceptor, and create some additional data used for interception.
- * Usually this function is called from target_load_callback() of KEDR payload.
+ * call kedr_coi_interceptor_start() for this interceptor. This call
+ * will fix(prevent from changes) interception handlers of this
+ * interceptor, and create some additional data used for interception.
+ * Usually this function is called from target_load_callback() of KEDR
+ * payload.
  * 
  * Similar, after last object is forgot one should call
  * kedr_coi_interceptor_stop() for allow to unload payload modules or
- * load another ones.
- * Usually this function is called from target_unload_callback of KEDR payload.
+ * load another ones. Usually this function is called from
+ * target_unload_callback of KEDR payload.
  * 
  * 
  * 
  * Interceptor creation.
  * 
- * For create interceptor for operations of object of some type, one should:
+ * For create interceptor for operations of object of some type, one
+ * should:
  * 
  * a) describe "geometry" of the operations inside the object.
  * 
- * For objects which have pointer to struct with all operations
- * as a field it is needed to set offset of this field in the object struct
+ * There are 2 types of such geometry:
+ * 
+ * 1) For objects which have pointer to struct with all operations as a
+ * field it is needed to set offset of this field in the object struct
  * and size of operations struct.
+ * 
  * E.g., for interceptor of file operations this values are
  * offsetof(struct file, f_op) and sizeof(struct file_operations).
  * 
- * For objects which have pointers to every operation as a distinct fields
- * it is needed to set size of object struct itself.
+ * 2) For objects which have pointers to every operation as a distinct
+ * fields it is needed to set size of object struct itself.
+ * 
  * E.g., for interceptor of file system type operations it is
  * sizeof(struct file_system_type).
  * 
@@ -122,35 +130,37 @@
  * 
  * For some objects pointer to the original operation may be NULL.
  * In that case, intermediate operation should perform some default
- * actions instead of call of orignal operation.
- * These actions should have similar effect
- * to those ones which performed by the kernel when it found that
- * object operation pointer is NULL.
+ * actions instead of call of orignal operation. These actions should
+ * have similar effect to those ones which performed by the kernel when
+ * it found that object operation pointer is NULL.
+ * 
  * Examples of default actions for file object(struct file):
  * - open() - set result to 0
  * - read() - set result to -EIO
  * - llseek() - call default_llseek() store its result
  *              as result of operation call.
  * 
- * Interceptors are created with functions kedr_coi_interceptor_create()
- * and kedr_coi_interceptor_create_direct().
- * Former function creates interceptor for objects which have field
- * pointed to structure of operations, the latter process objects which
- * have distinct fields for different operations.
+ * Interceptors with the first type of geometry are created with
+ * kedr_coi_interceptor_create(), with the second one -
+ * kedr_coi_interceptor_create_direct().
+ * 
  * 
  * 
  * Foreign interceptor creation.
  * 
- * For create interceptor for foreign operations of object, one should:
+ * For create foreign interceptor, one should:
  * 
  * a) describe placement of such operations inside object:
  * -offset of the field pointed to operations struct inside object struct
+ * 
+ * E.g. for operations on file created from inode this offset is
+ * offsetof(struct inode, i_fop).
  * 
  * b) write intermediate operations for operations which are called just
  * after foreign object is created and its operations are copied from
  * initial object. Normally there is only one such operation.
  * E.g., if foreign object is file('struct file'), one have to write
- * intermediate operation for file operation open().
+ * only intermediate operation for file operation open().
  * 
  * Intermediate operation should firstly allocate pointer to the chained
  * operation and then call kedr_coi_bind_prototype_with_object(),
@@ -160,16 +170,16 @@
  * its result (if operation return any value).
  * 
  * Like an intermediate operation for standard interceptor,
- * intermediate operation for interceptor for foreign operations should
- * correctly process case when pointer to the object operation is NULL.
+ * intermediate operation for foreign interceptor should correctly
+ * process the case when pointer to the object operation is NULL.
  * 
  * c) Choose 'normal' interceptor, which will be binded with foreign one.
- * 'Binded interceptor' means that all objects will be automatically
+ * 'Binded interceptor' means that every object will be automatically
  * watched by this interceptor if it is created by copiing operations
  * from prototype object, which is watched by foreign interceptor.
  * 
- * Foreign interceptor is created with kedr_coi_interceptor_create_foreign()
- * function.
+ * Foreign interceptor is created with 
+ * kedr_coi_interceptor_create_foreign().
  */
 
 #ifndef OPERATIONS_INTERCEPTION_H
@@ -297,7 +307,7 @@ kedr_coi_payload_register(
  * This function is usually called in the cleanup function of a payload 
  * module.
  */
-void 
+int 
 kedr_coi_payload_unregister(
     struct kedr_coi_interceptor* interceptor,
     struct kedr_coi_payload* payload);
@@ -522,15 +532,11 @@ kedr_coi_interceptor_create_direct(const char* name,
  * callback operations, this interceptor intercepts creation of another
  * object. If such object was created from the prototype object, which
  * is watched by this interceptor, then newly created object will be
- * automatically watched by the normal interceptorNewly created object will automatically watched by 
- * for an objects which operations are copied from another object.
- * Last object is used as prototype in that case.
+ * automatically watched by the normal interceptor.
  * 
  * '*_watch'() '*_forget'() and '*_forget_norestore'() functions for
  * interceptor of foreign operations has similar behavour as for
  * interceptor of normal operations.
- * But using these functions has a sence
- * 
  */
 
 struct kedr_coi_foreign_interceptor;
@@ -549,17 +555,23 @@ int kedr_coi_foreign_interceptor_forget_norestore(
 
 void kedr_coi_foreign_interceptor_destroy(
     struct kedr_coi_foreign_interceptor* interceptor);
+    
 /*******Creation of the foreign operations interceptor****************/
 
 /*
  * If given prototype object is watched by foreign interceptor,
- * watch for given object.
+ * watch for given object or return negative error code.
+ * In other cases, 0 is returned.
  * 
  * This function is intended to be used ONLY in the implementation
  * of the intermediate foreign operation.
  * 
  * 'op_chained' will be set to operation which should be called at the end
- * of intermediate operation.
+ * of intermediate operation. If fail to calculate chained operation,
+ * 'op_chained' will be set to ERR_PTR().
+ * 
+ * If 0 is returned then 'op_chained' is a correct operation
+ * (not an error indicator).
  */
 
 int kedr_coi_bind_prototype_with_object(
