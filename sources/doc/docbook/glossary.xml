@@ -1,0 +1,141 @@
+﻿<glossary id="glossary">
+<title>Glossary</title>
+
+<glossentry id="callback_operation">
+<glossterm><emphasis>Callback operation</emphasis></glossterm>
+
+<glossdef>
+    <para>
+A callback function which operates (may be, indirectly) on object, when this object contains (may be, indirectly) pointer to this function.
+    </para>
+    <para>
+In the Linux kernel callback operations implement something similar to virtual functions in OOP sence.
+    </para>
+    <para>
+'Callback operation' term may also be used for object type without mentioning of concrete object. In that case it identifies a way how to determine a callback operation for any object of given type.
+    </para>
+    <para>
+E.g., every opened file is treaded as object of type '<type>struct file</type>'. Difference between file types is only in callback operations, pointers to which are contained in '<type>file_operations</type>' structure. <function>open</function>, <function>release</function>, <function>read</function>, <function>write</function>, <function>fcntl</function> - are all callback operations for the file. Each file contains pointer to the instance of this structure, corresponded to its(file's) type.
+    </para>
+    <para>
+Another example - file system, which is implemented via object of type '<type>struct file_system_type</type>'. Every such object contains pointers to 2 callback operations: <function>mount</function>(<function>get_sb</function> in some kernels) and <function>kill_sb</function>.
+    </para>
+</glossdef>
+</glossentry>
+
+<glossentry id="callback_operation_interception">
+<glossterm><emphasis>Callback operation interception</emphasis></glossterm>
+<glossdef>
+    <para>
+An ability to perform actions when <link linkend="callback_operation">callback operation</link> is called as virtual function for some object. These actions may not depend from callback operation itself, and may be written by the person who doesn't concerned with author of concrete callback operation.
+    </para>
+    <para>
+KEDR COI library support executing user-defined function(s) before and/or after callback operation call, these functions reffered to as <link linkend="pre_handler">pre-handlers</link> and <link linkend="post_handler">post-handlers</link> correspondingly.
+    </para>
+</glossdef>
+</glossentry>
+
+<glossentry id="interception_handler">
+<glossterm><emphasis>Interception handler</emphasis>(for callback operation)</glossterm>
+<glossdef>
+    <para>
+An user-provided function for call along with call of the <link linkend="callback_operation">callback operation</link>. KEDR COI support <link linkend="pre_handler">pre handler</link> which is called before callback operation and <link linkend="post_handler">post handler</link> which is called after callback operation. For any callback operation several interception handlers may be set, of any type.
+    </para>
+</glossdef>
+</glossentry>
+
+<glossentry id="pre_handler">
+<glossterm><emphasis>Pre handler</emphasis>(for callback operation)</glossterm>
+<glossdef>
+    <para>
+A user-provided function which is called before some <link linkend="callback_operation">callback operation</link>.
+    </para>
+</glossdef>
+</glossentry>
+
+<glossentry id="post_handler">
+<glossterm><emphasis>Post handler</emphasis>(for callback operation)</glossterm>
+<glossdef>
+    <para>
+A user-provided function which is called after some <link linkend="callback_operation">callback operation</link>.
+    </para>
+</glossdef>
+</glossentry>
+
+<glossentry id="default_callback_operation">
+<glossterm><emphasis>Default callback operation</emphasis></glossterm>
+<glossdef>
+    <para>
+An instance of <link linkend="callback_operation">callback operation</link>, pointer to which is equvalented to NULL pointer in the sence of external object's behaviour.
+    </para>
+    <para>
+From the OOP point of view, default callback operation is a definition of virtual function in the base class.
+    </para>
+    <para>
+E.g. default 'open' callback operation of the file is simply <code>{return 0;}</code>, because its call from in-kernel code has same effect, as NULL pointer encountered by that code in the 'struct file_operations' instance pointed by the file object.
+    </para>
+    <para>
+Another examples:
+        <itemizedlist>
+            <listitem>
+default 'read' callback operation for the file object is <code>{return -EIO;}</code>
+            </listitem>
+            <listitem>
+default 'llseek' callback operation for the file object is <function>default_llseek</function>
+            </listitem>
+        </itemizedlist>
+    </para>
+</glossdef>
+
+</glossentry>
+
+<glossentry id="interceptor">
+<glossterm><emphasis>Interceptor</emphasis>(of callback operations)</glossterm>
+<glossdef>
+    <para>
+An object which encapsulates all information about how <link linkend="callback_operation">callback operations</link> should be <link linkend="callback_operation_interception">intercepted</link> (what <link linkend="interception_handler">interception handlers</link> should be called along with them) and for what objects. Also implements that interception.
+    </para>
+    <para>
+Each interceptor may work with one type of objects. But several interceptors may be defined for one type of objects, e.g. for call different interception handlers for objects in different non-overlapping sets.
+    </para>
+</glossdef>
+</glossentry>
+
+<glossentry id="foreign_interceptor">
+<glossterm><emphasis>Foreign interceptor</emphasis></glossterm>
+<glossdef>
+    <para>
+An object, which, like normal <link linkend="interceptor">interceptor</link>, implements interception of object's <link linkend="callback_operation">callback operations</link>. But the only purpose of this interception - intercept moment when object is created. At this moment created object become watched by another interceptor, which is binded with the foreign one.
+    </para>
+    <para>
+Foreign interceptor is applied for objects, containing pointer to struct with operations worked with another object. When foreign interceptor watch an object with foreign operations, and another object is created and use that operations, the second object become watched by the binded interceptor.
+    </para>
+    <para>
+Each foreign interceptor may work with one type of objects with foreign operations. But several foreign interceptors may be defined for one of objects and be binded with different normal interceptors. Also, one 'normal' interceptor may have different foreign interceptors binded with it.
+    </para>
+</glossdef>
+</glossentry>
+
+<glossentry id="intermediate_operation">
+<glossterm><emphasis>Intermediate operation</emphasis>(for callback operation)</glossterm>
+<glossdef>
+    <para>
+A function which is called instead of corresponded <link linkend="callback_operation">callback operation</link> for perform <link linkend="callback_operation_interception">interception</link>. This function has same signature as corresponded callback operation and  performs calls of all needed <link linkend="interception_handler">interception handlers</link> and original callback operation.
+    </para>
+</glossdef>
+</glossentry>
+
+<glossentry id="payload">
+<glossterm><emphasis>Payload</emphasis>(for callback operation)</glossterm>
+<glossdef>
+    <para>
+An object containing <link linkend="pre_handler">pre-handlers</link> and <link linkend="post_handler">post-handlers</link> for <link linkend="callback_operation">callback operations</link> of objects of some type.
+    </para>
+    <para>
+For these handlers take an effect, the payload should be registered with <link linkend="interceptor">interceptor</link> which works with objects of same type as payload. One payload is allowed to be registered only with one interceptor at a time, but one interceptor may have several payloads registered with it.
+    </para>
+</glossdef>
+</glossentry>
+
+
+</glossary>

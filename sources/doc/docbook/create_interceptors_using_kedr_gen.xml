@@ -1,0 +1,157 @@
+﻿<section id="create_interceptors_using_kedr_gen">
+<title>Create interceptors using template-based file generation</title>
+
+<para>
+Though the logic of intermediate operations used for interceptor creation is not complex(see <xref linkend="interceptor_creation.intermediate_operations"/>), writing code for that operations by hands is not an easy task. The main reason of this is the lack of typecheking inside the KEDR COI library.
+</para>
+<para>
+Because the library is intended to use for any objects and callback operations, many essences have very abstract types and definitions. E.g, objects have type '<type>void*</type>', callback operations identifies by there offsets in the object or operations struct, pointers to callback operations have type '<type>void*</type>', same for pre- and post-handlers signatures, etc.
+</para>
+<para>
+But intermediate operation should call interception handlers and original callback operation, so it should actively use typecasts, which make compiler unable to detect incorrectly used types of variables and functions. So, many possible human errors in intermediate operations aren't revealed at the compile phase. Moreover, some of these errors may be revealed at runtime only after a long time of using.
+</para>
+<para>
+From the other side, a little information is needed for create intermediate operations for particular object type. And this information may be expressed in the terms of concrete types and names - type of the object, names of the callback operations, types and names of their arguments, etc - which is much less error-prone than writing code of intermediate operations. For create code of intermediate operations from such information template-base generator may be used.
+</para>
+<para>
+KEDR COI has templates suitable for create interceptors using 'kedr_gen' generator. The only thing which should be provided by the user is a 'definition' file contained some information about object's type and its operations. Generator itself and format of definition files are fully described in the documentation of KEDR project (<ulink url='http://kedr.berlios.de/kedr-doc/extend.html#using_gen'/>). Templates are placed in the '/usr/local/share/kedr-coi/tepmplates' directory.
+</para>
+
+<section id="create_interceptors_using_kedr_gen.output">
+<title>Files generated for interceptor</title>
+<para>
+Using template <filename class="directory">interceptor.h</filename> one can create header file for interceptor. This file contains definitions in same format as for predefined interceptors (see <xref linkend="pre_existed_interceptors.interceptor_api"/>). For create source file with interceptor's implementation, template <filename class="directory">interceptor.c</filename> should be used.
+</para>
+</section>
+<!-- End of "create_interceptors_using_kedr_gen.output" -->
+
+<section id="create_interceptors_using_kedr_gen.interceptor_parameters">
+<title>Definition file for interceptor</title>
+<para>
+Definition file for interceptor should contain definitions for the following parameters:
+<variablelist>
+    <varlistentry><term>interceptor.name</term>
+        <listitem>name of the interceptor, used in its constructor</listitem>
+    </varlistentry>
+    <varlistentry><term>interceptor.prefix</term>
+        <listitem>string which will be used as prefix for all exported functions and macros for this interceptor</listitem>
+    </varlistentry>
+    <varlistentry><term>header</term>
+        <listitem>includes and other C-code, which contains definition of types and functions used for interceptor</listitem>
+    </varlistentry>
+    <varlistentry><term>implementation_header</term>
+        <listitem>Additional includes and other C-code, which used in implementation of intermediate functions.</listitem>
+    </varlistentry>
+    <varlistentry><term>object.type</term>
+        <listitem>type of the objects for which instrumentor should be applied</listitem>
+    </varlistentry>
+    <varlistentry><term>interceptor.is_direct</term>
+        <listitem>should be not empty for direct interceptor(see <xref linkend="interceptor_creation.object_geometry.direct"/>), for indirect instrumentor should be empty or not defined</listitem>
+    </varlistentry>
+    <varlistentry><term>object.operations_field</term>
+        <listitem>field in the object struct which is a pointer to the operations structure(only for indirect instrumentor)</listitem>
+    </varlistentry>
+    <varlistentry><term>operations.type</term>
+        <listitem>type of the operations structure(only for indirect instrumentor)</listitem>
+    </varlistentry>
+</variablelist>
+</para>
+<para>
+For every callback operations, interception of which should be supported, a group should be prepared in the definition file. Each group should contain definitions for the following parameters:
+<variablelist>
+    <varlistentry><term>operation.name</term>
+        <listitem>name of the callback operation, as a field name in the object/operations structure</listitem>
+    </varlistentry>
+    <varlistentry><term>operation.returnType</term>
+        <listitem>type returning by this operation; if operation doesn't return value should be empty or isn't defined</listitem>
+    </varlistentry>
+    <varlistentry><term>operation.arg.type</term>
+        <listitem>(multi-valued) types of the parameters of the callback operation, starting with the first one</listitem>
+    </varlistentry>
+    <varlistentry><term>operation.arg.name</term>
+        <listitem>(multi-valued) names of the parameters of the callback operation, starting with the first one. Parameters will be accessible via these names in the code.</listitem>
+    </varlistentry>
+    <varlistentry><term>operation.object</term>
+        <listitem>parameter name or other c-expression returned owner object for this operation call. Names of operation's parameters and global functions and variables may be used in this expression.</listitem>
+    </varlistentry>
+    <varlistentry><term>operation.default</term>
+        <listitem>Implementation of the <link linkend="default_callback_operation">default callback operation</link>. It will be executed in case when pointer to original operation is <constant>NULL</constant>. Names of operation's parameters and global functions and variables may be used in this code. If this parameter is not defined, <constant>NULL</constant> pointer to the operation is treated as error.</listitem>
+    </varlistentry>
+    <varlistentry><term>operation.group_id</term>
+        <listitem>Number identified operations group. Operations from the same group either are all replaced by intermediates or aren't replaced at all. Grouping is not used if this parameter is <constant>0</constant> or isn't defined. See <xref linkend="interceptor_creation.intermediate_operations.grouping"/> for example of using this parameter.</listitem>
+    </varlistentry>
+</variablelist>
+</para>
+
+</section>
+<!-- End of "create_interceptors_using_kedr_gen.interceptor_parameters" -->
+
+<section id="create_interceptors_using_kedr_gen.foreign_output">
+<title>Files generated for foreign interceptor</title>
+<para>
+Using template <filename class="directory">foreign_interceptor.h</filename> one can create header file for foreign interceptor. This file contains definitions in same format as for predefined foreign interceptors (see <xref linkend="pre_existed_interceptors.foreign_interceptor_api"/>). For create source file with foreign interceptor's implementation, template <filename class="directory">foreign_interceptor.c</filename> should be used.
+</para>
+
+</section>
+<!-- End of "create_interceptors_using_kedr_gen.foreign_output" -->
+
+<section id="create_interceptors_using_kedr_gen.foreign_interceptor_parameters">
+<title>Definition file for foreign interceptor</title>
+<para>
+Definition file for foreign interceptor should contain definitions for the following parameters:
+<variablelist>
+    <varlistentry><term>interceptor.name</term>
+        <listitem>name of the interceptor, used in its constructor</listitem>
+    </varlistentry>
+    <varlistentry><term>interceptor.prefix</term>
+        <listitem>string which will be used as prefix for all exported functions and macros for this interceptor</listitem>
+    </varlistentry>
+    <varlistentry><term>header</term>
+        <listitem>includes and other C-code, which contains definition of types and functions used for interceptor</listitem>
+    </varlistentry>
+    <varlistentry><term>implementation_header</term>
+        <listitem>Additional includes and other C-code, which used in implementation of intermediate functions.</listitem>
+    </varlistentry>
+    <varlistentry><term>prototype_object.type</term>
+        <listitem>type of the prototype objects for which foreign instrumentor should be applied</listitem>
+    </varlistentry>
+    <varlistentry><term>prototype_object.operations_field</term>
+        <listitem>field in the prototype object struct which is a pointer to the operations structure</listitem>
+    </varlistentry>
+    <varlistentry><term>operations.type</term>
+        <listitem>type of the operations structure</listitem>
+    </varlistentry>
+</variablelist>
+</para>
+<para>
+For every callback operation which is called just after new object is created a group should be prepared in the definition file. Each group should contain definitions for the following parameters:
+<variablelist>
+    <varlistentry><term>operation.name</term>
+        <listitem>name of the callback operation, as a field name in the operations structure</listitem>
+    </varlistentry>
+    <varlistentry><term>operation.returnType</term>
+        <listitem>type returning by this operation; if operation doesn't return value should be empty or isn't defined</listitem>
+    </varlistentry>
+    <varlistentry><term>operation.arg.type</term>
+        <listitem>(multi-valued) types of the parameters of the callback operation, starting with the first one</listitem>
+    </varlistentry>
+    <varlistentry><term>operation.arg.name</term>
+        <listitem>(multi-valued) names of the parameters of the callback operation, starting with the first one. Parameters will be accessible via these names in the code.</listitem>
+    </varlistentry>
+    <varlistentry><term>operation.object</term>
+        <listitem>parameter name or other c-expression returned owner object for this operation call. Names of operation's parameters and global functions and variables may be used in this expression.</listitem>
+    </varlistentry>
+    <varlistentry><term>operation.prototype_object</term>
+        <listitem>parameter name or other c-expression returned prototype object. from wich owner object is created. Names of operation's parameters and global functions and variables may be used in this expression.</listitem>
+    </varlistentry>
+    <varlistentry><term>operation.default</term>
+        <listitem>Implementation of the <link linkend="default_callback_operation">default callback operation</link>. It will be executed in case when pointer to chained operation is <constant>NULL</constant>. Names of operation's parameters and global functions and variables may be used in this code. If this parameter is not defined, <constant>NULL</constant> pointer to the operation is treated as error.</listitem>
+    </varlistentry>
+</variablelist>
+</para>
+
+</section>
+<!-- End of "create_interceptors_using_kedr_gen.foreign_interceptor_parameters" -->
+
+</section>
+<!-- End of "create_interceptors_using_kedr_gen" -->

@@ -1,0 +1,89 @@
+﻿<section id="description">
+<title>Description</title>
+<para>
+On the top level, the library operates with <firstterm linkend="interceptor">interceptors</firstterm>. Interceptor is a special object, which contains all information about how to intercept callback operations of the objects of particular type.
+</para>
+<para>
+One piece of information, which interceptor contains, is what callback operations should be intercepted and what functions should be called before and/or after them. This information is organized into another special objects - <firstterm linkend="payload">payloads</firstterm>, which should be registered using suitable interceptor for take an effect.
+</para>
+<para>
+Another piece of information for interceptor - set of objects, operations on which should be intercepted. These objects are reffered as to watched. For make object watched by the interceptor, one need to call <function>kedr_coi_interceptor_watch</function>. <function>kedr_coi_interceptor_forget</function> removes object from the set.
+</para>
+<para>
+These two pieces of information cannot be changed in mix. There are two state of interceptor:
+'initialized' and 'started'.
+</para>
+<para>
+When created, interceptor is in the first state, which allows registration and deregistration of payloads. But set of watched objects at this state is empty and cannot be changed.
+</para>
+<para>
+After call of <function>kedr_coi_interceptor_start</function> interceptor moves from the first state to the second. At this moment, on the contrary, set of registered payloads become fixed, but set of watched objects is allowed to change. For return to the first state, one should call <function>kedr_coi_interceptor_stop</function>.
+</para>
+
+<section id="description.when_to_watch">
+<title>When call of <function>kedr_coi_interceptor_watch</function> should be made</title>
+<para>
+For do not miss object's operations call, <function>kedr_coi_interceptor_watch</function> should be called before any callback operation may be called on the object. There are several cases, when object's operations become callable externally.
+</para>
+<para>
+In one case, object becomes known externally after the call of some 'register' function. E.g., <function>register_filesystem</function> make <type>file_system_type</type> object be known by VFS.
+</para>
+<para>
+For notify KEDR COI that you want to intercept operations on that object, you may call <function>kedr_coi_interceptor_watch</function> before or just after <function>register_filesystem</function>.
+</para>
+<para>
+In the other case, creation of the object with callback operations is responsibility of some callback operation, which is belong to another object. When kernel need the object, it simply call this callback operation and use object which it return. E.g., inode objects are created with <function>alloc_inode</function> callback operation of the <type>super block</type> object.
+</para>
+<para>
+For notify KER COI that you want to intercept operations on that object, you may call <function>kedr_coi_interceptor_watch</function> just after callback operation which creates this object. This call may be done inside post-handler for that operation, using KEDR COI library for its interception.
+</para>
+<para>
+That case shows 'cascade' interception of callback operations: for intercept callback operation of the one object, you should intercept callback operation of the another object, which create this. Another object may be also created by callback operation belonged to the third object, and so on. Chain of such callback operation calls may have unlimited length, but number of handlers needed for intercept these operations is always limited with several operations.
+</para>
+</section>
+<!-- End of "description.when_to_watch" -->
+<section id="description.foreign_interceptor">
+<title>Objects with copied operations</title>
+<para>
+There is one another case of declaration about object with callback operations: object is created internally by the kernel, its callback operations are copied from another object, then one of these operation is called for complete object's initialization. This way is used, e.g., for file objects, which operations may be copied from wide range of another objects: inodes, character devices('struct cdev') and others.
+</para>
+<para>
+Interception of the callback operations only with interceptor described previously is impossible: object become known only inside its callback operation, but this callback operation cannot be intercepted because <function>kedr_coi_interceptor_watch</function> shouldn't be called before object is known.
+</para>
+<para>
+KEDR COI library contains special interceptor for this case - <firstterm linkend="foreign_interceptor">foreign interceptor</firstterm>. This interceptor is intended to watch for an 'prototype object' - object containing operations for another objects which will be created. For <type>file</type> object, for example, prototype objects may be inodes or character devices. Unlike normal interceptor, foreign interceptor doesn't allow to set handlers for call before/after callback operations. Instead, it make all objects, created from this prototype object, be automatically watched by another interceptor.
+</para>
+</section>
+<!-- End of "description.foreign_interceptor" -->
+<section id="description.when_to_forget">
+<title>When 'kedr_coi_interceptor_forget' should be called</title>
+<para>
+It is not a fatal error to not call <function>kedr_coi_interceptor_forget</function> for an objects, which is no longer interested for callback operations interception. All objects will be automatically forgotten at <function>kedr_coi_interceptor_stop</function> call.
+</para>
+<para>
+But nevertheless it is usefull to notify KEDR COI library about objects which became non-interesting for interception. One reason of this - every watched object requires resources used for its tracking. Though per-object resource consumption usually very low(about 10 bytes), thousands and even millions of objects may be created during system lifetime. So total wasted memory may rich considerable size. Another reason for call 'kedr_coi_interceptor_forget' when watched object is destroyed - if another object will be allocated at the same address as deleted one, it will be treated as already watched. This fact may lead to call interception handlers when it is not needed, or even cause fail in <function>kedr_coi_interceptor_watch</function> call(it is a protection against more serious faults resulted from interception mechanism corruption).
+</para>
+<para>
+By analogy with <function>kedr_coi_interceptor_start</function>, <function>kedr_coi_interceptor_stop</function> should be called when it is known that no callback operations may be called for that object. It prevents from missing callback operations calls in interception.
+</para>
+<para>
+In one case, object's callback operations become externally anavailable after object's deregistration. E.g., <function>unregister_filesystem</function> make <type>file_system_type</type> object unavailable by VFS.
+</para>
+<para>
+In this case <function>kedr_coi_interceptor_forget</function> may be called after/before such deregistration function.
+</para>
+<para>
+In another case, an object is destroyed by callback operation of the another object, or of the object itself. For example, inode object is destroyed by <function>destroy_inode</function> operations of the super block.
+</para>
+<para>
+In that case <function>kedr_coi_interceptor_forget</function> may be called in interception handler for that callback operation.
+</para>
+<para>
+Objects which created using foreign interceptor are usually destroyed after some callback operations. E.g. file object is destroyed just after its 'release' callback operation. <function>kedr_coi_interceptor_forget</function> may be called in post-handler for that operation.
+</para>
+
+</section>
+<!-- End of "description.when_to_forget" -->
+
+</section>
+<!-- End of "description" -->

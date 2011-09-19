@@ -1,0 +1,392 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><title>6. API Reference</title><link rel="stylesheet" href="kedr-coi-doc.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.75.2"><link rel="home" href="index.html" title="KEDR COI 0.1 Reference Manual"><link rel="up" href="index.html" title="KEDR COI 0.1 Reference Manual"><link rel="prev" href="create_interceptors_using_kedr_gen.html" title="5. Create interceptors using template-based file generation"><link rel="next" href="glossary.html" title="Glossary"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">6. API Reference</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="create_interceptors_using_kedr_gen.html">Prev</a> </td><th width="60%" align="center"> </th><td width="20%" align="right"> <a accesskey="n" href="glossary.html">Next</a></td></tr></table><hr></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="api_reference"></a>6. API Reference</h2></div></div></div><div class="toc"><dl><dt><span class="section"><a href="api_reference.html#api_reference.header">6.1. Header File</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.interceptor">6.2. API of interceptor</a></span></dt><dd><dl><dt><span class="section"><a href="api_reference.html#api_reference.interceptor.struct">6.2.1. Interceptor structure</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.struct_operation_call_info">6.2.2. struct kedr_coi_operation_call_info</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.struct_pre_handler">6.2.3. struct kedr_coi_pre_handler</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.pre_handler_end">6.2.4. kedr_coi_pre_handler_end</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.struct_post_handler">6.2.5. struct kedr_coi_post_handler</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.post_handler_end">6.2.6. kedr_coi_post_handler_end</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.struct_payload">6.2.7. struct kedr_coi_payload</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.interceptor.payload_register">6.2.8. kedr_coi_payload_register</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.interceptor.payload_unregister">6.2.9. kedr_coi_payload_unregister</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.interceptor.start">6.2.10. kedr_coi_interceptor_start</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.interceptor.stop">6.2.11. kedr_coi_interceptor_stop</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.interceptor.watch">6.2.12. kedr_coi_interceptor_watch</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.interceptor.forget">6.2.13. kedr_coi_interceptor_forget</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.interceptor.forget_norestore">6.2.14. kedr_coi_interceptor_forget_norestore</a></span></dt></dl></dd><dt><span class="section"><a href="api_reference.html#api_reference.interceptor_creation">6.3. API for create interceptor</a></span></dt><dd><dl><dt><span class="section"><a href="api_reference.html#api_reference.struct_intermediate_info">6.3.1. struct kedr_coi_intermediate_info</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.interceptor_creation.get_intermediate_info">6.3.2. kedr_coi_get_intermediate_info</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.interceptor_creation.struct_intermediate">6.3.3. struct kedr_coi_intermediate</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.interceptor_creation.indirect">6.3.4. kedr_coi_interceptor_create</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.interceptor_creation.direct">6.3.5. kedr_coi_interceptor_create_direct</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.interceptor_creation.destroy">6.3.6. kedr_coi_interceptor_destroy</a></span></dt></dl></dd><dt><span class="section"><a href="api_reference.html#api_reference.foreign_interceptor">6.4. API of foreign interceptor</a></span></dt><dd><dl><dt><span class="section"><a href="api_reference.html#api_reference.foreign_interceptor.struct">6.4.1. Foreign interceptor structure</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.foreign_interceptor.watch">6.4.2. kedr_coi_foreign_interceptor_watch</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.foreign_interceptor.forget">6.4.3. kedr_coi_foreign_interceptor_forget</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.foreign_interceptor.forget_norestore">6.4.4. kedr_coi_foreign_interceptor_forget_norestore</a></span></dt></dl></dd><dt><span class="section"><a href="api_reference.html#api_reference.foreign_interceptor_creation">6.5. API for create foreign interceptor</a></span></dt><dd><dl><dt><span class="section"><a href="api_reference.html#api_reference.foreign_interceptor_creation.bind">6.5.1. kedr_coi_bind_prototype_with_object</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.foreign_interceptor_creation.struct_intermediate">6.5.2. struct kedr_coi_foreign_intermediate</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.foreign_interceptor_creation.indirect">6.5.3. kedr_coi_foreign_interceptor_create</a></span></dt><dt><span class="section"><a href="api_reference.html#api_reference.foreign_interceptor_creation.destroy">6.5.4. kedr_coi_foreign_interceptor_destroy</a></span></dt></dl></dd></dl></div><p>
+This section describe interface that KEDR COI library provides for use in the kernel code.
+</p><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="api_reference.header"></a>6.1. Header File</h3></div></div></div><p>
+The API is declared in the header file that should be included for use any of function or definition described in this document:
+</p><pre class="programlisting">
+#include &lt;kedr-coi/operations_interception.h&gt;
+</pre></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="api_reference.interceptor"></a>6.2. API of interceptor</h3></div></div></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.interceptor.struct"></a>6.2.1. Interceptor structure</h4></div></div></div><p>
+Opaque structure which represents interceptor for a particular type of objects.
+</p><pre class="programlisting">
+struct kedr_coi_interceptor;
+</pre></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.struct_operation_call_info"></a>6.2.2. struct kedr_coi_operation_call_info</h4></div></div></div><p>
+Contains information about particular callback operation call. Used as parameter to interception handlers.
+</p><pre class="programlisting">
+struct kedr_coi_operation_call_info
+{
+    void* return_address;
+    void* op_orig;
+};
+</pre><p>
+</p><div class="variablelist"><dl><dt><span class="term">return_address</span></dt><dd>Returning address of this operation call. Should be used instead of '__builtin_return_address(0)', which will return address inside intermediate operation, that is probably not what one wants.</dd><dt><span class="term">op_orig</span></dt><dd>Pointer to the original callback operation. Should be used instead of direct reading that pointer from object structure, because latter contains pointer to the intermediate operation, not the original one.</dd></dl></div><p>
+</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.struct_pre_handler"></a>6.2.3. struct kedr_coi_pre_handler</h4></div></div></div><p>
+Represent function which should be called before corresponded callback operation.
+</p><pre class="programlisting">
+struct kedr_coi_pre_handler
+{
+    size_t operation_offset;
+    void* func;
+};
+</pre><p>
+</p><div class="variablelist"><dl><dt><span class="term">operation_offset</span></dt><dd>Offset of the pointer to the callback operation inside object/operations structure.</dd><dt><span class="term">func</span></dt><dd>Pointer to the function to be called before callback operation.
+        <p>
+Function should take same arguments as callback operation plus argument of type 'struct kedr_coi_operation_call_info*'. Function shouldn't return any value.
+        </p></dd></dl></div><p>
+</p><p>
+For example, if object with callback operations is defined as
+</p><pre class="programlisting">
+struct foo
+{
+    int a;
+    long (*do_something)(char c, void* p);
+};
+</pre><p>
+then pre-handler for callback operation 'do_something' should be defined as
+</p><pre class="programlisting">
+void do_something_pre(char c, void* p, struct kedr_coi_operation_call_info* call_info)
+{
+    //...
+}
+struct kedr_coi_pre_handler pre_handler =
+{
+    .operation_offset = offsetof(struct foo, do_something),
+    .func = (void*)&amp;do_something_pre
+};
+</pre><p>
+
+</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.pre_handler_end"></a>6.2.4. kedr_coi_pre_handler_end</h4></div></div></div><p>
+End marker of the array of pre-handlers.
+</p><pre class="programlisting">
+#define kedr_coi_pre_handler_end {.operation_offset = -1}
+</pre></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.struct_post_handler"></a>6.2.5. struct kedr_coi_post_handler</h4></div></div></div><p>
+Represent function which should be called after corresponded callback operation.
+</p><pre class="programlisting">
+struct kedr_coi_post_handler
+{
+    size_t operation_offset;
+    void* func;
+};
+</pre><p>
+</p><div class="variablelist"><dl><dt><span class="term">operation_offset</span></dt><dd>Offset of the pointer to the callback operation inside object/operations structure.</dd><dt><span class="term">func</span></dt><dd>Pointer to the function to be called after callback operation.
+        <p>
+Function should take same arguments as callback operation plus argument of returning type of callback operation(if callback operation returns any value) plus argument of type 'struct kedr_coi_operation_call_info*'. Function shouldn't return any value.
+        </p></dd></dl></div><p>
+</p><p>
+For example, if object with callback operations is defined as
+</p><pre class="programlisting">
+struct foo
+{
+    int a;
+    long (*do_something)(char c, void* p);
+    void (*do_another)(char c, void* p);
+};
+</pre><p>
+then pre-handlers for operations 'do_something' and 'do_another' should be defined as
+</p><pre class="programlisting">
+void do_something_post(char c, void* p,
+    long returnValue, struct kedr_coi_operation_call_info* call_info)
+{
+    //...
+}
+struct kedr_coi_post_handler post_handler_do_something =
+{
+    .operation_offset = offsetof(struct foo, do_something),
+    .func = (void*)&amp;do_something_post
+};
+
+void do_another_post(char c, void* p,
+    struct kedr_coi_operation_call_info* call_info)
+{
+    //...
+}
+struct kedr_coi_post_handler post_handler_do_another =
+{
+    .operation_offset = offsetof(struct foo, do_another),
+    .func = (void*)&amp;do_another_post
+};
+
+</pre><p>
+
+</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.post_handler_end"></a>6.2.6. kedr_coi_post_handler_end</h4></div></div></div><p>
+End marker of the array of post-handlers.
+</p><pre class="programlisting">
+#define kedr_coi_post_handler_end {.operation_offset = -1}
+</pre></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.struct_payload"></a>6.2.7. struct kedr_coi_payload</h4></div></div></div><p>
+Represent interception information from one module for one object type.
+</p><pre class="programlisting">
+struct kedr_coi_payload
+{
+    struct module* mod;
+    struct kedr_coi_pre_handler* pre_handlers;
+    struct kedr_coi_post_handler* post_handlers;
+};
+</pre><p>
+</p><div class="variablelist"><dl><dt><span class="term">mod</span></dt><dd>Module containing code of interception functions. This module will be prevented from unload while interceptor is started.</dd><dt><span class="term">pre_handlers</span></dt><dd>Array of the pre-handlers. Last element in that array should have '-1' in the 'operation_offset' field ('kedr_coi_pre_handler_end' may be used as last element).</dd><dt><span class="term">post_handlers</span></dt><dd>Array of the post-handlers. Last element in that array should have '-1' in the 'operation_offset' field ('kedr_coi_post_handler_end' may be used as last element).</dd></dl></div><p>
+
+</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.interceptor.payload_register"></a>6.2.8. kedr_coi_payload_register</h4></div></div></div><p>
+Add interception information contained in the payload to the interceptor.
+</p><pre class="programlisting">
+int kedr_coi_payload_register(
+    struct kedr_coi_interceptor* interceptor,
+    struct kedr_coi_payload* payload);
+</pre><p>
+Make all pre- and post-handlers, contained in the payload's 'pre_handlers' and 'post_handlers' fields, be known to the interceptor. Return 0 on success and negative error code otherwise.
+</p><p>
+Same payload shouldn't be registered twice.
+</p><p>
+An attempt to register payload while interceptor is started returns '-EBUSY'.
+</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.interceptor.payload_unregister"></a>6.2.9. kedr_coi_payload_unregister</h4></div></div></div><p>
+Remove interception information listed in the payload from the interceptor. Payload should be previously registered using 'kedr_coi_payload_register'.
+</p><pre class="programlisting">
+int kedr_coi_payload_unregister(
+    struct kedr_coi_interceptor* interceptor,
+    struct kedr_coi_payload* payload);
+</pre><p>
+Make all pre- and post-handlers, contained in the payload, be not known to the interceptor. Return 0 on success and negative error code otherwise.
+</p><p>
+An attempt to unregister payload which previously wasn't registered returns '-EINVAL'.
+</p><p>
+An attempt to unregister payload which is used by interceptor in 'started' state returns '-EBUSY'.
+</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.interceptor.start"></a>6.2.10. kedr_coi_interceptor_start</h4></div></div></div><p>
+Move interceptor to 'started' state.
+</p><pre class="programlisting">
+int kedr_coi_interceptor_start(struct kedr_coi_interceptor* interceptor);
+</pre><p>
+Fix list of interception handlers of the interceptor and allow to add objects for watch by the interceptor. Return 0 on success and negative error code on fail.
+</p><p>
+Shouldn't be called when interceptor already in 'started' state.
+</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.interceptor.stop"></a>6.2.11. kedr_coi_interceptor_stop</h4></div></div></div><p>
+Move interceptor to 'initialized' state.
+</p><pre class="programlisting">
+void kedr_coi_interceptor_stop(struct kedr_coi_interceptor* interceptor);
+</pre><p>
+Release list of interception handlers, allowing it to be changed by registering/deregistering payloads. If any object is watched at this moment, stop to watch it. Also, if 'trace_unforgotten_object' parameter of interceptor constructor was not NULL, call 'trace_unforgotten_object' for every such object.
+</p><p>
+If called when interceptor is already in 'initialized' state, do nothing.
+</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.interceptor.watch"></a>6.2.12. kedr_coi_interceptor_watch</h4></div></div></div><p>
+Tell interceptor to watch an object.
+</p><pre class="programlisting">
+int kedr_coi_interceptor_watch(
+    struct kedr_coi_interceptor* interceptor,
+    void* object);
+</pre><p>
+Interceptor will intercept object's callback operations, calling interception handlers from registered payloads. Return 0 on success and negative error code on fail.
+</p><p>
+If called when interceptor is not in the 'started' state, return -ENODEV.
+</p><p>
+If object is already watched, return 1 on success and negative error code on fail.
+</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
+Interception of the object's callback operations is implemented via changing object's operations in some fasion.
+    </p><p>
+If object's callback operations are changed outside of the library, interception of the object's callback operations will be losed until this function is called again.
+    </p></div></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.interceptor.forget"></a>6.2.13. kedr_coi_interceptor_forget</h4></div></div></div><p>
+Tell interceptor to forget an object.
+</p><pre class="programlisting">
+int kedr_coi_interceptor_forget(
+    struct kedr_coi_interceptor* interceptor,
+    void* object);
+</pre><p>
+Interceptor won't intercept object's callback operations any more. Return 0 on success, negative error code on fail. If object is not watched, return 1.
+</p><p>
+If called when interceptor is not in the 'started' state, return -ENODEV.
+</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.interceptor.forget_norestore"></a>6.2.14. kedr_coi_interceptor_forget_norestore</h4></div></div></div><p>
+Tell interceptor to forget the object but do not revert changes, made when object become watched.
+</p><pre class="programlisting">
+int kedr_coi_interceptor_forget_norestore(
+    struct kedr_coi_interceptor* interceptor,
+    void* object);
+</pre><p>
+Free resources used for watching the prototype object. Return 0 on success, negative error code on fail. If object is not watched, return 1.
+</p><p>
+If called when interceptor is not in the 'started' state, return -ENODEV.
+</p><p>
+Further using callback operations of this object leads to undefined behaviour.
+</p></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="api_reference.interceptor_creation"></a>6.3. API for create interceptor</h3></div></div></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.struct_intermediate_info"></a>6.3.1. struct kedr_coi_intermediate_info</h4></div></div></div><p>
+Contains information about interception of particular callback operation call. Used by intermediate operation.
+</p><pre class="programlisting">
+struct kedr_coi_intermediate_info
+{
+    void* op_orig;
+    void* const* pre;
+    void* const* post;
+};
+</pre><p>
+</p><div class="variablelist"><dl><dt><span class="term">op_orig</span></dt><dd>Original callback operation of the object.</dd><dt><span class="term">pre</span></dt><dd>Array of pre-handlers which should be called for this callback operation. Last element in this array is NULL. NULL in this field means an empty array.        
+        </dd><dt><span class="term">post</span></dt><dd>Array of post-handlers which should be called for this callback operation. Last element in this array is NULL. NULL in this field means an empty array.        
+        </dd></dl></div><p>
+</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.interceptor_creation.get_intermediate_info"></a>6.3.2. kedr_coi_get_intermediate_info</h4></div></div></div><p>
+Return interception information for intermediate operation. Should be used only in intermediate operation implementation.
+</p><pre class="programlisting">
+int kedr_coi_interceptor_get_intermediate_info(
+    struct kedr_coi_interceptor* interceptor,
+    const void* object,
+    size_t operation_offset,
+    struct kedr_coi_intermediate_info* info);
+</pre><p>
+Fill 'kedr_coi_intermediate_info' structure with information about callback operation call. Return 0 on success and negative error code on fail.
+</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.interceptor_creation.struct_intermediate"></a>6.3.3. struct kedr_coi_intermediate</h4></div></div></div><p>
+Describe intermediate operation for callback operation.
+</p><pre class="programlisting">
+struct kedr_coi_intermediate
+{
+    size_t operation_offset;
+    void* repl;
+    int group_id;
+};
+</pre><p>
+</p><div class="variablelist"><dl><dt><span class="term">operation_offset</span></dt><dd>Offset of the callback operation inside object/operations structure.
+        </dd><dt><span class="term">repl</span></dt><dd>Pointer to the function implementing intermediate operation.
+        </dd><dt><span class="term">group_id</span></dt><dd>If not 0, determine group which that intermediate operation is belonged to. <p>If any intermediate operation from the group is used as replacement for original callback operation, then all other intermediate operations from the same group are used.
+        </p><p>
+        Normally, intermediate operation is used as replacement only when some interception handler is registered for it.
+        </p><p>
+        For usage example, see (TODO).
+        </p></dd></dl></div><p>
+</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.interceptor_creation.indirect"></a>6.3.4. kedr_coi_interceptor_create</h4></div></div></div><p>
+Create interceptor for objects which contain pointer to the structure with their callback operations.
+</p><pre class="programlisting">
+struct kedr_coi_interceptor*
+kedr_coi_interceptor_create(const char* name,
+    size_t operations_field_offset,
+    size_t operations_struct_size,
+    struct kedr_coi_intermediate* intermediate_operations,
+    void (*trace_unforgotten_object)(void* object));
+</pre><p>
+'name' is a name of interceptor created, used in some error reports.
+</p><p>
+'operations_field_offset' and 'operations_struct_size' parameters describe object's geometry(see (TODO)).
+</p><p>
+'intermediate_operations' is an array of intermediate operations. Last element in the array should have 'operation_offset' field set to -1. Every callback operation, which interception is supported, should have intermediate operation.
+</p><p>
+If not NULL, 'trace_unforgotten_object' will be called for every watched object when interceptor is being stopped(see (TODO)).
+</p><p>
+Return new interceptor on success. If interceptor cannot be created, return NULL.
+</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.interceptor_creation.direct"></a>6.3.5. kedr_coi_interceptor_create_direct</h4></div></div></div><p>
+Create interceptor for objects which contain pointers to their callback operations.
+</p><pre class="programlisting">
+struct kedr_coi_interceptor*
+kedr_coi_interceptor_create_direct(const char* name,
+    size_t object_struct_size,
+    struct kedr_coi_intermediate* intermediate_operations,
+    void (*trace_unforgotten_object)(void* object));
+</pre><p>
+'name' is a name of interceptor created, used in some error reports.
+</p><p>
+'object_struct_size' is a size of the object structure(see (TODO)).
+</p><p>
+'intermediate_operations' is an array of intermediate operations. Last element in the array should have 'operation_offset' field set to -1. Every callback operation, which interception is supported, should have intermediate operation.
+</p><p>
+If not NULL, 'trace_unforgotten_object' will be called for every watched object when interceptor is being stopped(see (TODO)).
+</p><p>
+Return new interceptor on success. If interceptor cannot be created, return NULL.
+</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.interceptor_creation.destroy"></a>6.3.6. kedr_coi_interceptor_destroy</h4></div></div></div><p>
+Destroy interceptor, freeing all resourced used by it.
+</p><pre class="programlisting">
+void kedr_coi_interceptor_destroy(
+    struct kedr_coi_interceptor* interceptor);
+</pre><p>
+Shouldn't be called when interceptor is started.
+</p></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="api_reference.foreign_interceptor"></a>6.4. API of foreign interceptor</h3></div></div></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.foreign_interceptor.struct"></a>6.4.1. Foreign interceptor structure</h4></div></div></div><p>
+Opaque structure which represents foreign interceptor for a particular types of objects(prototype and normal ones).
+</p><pre class="programlisting">
+struct kedr_coi_foreign_interceptor;
+</pre><p>
+When created, foreign interceptor has 'binded' interceptor - normal interceptor, which is used for watch the objects created from prototype objects.
+</p><p>
+Foreign interceptor has not 'start' and 'stop' function analogies of normal one. Instead, foreign interceptor is started or stopped automatically when its binded interceptor is started or stopped correspondingly.
+</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.foreign_interceptor.watch"></a>6.4.2. kedr_coi_foreign_interceptor_watch</h4></div></div></div><p>
+Tell foreign interceptor to watch a prototype object.
+</p><pre class="programlisting">
+int kedr_coi_foreign_interceptor_watch(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    void* prototype_object);
+</pre><p>
+All objects created from this prototype object will be automatically watched by the binded interceptor. Return 0 on success and negative error code on fail.
+</p><p>
+If called when interceptor is not in the 'started' state, return -ENODEV.
+</p><p>
+If object is already watched, return 1 on success and negative error code on fail.
+</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><h3 class="title">Note</h3><p>
+Watching of prototype object is implemented via changing foreign callback operations(callback operations which is copied to the object created from prototype) in some fasion.
+    </p><p>
+If these operations are changed outside of the library, automatically watching objects created from this one will not work until this function is called again.
+    </p></div></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.foreign_interceptor.forget"></a>6.4.3. kedr_coi_foreign_interceptor_forget</h4></div></div></div><p>
+Tell foreign interceptor to forget a prototype object.
+</p><pre class="programlisting">
+int kedr_coi_foreign_interceptor_forget(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    void* prototype_object);
+</pre><p>
+Objects created from this prototype object will no longer be watched by the binded interceptor automatically. Return 0 on success, negative error on fail. If prototype object is not watched, return 1.
+</p><p>
+If called when interceptor is not in the 'started' state, return -ENODEV.
+</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.foreign_interceptor.forget_norestore"></a>6.4.4. kedr_coi_foreign_interceptor_forget_norestore</h4></div></div></div><p>
+Tell foreign interceptor to forget a prototype object but do not revert changes, made when the object became watched.
+</p><pre class="programlisting">
+int kedr_coi_foreign_interceptor_forget_norestore(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    void* prototype_object);
+</pre><p>
+Free resources used for watching of the prototype object. Return 0 on success, negative error on fail. If prototype object is not watched, return 1.
+</p><p>
+If called when interceptor is not in the 'started' state, return -ENODEV.
+</p><p>
+Futher objects creation from this prototype object leads to undefined behaviour.
+</p></div></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="api_reference.foreign_interceptor_creation"></a>6.5. API for create foreign interceptor</h3></div></div></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.foreign_interceptor_creation.bind"></a>6.5.1. kedr_coi_bind_prototype_with_object</h4></div></div></div><p>
+Make binded interceptor watched the object, if it is created from prototype object which is watched by the foreign interceptor. Should be called only from intermediate operation for foreign interceptor.
+</p><pre class="programlisting">
+int kedr_coi_bind_prototype_with_object(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    void* prototype_object,
+    void* object,
+    size_t operation_offset,
+    void** op_chained);
+</pre><p>
+Return 0 on success or negative error code on fail.
+</p><p>
+Also set 'op_chained' pointed to callback operation which should be called then. If cannot define next operation, set 'op_chained' to ERR_PTR().
+</p><p>
+If 0 is returned, 'op_chained' is alrways correct pointer to function(not an error indicator). But 'op_chained' may be correct pointer even in case of error returned.
+</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.foreign_interceptor_creation.struct_intermediate"></a>6.5.2. struct kedr_coi_foreign_intermediate</h4></div></div></div><p>
+Describe intermediate operation for the foreign interceptor.
+</p><pre class="programlisting">
+struct kedr_coi_foreign_intermediate
+{
+    size_t operation_offset;
+    void* repl;
+};
+</pre><p>
+</p><div class="variablelist"><dl><dt><span class="term">operation_offset</span></dt><dd>Offset of the callback operation inside object/operations structure.
+        </dd><dt><span class="term">repl</span></dt><dd>Pointer to the function implementing intermediate operation.
+        </dd></dl></div><p>
+</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.foreign_interceptor_creation.indirect"></a>6.5.3. kedr_coi_foreign_interceptor_create</h4></div></div></div><p>
+Create foreign interceptor for prototype objects which contain pointer to the structure with their callback operations.
+</p><pre class="programlisting">
+struct kedr_coi_foreign_interceptor*
+kedr_coi_foreign_interceptor_create(
+    struct kedr_coi_interceptor* interceptor_indirect,
+    const char* name,
+    size_t foreign_operations_field_offset,
+    const struct kedr_coi_foreign_intermediate* intermediate_operations,
+    void (*trace_unforgotten_object)(void* object));
+</pre><p>
+'interceptor_indirect' is a binded interceptor for created one. Only indirect interceptor may be binded, using direct interceptor for this purpose leads to undefined behaviour.
+</p><p>
+'name' is a name of interceptor created, used in some error reports.
+</p><p>
+'foreign_operations_field_offset' is offset of the pointer to operations struct inside prototype object.
+</p><p>
+'intermediate_operations' is an array of intermediate operations. Last element in the array should have 'operation_offset' field set to -1. Every callback operation which is called just after object is created from prototype should have intermediate operation. Usually there is only one such callback operation.
+</p><p>
+If not NULL, 'trace_unforgotten_object' will be called for every watched object when interceptor is being stopped.
+</p><p>
+Return new interceptor on success. If interceptor cannot be created, return NULL.
+</p><p>
+Shouldn't be called when binded interceptor is started.
+</p></div><div class="section"><div class="titlepage"><div><div><h4 class="title"><a name="api_reference.foreign_interceptor_creation.destroy"></a>6.5.4. kedr_coi_foreign_interceptor_destroy</h4></div></div></div><p>
+Destroy foreign interceptor, freeing all resourced used by it.
+</p><pre class="programlisting">
+void kedr_coi_foreign_interceptor_destroy(
+    struct kedr_coi_foreign_interceptor* interceptor);
+</pre><p>
+Shouldn't be called when interceptor is started(that is, when binded instrumentor is started).
+</p></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="create_interceptors_using_kedr_gen.html">Prev</a> </td><td width="20%" align="center"> </td><td width="40%" align="right"> <a accesskey="n" href="glossary.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">5. Create interceptors using template-based file generation </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Glossary</td></tr></table></div></body></html>

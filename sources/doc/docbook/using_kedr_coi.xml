@@ -1,0 +1,13 @@
+﻿<section id="using_kedr_coi">
+<title>Using KEDR COI</title>
+
+<!-- General description of library -->
+&kedr_coi_description;
+
+<!-- Creation of interceptors -->
+&kedr_coi_interceptor_creation;
+
+<!-- Creation of foreign interceptors -->
+&kedr_coi_foreign_interceptor_creation;
+
+</section>

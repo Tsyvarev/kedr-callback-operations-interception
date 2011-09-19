@@ -387,10 +387,6 @@ int kedr_coi_interceptor_forget_norestore(
     struct kedr_coi_interceptor* interceptor,
     void* object);
 
-
-void
-kedr_coi_interceptor_destroy(
-    struct kedr_coi_interceptor* interceptor);
 /**********Creation of the operations interceptor*******************/
 
 /*
@@ -459,7 +455,7 @@ struct kedr_coi_intermediate
      * But if one would like to intercept alloc_inode() without
      * interception of destroy_inode(), default behaviour of KEDR COI
      * is to use intermediate operation for alloc_inode() but do not use
-     * intermediate operation for detroy_inode(), which lead to incon-
+     * intermediate operation for destroy_inode(), which lead to incon-
      * systency between this two operations: kernel implementation of
      * default destory_inode() operation unable to destroy inode, created
      * by default destroy_inode() in intermediate implementation.
@@ -520,6 +516,9 @@ kedr_coi_interceptor_create_direct(const char* name,
     void (*trace_unforgotten_object)(void* object));
 
 
+void
+kedr_coi_interceptor_destroy(
+    struct kedr_coi_interceptor* interceptor);
 /**************Interceptor for foreign operations*******************/
 
 /*

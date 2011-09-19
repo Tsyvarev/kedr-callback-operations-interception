@@ -19,8 +19,8 @@ endif ()
 set(KEDR_COI_PACKAGE_NAME "kedr-coi")
 
 set(KEDR_COI_VERSION_MAJOR 0)
-set(KEDR_COI_VERSION_MINOR 0)
-set(KEDR_COI_VERSION_MICRO 1)
+set(KEDR_COI_VERSION_MINOR 1)
+set(KEDR_COI_VERSION_MICRO 0)
 set(KEDR_COI_VERSION_SUFFIX "-devel" CACHE STRING
 	"Version suffix, a string that should be appended ro the version"
 )
@@ -277,6 +277,8 @@ if (NOT CMAKE_CROSSCOMPILING)
 	# Examples
 	add_subdirectory(examples)
 endif (NOT CMAKE_CROSSCOMPILING)
+
+add_subdirectory(doc)
 
 #######################################################################
 message (STATUS "Configured ${KEDR_COI_PACKAGE_NAME} version ${KEDR_COI_VERSION}")
