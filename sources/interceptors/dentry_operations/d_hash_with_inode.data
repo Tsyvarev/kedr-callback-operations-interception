@@ -1,0 +1,26 @@
+[group]
+operation.name = d_hash
+operation.returnType = int
+
+operation.arg.type = const struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = const struct inode *
+operation.arg.name = inode
+
+operation.arg.type = struct qstr *
+operation.arg.name = qstr
+
+operation.object = dentry
+
+# Called from link_path_walk; checked in d_set_d_op
+operation.default =>>
+// Some implementation of hash
+qstr->hash = full_name_hash(qstr->name, qstr->len);
+return 0;
+<<
+
+header =>>
+// 'd_hash' method of 'dentry_operations' accept inode parameter
+#define DENTRY_OPERATIONS_D_HASH_ACCEPT_INODE 1
+<<

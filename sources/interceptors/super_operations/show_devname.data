@@ -1,0 +1,25 @@
+[group]
+operation.name = show_devname
+operation.returnType = int
+
+operation.arg.type = struct seq_file *
+operation.arg.name = m
+
+operation.arg.type = struct vfsmount *
+operation.arg.name = mnt
+
+operation.object = mnt->mnt_sb
+
+implementation_header=>>
+#include <linux/seq_file.h>
+<<
+
+operation.default =>>
+    seq_escape(m, mnt->mnt_devname ? mnt->mnt_devname : "none", " \t\n\\");
+    return 0;
+<<
+
+header=>>
+/* 'super_operations' has method 'show_devname' */
+#define SUPER_OPERATIONS_HAS_SHOW_DEVNAME
+<<

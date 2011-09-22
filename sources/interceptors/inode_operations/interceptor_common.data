@@ -24,6 +24,11 @@ header =>>
 #include <linux/fs.h>
 <<
 
+implementation_header=>>
+#include <linux/xattr.h>
+#include <linux/security.h>
+<<
+
 object.type = struct inode
 object.operations_field = i_op
 
@@ -47,6 +52,9 @@ operation.arg.name = nd
 
 operation.object = dir
 
+# Called by vfs_create
+operation.default = return -EACCES;
+
 [group]
 operation.name = lookup
 operation.returnType = struct dentry *
@@ -62,6 +70,7 @@ operation.arg.name = nd
 
 operation.object = inode
 
+# Called by __link_path_walk
 operation.default = return ERR_PTR(-ENOTDIR);
 
 [group]
@@ -79,6 +88,7 @@ operation.arg.name = new_dentry
 
 operation.object = dir
 
+# Called by vfs_link
 operation.default = return -EPERM;
 
 
@@ -94,6 +104,7 @@ operation.arg.name = dentry
 
 operation.object = dir
 
+# Called by
 operation.default = return -EPERM;
 
 
@@ -112,6 +123,7 @@ operation.arg.name = oldname
 
 operation.object = dir
 
+# Called by vfs_symlink
 operation.default = return -EPERM;
 
 
@@ -130,6 +142,7 @@ operation.arg.name = mode
 
 operation.object = dir
 
+# Called by vfs_mkdir
 operation.default = return -EPERM;
 
 
@@ -145,6 +158,7 @@ operation.arg.name = dentry
 
 operation.object = dir
 
+# Called by vfs_rmdir
 operation.default = return -EPERM;
 
 
@@ -166,6 +180,7 @@ operation.arg.name = dev
 
 operation.object = dir
 
+# Called vfs_mknod
 operation.default = return -EPERM;
 
 
@@ -187,6 +202,7 @@ operation.arg.name = new_dentry
 
 operation.object = old_dentry
 
+# Called by vfs_rename
 operation.default = return -EPERM;
 
 
@@ -205,8 +221,8 @@ operation.arg.name = buflen
 
 operation.object = dentry->d_inode
 
-## Who call this operation from the kernel???
-operation.default =
+## Called by SYSCALL readlinkat
+operation.default = return -EINVAL;
 
 
 [group]
@@ -220,8 +236,11 @@ operation.arg.type = struct nameidata *
 operation.arg.name = nd
 
 operation.object = dentry->d_inode
-## pointer to this operation is indicator itself. How to intercept?
+# Called unconditionally from __do_follow_link and other places.
 
+# It seems, that indicator of operation's existing(pointer is not NULL)
+# is inode mode instead of pointer itself. So, if pointer is NULL for
+# for some inode, it means that it will never be checked.
 
 [group]
 operation.name = put_link
@@ -237,6 +256,7 @@ operation.arg.name = cookie
 
 operation.object = dentry->d_inode
 
+# Called from put_link
 operation.default = return;
 
 [group]
@@ -247,27 +267,24 @@ operation.arg.name = inode
 
 operation.object = inode
 
+# Called from vmtruncate
 operation.default = return;
 
 
-[group]
-operation.name = setattr
-operation.returnType = int
-
-operation.arg.type = struct dentry *
-operation.arg.name = dentry
-
-operation.arg.type = struct iattr *
-operation.arg.name = attr
-
-operation.object = dentry->d_inode
-
-# simple_setattr() in new kernels
-operation.default =>>
-int err = inode_change_ok(dentry->d_inode, attr);
-if(err) return err;
-return inode_setattr(dentry->d_inode, attr);
-<<
+#[group]
+# Called from vmtruncate_range, shouldn't replace NULL pointer at all(!).
+#operation.name = truncate_range
+#
+#operation.arg.type = struct inode *
+#operation.arg.name = inode
+#
+#operation.arg.type = loff_t
+#operation.arg.name = offset
+#
+#operation.arg.type = loff_t
+#operation.arg.name = end
+#
+#operation.object = inode
 
 
 [group]
@@ -285,7 +302,115 @@ operation.arg.name = stat
 
 operation.object = dentry->d_inode
 
-operation.default = generic_fillattr(dentry->d_inode, stat); return 0;
+# Called from vfs_getattr
+operation.default =>>
+    generic_fillattr(dentry->d_inode, stat);
+    return 0;
+<<
 
+[group]
+operation.name = setxattr
+operation.returnType = int
 
-## to be continued...
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = const char *
+operation.arg.name = name
+
+operation.arg.type = const void *
+operation.arg.name = value
+
+operation.arg.type = size_t
+operation.arg.name = size
+
+operation.arg.type = int
+operation.arg.name = flags
+
+operation.object = dentry->d_inode
+
+# Called by __vfs_setxattr_noperm
+# If operations are 'secure', allow them to be processed. Otherwise not supported.
+operation.default =>>
+    return strncmp(name, XATTR_SECURITY_PREFIX,
+        XATTR_SECURITY_PREFIX_LEN) ? -EOPNOTSUPP : 0;
+<<
+
+[group]
+operation.name = getxattr
+operation.returnType = ssize_t
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = const char *
+operation.arg.name = name
+
+operation.arg.type = void *
+operation.arg.name = value
+
+operation.arg.type = size_t
+operation.arg.name = size
+
+operation.object = dentry->d_inode
+
+# Called by vfs_getxattr
+operation.default = return -EOPNOTSUPP;
+
+[group]
+operation.name = listxattr
+operation.returnType = ssize_t
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = char *
+operation.arg.name = list
+
+operation.arg.type = size_t
+operation.arg.name = size
+
+operation.object = dentry->d_inode
+
+# Called by vfs_listxattr
+# Really default implementation should call security_inode_listsecurity(),
+# But this function is not exported for modules.
+#
+# Interception shouldn't be used when original pointer is NULL.
+operation.default = return -ENOTSUPP;
+
+[group]
+operation.name = removexattr
+operation.returnType = int
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = const char *
+operation.arg.name = name
+
+operation.object = dentry->d_inode
+
+# Called by vfs_removexattr
+operation.default = return -EOPNOTSUPP;
+
+[group]
+operation.name = fiemap
+operation.returnType = int
+
+operation.arg.type = struct inode *
+operation.arg.name = inode
+
+operation.arg.type = struct fiemap_extent_info*
+operation.arg.name = fieinfo
+
+operation.arg.type = u64
+operation.arg.name = start
+
+operation.arg.type = u64
+operation.arg.name = len
+
+operation.object = inode
+
+# Called by ioctl_fiemap
+operation.default = return -EOPNOTSUPP;

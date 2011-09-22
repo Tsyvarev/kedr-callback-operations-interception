@@ -1,0 +1,24 @@
+[group]
+operation.name = show_path
+operation.returnType = int
+
+operation.arg.type = struct seq_file *
+operation.arg.name = m
+
+operation.arg.type = struct vfsmount *
+operation.arg.name = mnt
+
+operation.object = mnt->mnt_sb
+
+implementation_header=>>
+#include <linux/seq_file.h>
+<<
+operation.default =>>
+    seq_dentry(m, mnt->mnt_root, " \t\n\\");
+    return 0;
+<<
+
+header=>>
+/* 'super_operations' has method 'show_path' */
+#define SUPER_OPERATIONS_HAS_SHOW_PATH
+<<

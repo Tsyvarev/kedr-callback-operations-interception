@@ -1,5 +1,5 @@
-interceptor.name = super_operations_interceptor
-interceptor.operations_prefix = super_operations
+interceptor.name = file_system_type_interceptor
+interceptor.operations_prefix = file_system_type
 
 header =>>
 /* ========================================================================
@@ -24,36 +24,14 @@ header =>>
 #include <linux/fs.h>
 <<
 
-object.type = struct super_block
-object.operations_field = s_op
+interceptor.is_direct = yes
 
-operations.type = struct super_operations
+object.type = struct file_system_type
 
 [group]
-operation.name = alloc_inode
-operation.returnType = struct inode *
+operation.name = kill_sb
 
 operation.arg.type = struct super_block *
-operation.arg.name = sb
+operation.arg.name = s
 
-operation.object = sb
-
-operation.default =>>
-struct inode* inode = kmalloc(sizeof(struct inode), GFP_KERNEL);
-if(inode) inode_init_once(inode);
-return inode;
-<<
-operation.group_id = 1
-
-[group]
-operation.name = destroy_inode
-
-operation.arg.type = struct inode*
-operation.arg.name = inode
-
-operation.object = inode->i_sb
-
-operation.default = kfree(inode);
-operation.group_id = 1
-
-## to be continued...
+operation.object = s->s_type

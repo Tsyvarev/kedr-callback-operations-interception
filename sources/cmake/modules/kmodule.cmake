@@ -223,7 +223,7 @@ function(kmodule_is_operation_exist RESULT_VAR bindir operations_include_dir ope
 		set(status_result "not found")
 	endif(${RESULT_VAR})
 	set(status_message "${status_message} - ${status_result}${status_cached}")
-	message("${status_message}")
+	message(STATUS "${status_message}")
 endfunction(kmodule_is_operation_exist RESULT_VAR bindir operations_include_dir operations_struct_type operation_name)
 	
 

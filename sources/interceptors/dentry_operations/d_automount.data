@@ -1,0 +1,16 @@
+[group]
+operation.name = d_automount
+operation.returnType = struct vfsmount *
+
+operation.arg.type = struct path *
+operation.arg.name = path
+
+operation.object = path->dentry
+
+# Called by follow_automount.
+operation.default = return -EREMOTE;
+
+header =>>
+/* 'dentry_operations' has 'd_automount' member */
+#define DENTRY_OPERATIONS_HAS_D_AUTOMOUNT
+<<

@@ -1,0 +1,14 @@
+[group]
+operation.name = setattr
+operation.returnType = int
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = struct iattr *
+operation.arg.name = attr
+
+operation.object = dentry->d_inode
+
+# Called from notify_change
+operation.default = return simple_setattr(dentry, attr);

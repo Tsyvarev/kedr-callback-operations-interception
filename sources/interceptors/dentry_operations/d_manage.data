@@ -1,0 +1,19 @@
+[group]
+operation.name = d_manage
+operation.returnType = int
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = bool
+operation.arg.name = mounting_here
+
+operation.object = dentry
+
+# Called by .
+operation.default = ;
+
+header =>>
+/* 'dentry_operations' has 'd_manage' member */
+#define DENTRY_OPERATIONS_HAS_D_MANAGE
+<<

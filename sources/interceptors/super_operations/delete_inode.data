@@ -1,0 +1,13 @@
+[group]
+operation.name = delete_inode
+
+operation.arg.type = struct inode *
+operation.arg.name = inode
+
+operation.object = inode
+operation.default = 
+
+header=>>
+/* 'super_operations' has 'delete_inode' method */
+#define SUPER_OPERATIONS_HAS_DELETE_INODE
+<<

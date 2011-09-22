@@ -20,7 +20,7 @@ KEDR COI has templates suitable for create interceptors using 'kedr_gen' generat
 <section id="create_interceptors_using_kedr_gen.output">
 <title>Files generated for interceptor</title>
 <para>
-Using template <filename class="directory">interceptor.h</filename> one can create header file for interceptor. This file contains definitions in same format as for predefined interceptors (see <xref linkend="pre_existed_interceptors.interceptor_api"/>). For create source file with interceptor's implementation, template <filename class="directory">interceptor.c</filename> should be used.
+Using template <filename class="directory">kedr_coi_interceptor.h</filename> one can create header file for interceptor. This file contains definitions in same format as for predefined interceptors (see <xref linkend="pre_existed_interceptors.interceptor_api"/>). For create source file with interceptor's implementation, template <filename class="directory">kedr_coi_interceptor.c</filename> should be used.
 </para>
 </section>
 <!-- End of "create_interceptors_using_kedr_gen.output" -->
@@ -89,7 +89,7 @@ For every callback operations, interception of which should be supported, a grou
 <section id="create_interceptors_using_kedr_gen.foreign_output">
 <title>Files generated for foreign interceptor</title>
 <para>
-Using template <filename class="directory">foreign_interceptor.h</filename> one can create header file for foreign interceptor. This file contains definitions in same format as for predefined foreign interceptors (see <xref linkend="pre_existed_interceptors.foreign_interceptor_api"/>). For create source file with foreign interceptor's implementation, template <filename class="directory">foreign_interceptor.c</filename> should be used.
+Using template <filename class="directory">kedr_coi_foreign_interceptor.h</filename> one can create header file for foreign interceptor. This file contains definitions in same format as for predefined foreign interceptors (see <xref linkend="pre_existed_interceptors.foreign_interceptor_api"/>). For create source file with foreign interceptor's implementation, template <filename class="directory">kedr_coi_foreign_interceptor.c</filename> should be used.
 </para>
 
 </section>

@@ -12,15 +12,15 @@ kedr_coi_interceptors_dir := @KEDR_COI_PREFIX_INTERCEPTORS@
 KBUILD_DIR=@KBUILD_BUILD_DIR@
 PWD=`pwd`
 
-interceptors_normal = file_system_type super_operations inode_operations dentry_operations
-interceptors_foreign = inode_file_operations
-interceptors_standard = file_operations
+interceptors_normal =  
+interceptors_foreign =
+interceptors_standard = file_operations inode_file_operations file_system_type super_operations inode_operations dentry_operations
 
 interceptors_created = $(interceptors_normal) $(interceptors_foreign)
 
 all: ${module_name}.ko
 
-${module_name}.ko: file_access_counter.c functions_support.c \
+${module_name}.ko: file_access_counter.c fs_interception.c functions_support.c \
 	$(addsuffix _interceptor.c, $(interceptors_created)) \
 	$(addsuffix _interceptor.h, $(interceptors_created)) \
 	$(addsuffix _interceptor.c, $(interceptors_standard)) \

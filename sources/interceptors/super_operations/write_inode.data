@@ -1,0 +1,17 @@
+[group]
+operation.name = write_inode
+operation.returnType = int
+
+operation.arg.type = struct inode *
+operation.arg.name = inode
+
+operation.arg.type = int
+operation.arg.name = sync
+
+operation.object = inode
+operation.default = return 0;
+
+header=>>
+/* 'write_inode' method of 'super_operations' doesn't accept 'wbc' parameter */
+#define SUPER_OPERATIONS_WRITE_INODE_ACCEPT_WBC 0
+<<

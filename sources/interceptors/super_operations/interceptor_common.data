@@ -1,0 +1,204 @@
+interceptor.name = super_operations_interceptor
+interceptor.operations_prefix = super_operations
+
+header =>>
+/* ========================================================================
+ * Copyright (C) 2011, Andrey V. Tsyvarev  <tsyvarev@ispras.ru>
+ *
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ ======================================================================== */
+
+
+#include <linux/fs.h>
+<<
+
+implementation_header =>>
+#include <linux/mount.h>
+#include <linux/buffer_head.h>
+<<
+
+object.type = struct super_block
+object.operations_field = s_op
+
+operations.type = struct super_operations
+
+[group]
+operation.name = alloc_inode
+operation.returnType = struct inode *
+
+operation.arg.type = struct super_block *
+operation.arg.name = sb
+
+operation.object = sb
+
+operation.default =>>
+struct inode* inode = kmalloc(sizeof(struct inode), GFP_KERNEL);
+if(inode) inode_init_once(inode);
+return inode;
+<<
+operation.group_id = 1
+
+[group]
+operation.name = destroy_inode
+
+operation.arg.type = struct inode*
+operation.arg.name = inode
+
+operation.object = inode->i_sb
+
+operation.default = kfree(inode);
+operation.group_id = 1
+
+[group]
+operation.name = put_super
+
+operation.arg.type = struct super_block *
+operation.arg.name = sb
+
+operation.object = sb
+
+operation.default = 
+
+[group]
+operation.name = write_super
+
+operation.arg.type = struct super_block *
+operation.arg.name = sb
+
+operation.object = sb
+
+operation.default = 
+
+[group]
+operation.name = sync_fs
+operation.returnType = int
+
+operation.arg.type = struct super_block *
+operation.arg.name = sb
+
+operation.arg.type = int
+operation.arg.name = wait
+
+operation.object = sb
+
+operation.default = return 0;
+
+[group]
+operation.name = freeze_fs
+operation.returnType = int
+
+operation.arg.type = struct super_block *
+operation.arg.name = sb
+
+operation.object = sb
+
+operation.default = return 0;
+
+[group]
+operation.name = unfreeze_fs
+operation.returnType = int
+
+operation.arg.type = struct super_block *
+operation.arg.name = sb
+
+operation.object = sb
+
+operation.default = return 0;
+
+[group]
+operation.name = statfs
+operation.returnType = int
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = struct kstatfs *
+operation.arg.name = buf
+
+operation.object = dentry->d_sb
+
+operation.default = return -ENOSYS;
+
+[group]
+operation.name = remount_fs
+operation.returnType = int
+
+operation.arg.type = struct super_block *
+operation.arg.name = sb
+
+operation.arg.type = int *
+operation.arg.name = flags
+
+operation.arg.type = char*
+operation.arg.name = data
+
+operation.object = sb
+
+operation.default = return 0;
+
+[group]
+operation.name = umount_begin
+
+operation.arg.type = struct super_block *
+operation.arg.name = sb
+
+operation.object = sb
+
+operation.default = 
+
+[group]
+operation.name = show_options
+operation.returnType = int
+
+operation.arg.type = struct seq_file *
+operation.arg.name = m
+
+operation.arg.type = struct vfsmount *
+operation.arg.name = mnt
+
+operation.object = mnt->mnt_sb
+
+operation.default = return 0;
+
+[group]
+operation.name = show_stats
+operation.returnType = int
+
+operation.arg.type = struct seq_file *
+operation.arg.name = m
+
+operation.arg.type = struct vfsmount *
+operation.arg.name = mnt
+
+operation.object = mnt->mnt_sb
+
+operation.default = return 0;
+
+[group]
+operation.name = bdev_try_to_free_page
+operation.returnType = int
+
+operation.arg.type = struct super_block *
+operation.arg.name = sb
+
+operation.arg.type = struct page *
+operation.arg.name = page
+
+operation.arg.type = gfp_t
+operation.arg.name = wait
+
+operation.object = sb
+
+operation.default = return try_to_free_buffers(page);

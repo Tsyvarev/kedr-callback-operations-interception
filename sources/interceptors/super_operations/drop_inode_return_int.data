@@ -1,0 +1,14 @@
+[group]
+operation.name = drop_inode
+operation.returnType = int
+
+operation.arg.type = struct inode *
+operation.arg.name = inode
+
+operation.object = inode
+operation.default = return generic_drop_inode(inode);
+
+header=>>
+/* 'drop_inode' method of 'super_operations' return integer value */
+#define SUPER_OPERATIONS_DROP_INODE_RETURN_INT 1
+<<

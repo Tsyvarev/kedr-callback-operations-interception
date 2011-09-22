@@ -119,6 +119,26 @@ Here is a list of functions' prefixes, used for create and work with interceptor
         <listitem>Interceptor for watch objects of type '<type>struct file</type>'. Name of header file is <filename>file_operations_interceptor.h</filename>. Name of source file - <filename>file_operations_interceptor.c</filename>.
         </listitem>
     </varlistentry>
+    <varlistentry><term>inode_operations_interceptor</term>
+        <listitem>Interceptor for watch objects of type '<type>struct inode</type>'. Name of header file is <filename>inode_operations_interceptor.h</filename>. Name of source file - <filename>inode_operations_interceptor.c</filename>.
+        </listitem>
+    </varlistentry>
+    <varlistentry><term>dentry_operations_interceptor</term>
+        <listitem>Interceptor for watch objects of type '<type>struct dentry</type>'. Name of header file is <filename>dentry_operations_interceptor.h</filename>. Name of source file - <filename>dentry_operations_interceptor.c</filename>.
+        </listitem>
+    </varlistentry>
+    <varlistentry><term>super_operations_interceptor</term>
+        <listitem>Interceptor for watch objects of type '<type>struct super_block</type>'. Name of header file is <filename>super_operations_interceptor.h</filename>. Name of source file - <filename>super_operations_interceptor.c</filename>.
+        </listitem>
+    </varlistentry>
+    <varlistentry><term>file_system_type_interceptor</term>
+        <listitem>Interceptor for watch objects of type '<type>struct file_system_type</type>'. Name of header file is <filename>file_system_type_interceptor.h</filename>. Name of source file - <filename>file_system_type_interceptor.c</filename>.
+        </listitem>
+    </varlistentry>
+    <varlistentry><term>inode_file_operations_interceptor</term>
+        <listitem>Foreign interceptor for watch objects of type '<type>struct inode</type>' with automatic watch newly-created objects of type '<type>struct file</type>'. Name of header file is <filename>inode_file_operations_interceptor.h</filename>. Name of source file - <filename>inode_file_operations_interceptor.c</filename>.
+        </listitem>
+    </varlistentry>
 </variablelist>
 </para>
 </section>

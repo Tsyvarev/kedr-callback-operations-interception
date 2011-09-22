@@ -3,12 +3,9 @@ set(module_name "file_access_counter_module")
 # List of example files which are not configured and should be copied as is
 set(sources_non_configured
     "file_access_counter.c"
+    "fs_interception.c"
+    "fs_interception.h"
     "functions.data"
-    "file_system_type.data"
-    "super_operations.data"
-    "inode_operations.data"
-    "inode_file_operations.data"
-    "dentry_operations.data"
 )
 
 kedr_coi_load_install_prefixes()
