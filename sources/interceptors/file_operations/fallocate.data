@@ -1,6 +1,6 @@
 [group]
 operation.name = fallocate
-operation.returnType = int
+operation.returnType = long
 
 operation.arg.type = struct file *
 operation.arg.name = filp

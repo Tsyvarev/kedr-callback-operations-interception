@@ -27,7 +27,7 @@ kmodule_is_operation_exist(is_d_compare_accept_inode
     ${CMAKE_CURRENT_SOURCE_DIR}
     "struct dentry_operations"
     "d_compare"
-    "int (*d_compare)(const struct dentry *, const struct inode *, const struct dentry *, const struct inode *, unsigned int, const char *, const struct qstr *);"
+    "int (*)(const struct dentry *, const struct inode *, const struct dentry *, const struct inode *, unsigned int, const char *, const struct qstr *);"
 )
 
 if(is_d_compare_accept_inode)

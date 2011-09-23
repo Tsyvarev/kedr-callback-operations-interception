@@ -265,23 +265,6 @@ operation.object = filp
 operation.default = return 0;
 
 [group]
-operation.name = fsync
-operation.returnType = int
-
-operation.arg.type = struct file *
-operation.arg.name = filp
-
-operation.arg.type = struct dentry *
-operation.arg.name = dentry
-
-operation.arg.type = int
-operation.arg.name = datasync
-
-operation.object = filp
-
-operation.default = return -EINVAL;
-
-[group]
 operation.name = aio_fsync
 operation.returnType = int
 

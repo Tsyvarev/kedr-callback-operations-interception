@@ -66,7 +66,8 @@ struct kedr_coi_payload file_operations_payload =
 
 
 /* Update mount counter */
-static void fst_get_sb_post_super_mount_counter(struct file_system_type* type,
+#if defined(FILE_SYSTEM_TYPE_HAS_GET_SB)
+static void fst_get_sb_post_mount_counter(struct file_system_type* type,
     int flags, const char* name, void* data,
     struct vfsmount* mnt, int returnValue)
 {
@@ -75,12 +76,26 @@ static void fst_get_sb_post_super_mount_counter(struct file_system_type* type,
         mount_counter++;
     }
 }
-
+#else
+static void fst_mount_post_mount_counter(struct file_system_type* type,
+    int flags, const char* name, void* data,
+    struct dentry* returnValue)
+{
+    if(returnValue != NULL)
+    {
+        mount_counter++;
+    }
+}
+#endif /*FILE_SYSTEM_TYPE_HAS_GET_SB*/
 
 /* Combine all handlers for file system type operations together */
 static struct kedr_coi_post_handler file_system_type_post_handlers[] =
 {
-    file_system_type_get_sb_post(fst_get_sb_post_super_mount_counter),
+#if defined(FILE_SYSTEM_TYPE_HAS_GET_SB)
+    file_system_type_get_sb_post(fst_get_sb_post_mount_counter),
+#else
+    file_system_type_mount_post(fst_mount_post_mount_counter),
+#endif
     kedr_coi_post_handler_end
 };
 

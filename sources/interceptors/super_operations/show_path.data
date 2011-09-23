@@ -10,6 +10,7 @@ operation.arg.name = mnt
 
 operation.object = mnt->mnt_sb
 
+# Called by show_mountinfo.
 implementation_header=>>
 #include <linux/seq_file.h>
 <<

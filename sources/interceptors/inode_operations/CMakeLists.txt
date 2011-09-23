@@ -31,16 +31,16 @@ endif(is_simple_setattr_exist)
 message(STATUS "${is_simple_setattr_exist_message}")
 
 
-kmodule_is_operation_exist(is_fallocate_exist
+kmodule_is_operation_exist(is_inode_fallocate_exist
     "${CMAKE_CURRENT_BINARY_DIR}/try_fallocate"
     ${CMAKE_CURRENT_SOURCE_DIR}
     "struct inode_operations"
     "fallocate"
 )
 
-if(is_fallocate_exist)
+if(is_inode_fallocate_exist)
     list(APPEND pieces_full "${CMAKE_CURRENT_SOURCE_DIR}/fallocate.data")
-endif(is_fallocate_exist)
+endif(is_inode_fallocate_exist)
 
 execute_process(COMMAND cat ${pieces_full}
     RESULT_VARIABLE join_result

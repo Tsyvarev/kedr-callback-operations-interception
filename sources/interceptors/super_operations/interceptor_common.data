@@ -27,6 +27,7 @@ header =>>
 implementation_header =>>
 #include <linux/mount.h>
 #include <linux/buffer_head.h>
+#include <linux/slab.h>
 <<
 
 object.type = struct super_block

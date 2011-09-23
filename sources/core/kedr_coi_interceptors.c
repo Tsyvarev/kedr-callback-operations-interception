@@ -24,6 +24,8 @@
 
 #include "kedr_coi_instrumentor_internal.h"
 
+#include <linux/slab.h>
+
 /*
  *  State of the interceptor.
  * 

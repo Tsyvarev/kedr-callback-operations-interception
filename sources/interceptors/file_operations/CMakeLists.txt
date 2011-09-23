@@ -18,16 +18,31 @@ if(is_ioctl_exist)
     list(APPEND pieces_full "${CMAKE_CURRENT_SOURCE_DIR}/ioctl.data")
 endif(is_ioctl_exist)
 
-kmodule_is_operation_exist(is_fallocate_exist
+kmodule_is_operation_exist(is_file_fallocate_exist
     "${CMAKE_CURRENT_BINARY_DIR}/try_fallocate"
     ${CMAKE_CURRENT_SOURCE_DIR}
     "struct file_operations"
     "fallocate"
 )
 
-if(is_fallocate_exist)
+if(is_file_fallocate_exist)
     list(APPEND pieces_full "${CMAKE_CURRENT_SOURCE_DIR}/fallocate.data")
-endif(is_fallocate_exist)
+endif(is_file_fallocate_exist)
+
+
+kmodule_is_operation_exist(is_fsync_accept_dentry
+    "${CMAKE_CURRENT_BINARY_DIR}/try_fsync_with_dentry"
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    "struct file_operations"
+    "fsync"
+    "int (*) (struct file *, struct dentry *, int datasync)"
+)
+
+if(is_fsync_accept_dentry)
+    list(APPEND pieces_full "${CMAKE_CURRENT_SOURCE_DIR}/fsync.data")
+else(is_fsync_accept_dentry)
+    list(APPEND pieces_full "${CMAKE_CURRENT_SOURCE_DIR}/fsync_without_dentry.data")
+endif(is_fsync_accept_dentry)
 
 
 execute_process(COMMAND cat ${pieces_full}

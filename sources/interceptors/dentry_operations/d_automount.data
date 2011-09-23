@@ -8,7 +8,7 @@ operation.arg.name = path
 operation.object = path->dentry
 
 # Called by follow_automount.
-operation.default = return -EREMOTE;
+operation.default = return ERR_PTR(-EREMOTE);
 
 header =>>
 /* 'dentry_operations' has 'd_automount' member */
