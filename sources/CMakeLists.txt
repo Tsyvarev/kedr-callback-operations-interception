@@ -21,7 +21,7 @@ set(KEDR_COI_PACKAGE_NAME "kedr-coi")
 set(KEDR_COI_VERSION_MAJOR 0)
 set(KEDR_COI_VERSION_MINOR 1)
 set(KEDR_COI_VERSION_MICRO 0)
-set(KEDR_COI_VERSION_SUFFIX "-devel" CACHE STRING
+set(KEDR_COI_VERSION_SUFFIX "" CACHE STRING
 	"Version suffix, a string that should be appended ro the version"
 )
 set(KEDR_COI_VERSION 
