@@ -26,7 +26,6 @@ header =>>
 
 implementation_header =>>
 #include <linux/mount.h>
-#include <linux/buffer_head.h>
 #include <linux/slab.h>
 <<
 
@@ -44,6 +43,7 @@ operation.arg.name = sb
 
 operation.object = sb
 
+# Called from alloc_inode
 operation.default =>>
 struct inode* inode = kmalloc(sizeof(struct inode), GFP_KERNEL);
 if(inode) inode_init_once(inode);
@@ -59,6 +59,7 @@ operation.arg.name = inode
 
 operation.object = inode->i_sb
 
+# Called from destroy_inode
 operation.default = kfree(inode);
 operation.group_id = 1
 
@@ -70,7 +71,7 @@ operation.arg.name = sb
 
 operation.object = sb
 
-operation.default = 
+operation.default = return;
 
 [group]
 operation.name = write_super
@@ -80,7 +81,7 @@ operation.arg.name = sb
 
 operation.object = sb
 
-operation.default = 
+operation.default = return;
 
 [group]
 operation.name = sync_fs
@@ -157,7 +158,7 @@ operation.arg.name = sb
 
 operation.object = sb
 
-operation.default = 
+operation.default = return;
 
 [group]
 operation.name = show_options
@@ -171,6 +172,7 @@ operation.arg.name = mnt
 
 operation.object = mnt->mnt_sb
 
+# Called from show_vfsmnt
 operation.default = return 0;
 
 [group]
@@ -185,6 +187,7 @@ operation.arg.name = mnt
 
 operation.object = mnt->mnt_sb
 
+# Called from show_vfsstat
 operation.default = return 0;
 
 [group]
@@ -202,4 +205,8 @@ operation.arg.name = wait
 
 operation.object = sb
 
+# Called from blkdev_releasepage
+implementation_header =>>
+#include <linux/buffer_head.h>
+<<
 operation.default = return try_to_free_buffers(page);

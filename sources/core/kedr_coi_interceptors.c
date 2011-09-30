@@ -71,6 +71,59 @@ static void payload_elem_init(
 }
 
 /*
+ * Array of pointers, which is allowed to grow.
+ * 
+ * Its 'elems' field is a NULL-terminated C-array of pointers.
+ */
+struct parray
+{
+    void** elems;
+    int n_elems;
+};
+
+/* Initialize array structure. Array contains no elements. */
+static void parray_init(struct parray* array)
+{
+    array->elems = NULL;
+    array->n_elems = 0;
+}
+
+/* Reset array. Array contains no elemens.*/
+static void parray_reset(struct parray* array)
+{
+    if(array->n_elems)
+    {
+        kfree(array->elems);
+        array->elems = NULL;
+        array->n_elems = 0;
+    }
+}
+
+/*
+ * Add element to array.
+ *
+ * Return 0 on success, negative error code otherwise.
+ */
+static int parray_add_elem(struct parray* array, void* elem)
+{
+    int n_elems_new = array->n_elems + 1;
+    void** elems_new = krealloc(array->elems,
+        sizeof(*elems_new) * (n_elems_new + 1), GFP_KERNEL);
+    if(elems_new == NULL)
+    {
+        return -ENOMEM;
+    }
+    
+    elems_new[n_elems_new - 1] = elem;
+    elems_new[n_elems_new] = NULL;
+    
+    array->elems = elems_new;
+    array->n_elems = n_elems_new;
+
+    return 0;
+}
+
+/*
  *  Information about operation, which may be intercepted.
  */
 struct operation_info
@@ -82,66 +135,62 @@ struct operation_info
     
     void* repl;
     int group_id;
+    bool internal_only;
+    // Whether operation should be intercepted
+    bool is_intercepted;
+    // Arrays of pre- and post- handlers
+    struct parray pre_handlers;
+    struct parray post_handlers;
 
-    // Whether interception of this operation is used
-    int is_intercepted; 
-
-    // Next fields has a sence only when 'is_intercepted' is not 0
-    // NULL-terminated array of per-handlers or NULL
-    void** pre;
-    // NULL-terminated array of post-handlers or NULL
-    void** post;
-    // Counters of pre- and post- handlers.
-    int n_pre;
-    int n_post;
+    // Same for the case when original operation pointer is NULL
+    bool default_is_intercepted;
+    struct parray default_pre_handlers;
+    struct parray default_post_handlers;
 };
 
 // Initialize operation information structure
 void operation_info_init(struct operation_info* operation,
     const struct kedr_coi_intermediate* intermediate)
 {
+    INIT_LIST_HEAD(&operation->list);
+
     operation->operation_offset = intermediate->operation_offset;
+
     operation->repl = intermediate->repl;
     operation->group_id = intermediate->group_id;
-    
-    INIT_LIST_HEAD(&operation->list);
-    
-    operation->is_intercepted = 0;
-}
+    operation->internal_only = intermediate->internal_only;
 
-/*
- *  Mark operation as intercepted.
- * Do nothing if it is already intercepted.
- */
-static void
-operation_info_intercept(struct operation_info* operation)
-{
-    if(operation->is_intercepted) return;//already intercepted
-    
-    operation->pre = NULL;
-    operation->post = NULL;
+    operation->is_intercepted = false;
+    parray_init(&operation->pre_handlers);
+    parray_init(&operation->post_handlers);
 
-    operation->n_pre = 0;
-    operation->n_post = 0;
-
-    operation->is_intercepted = 1;
+    operation->default_is_intercepted = false;
+    parray_init(&operation->default_pre_handlers);
+    parray_init(&operation->default_post_handlers);
 }
 
 /* 
- * Mark operation as not intercepted.
- * Also release any resources concerned interception.
- * 
- * Do nothing if operation is not intercepted.
+ * Clear all interception info, including default interception.
+ * Also release any resources concerned with interception.
  */
 static void
 operation_info_clear_interception(struct operation_info* operation)
 {
-    if(!operation->is_intercepted) return;
+    if(operation->is_intercepted)
+    {
+        operation->is_intercepted = false;
 
-    operation->is_intercepted = 0;
+        parray_reset(&operation->pre_handlers);
+        parray_reset(&operation->post_handlers);
+    }
 
-    kfree(operation->pre);
-    kfree(operation->post);
+    if(operation->default_is_intercepted)
+    {
+        operation->default_is_intercepted = false;
+
+        parray_reset(&operation->default_pre_handlers);
+        parray_reset(&operation->default_post_handlers);
+    }
 }
 
 /*
@@ -151,26 +200,30 @@ operation_info_clear_interception(struct operation_info* operation)
  */
 static int
 operation_info_add_pre(struct operation_info* operation,
-    void* pre)
+    void* pre, bool external)
 {
-    int n_pre_new = operation->n_pre + 1;
-    void** pre_new = krealloc(operation->pre,
-        sizeof(*operation->pre) * (n_pre_new + 1), GFP_KERNEL);
-    if(pre_new == NULL)
+    int result = parray_add_elem(&operation->pre_handlers, pre);
+    if(result)
     {
-        pr_err("Failed to allocate array of pre handlers for operation.");
-        return -ENOMEM;
+        pr_err("Failed to add pre handler for operation.");
+        return result;
     }
-    
-    pre_new[n_pre_new - 1] = pre;
-    pre_new[n_pre_new] = NULL;
-    
-    operation->pre = pre_new;
-    operation->n_pre = n_pre_new;
-    
-    
-    return 0;
 
+    operation->is_intercepted = true;
+    
+    if(external)
+    {
+        result = parray_add_elem(&operation->default_pre_handlers, pre);
+        if(result)
+        {
+            pr_err("Failed to add default pre handler for operation.");
+            return result;
+        }
+        
+        operation->default_is_intercepted = true;
+    }
+
+    return 0;
 }
 
 /*
@@ -180,24 +233,30 @@ operation_info_add_pre(struct operation_info* operation,
  */
 static int
 operation_info_add_post(struct operation_info* operation,
-    void* post)
+    void* post, bool external)
 {
-    int n_post_new = operation->n_post + 1;
-    void** post_new = krealloc(operation->post,
-        sizeof(*operation->post) * (n_post_new + 1),
-        GFP_KERNEL);
-    if(post_new == NULL)
+    int result = parray_add_elem(&operation->post_handlers, post);
+    
+    if(result)
     {
-        pr_err("Failed to allocate array of post handlers for operation.");
-        return -ENOMEM;
+        pr_err("Failed to add post handler for operation.");
+        return result;
     }
-    
-    post_new[n_post_new - 1] = post;
-    post_new[n_post_new] = NULL;
-    
-    operation->post = post_new;
-    operation->n_post = n_post_new;
-    
+
+    operation->is_intercepted = true;
+
+    if(external)
+    {
+        result = parray_add_elem(&operation->default_post_handlers, post);
+        
+        if(result)
+        {
+            pr_err("Failed to add default post handler for operation.");
+            return result;
+        }
+        operation->default_is_intercepted = true;
+    }
+
     return 0;
 }
 
@@ -448,7 +507,10 @@ static int interceptor_check_payload(
     struct kedr_coi_interceptor* interceptor,
     struct kedr_coi_payload* payload)
 {
-    // Verify that payload requires to intercept only known operations
+    /*
+     *  Verify that payload requires to intercept only known operations
+     * and in available variant(external or internal).
+     */
     if(payload->pre_handlers)
     {
         struct kedr_coi_pre_handler* pre_handler;
@@ -456,13 +518,23 @@ static int interceptor_check_payload(
             pre_handler->operation_offset != -1;
             pre_handler++)
         {
-            if(interceptor_find_operation(interceptor,
-                pre_handler->operation_offset) == NULL)
+            struct operation_info* operation =
+                interceptor_find_operation(interceptor,
+                    pre_handler->operation_offset);
+            
+            if(operation == NULL)
             {
                 pr_err("Cannot register payload %p because it requires "
                     "to intercept unknown operation with offset %zu.",
                         payload, pre_handler->operation_offset);
                 return -EINVAL;
+            }
+            if(pre_handler->external && operation->internal_only)
+            {
+                pr_err("Cannot register payload %p for interceptor '%s' because it requires "
+                    "to externally intercept operation at offset %zu,"
+                    "but only internal interception is supported for it.",
+                        payload, interceptor->name, pre_handler->operation_offset);
             }
         }
     }
@@ -474,13 +546,22 @@ static int interceptor_check_payload(
             post_handler->operation_offset != -1;
             post_handler++)
         {
-            if(interceptor_find_operation(interceptor,
-                post_handler->operation_offset) == NULL)
+            struct operation_info* operation =
+                interceptor_find_operation(interceptor,
+                    post_handler->operation_offset);
+            if(operation == NULL)
+            {
+                pr_err("Cannot register payload %p for interceptor '%s' because it requires "
+                    "to intercept unknown operation with offset %zu.",
+                        payload, interceptor->name, post_handler->operation_offset);
+                return -EINVAL;
+            }
+            if(post_handler->external && operation->internal_only)
             {
                 pr_err("Cannot register payload %p because it requires "
-                    "to intercept unknown operation with offset %zu.",
+                    "to externally intercept operation at offset %zu,"
+                    "but only internal interception is supported for it.",
                         payload, post_handler->operation_offset);
-                return -EINVAL;
             }
         }
     }
@@ -489,32 +570,25 @@ static int interceptor_check_payload(
 }
 
 /*
- * Mark operation as intercepted.
- * 
- * Also process operations grouping.
- * 
- * NOTE: Function's effect is not solely revertable!
+ * Close operations set according to the sence of group_id.
  */
-static void
-intercept_operation(
-    struct kedr_coi_interceptor* interceptor,
-    struct operation_info* operation)
+static void close_operations(struct kedr_coi_interceptor* interceptor)
 {
-    if(operation->is_intercepted) return;
-    
-    operation_info_intercept(operation);
-    
-    if(operation->group_id != 0)
+    struct operation_info* operation;
+
+    list_for_each_entry(operation, &interceptor->operations, list)
     {
-        int group_id = operation->group_id;
-        struct operation_info* operation_tmp;
-        list_for_each_entry(operation_tmp, &interceptor->operations, list)
+        struct operation_info* operation1;
+
+        if(operation->group_id == 0) continue;
+        if(!operation->default_is_intercepted) continue;
+        list_for_each_entry(operation1, &interceptor->operations, list)
         {
-            if(operation_tmp->group_id != group_id) continue;
-            if(operation_tmp->is_intercepted) continue;
-            operation_info_intercept(operation_tmp);
+            if(operation1->group_id != operation->group_id) continue;
+            operation1->default_is_intercepted = true;
         }
     }
+
 }
 
 /*
@@ -546,9 +620,9 @@ static int interceptor_use_payload_elem(
                 interceptor, pre_handler->operation_offset);
 
             BUG_ON(operation == NULL);//payloads should be checked when registered
-            intercept_operation(interceptor, operation);
             
-            result = operation_info_add_pre(operation, pre_handler->func);
+            result = operation_info_add_pre(operation,
+                pre_handler->func, pre_handler->external);
             if(result) return result;
         }
     }
@@ -565,9 +639,9 @@ static int interceptor_use_payload_elem(
                 interceptor, post_handler->operation_offset);
 
             BUG_ON(operation == NULL);//payloads should be checked when registered
-            intercept_operation(interceptor, operation);
 
-            result = operation_info_add_post(operation, post_handler->func);
+            result = operation_info_add_post(operation,
+                post_handler->func, post_handler->external);
             if(result) return result;
         }
     }
@@ -602,7 +676,7 @@ interceptor_create_replacements(
     // Count
     list_for_each_entry(operation, &interceptor->operations, list)
     {
-        if(operation->is_intercepted)
+        if(operation->is_intercepted || operation->default_is_intercepted)
             replacements_n++;
     }
     
@@ -626,13 +700,16 @@ interceptor_create_replacements(
     i = 0;
     list_for_each_entry(operation, &interceptor->operations, list)
     {
-        if(operation->is_intercepted)
+        if(operation->is_intercepted || operation->default_is_intercepted)
         {
             struct kedr_coi_replacement* replacement =
                 &interceptor->replacements[i];
         
             replacement->operation_offset = operation->operation_offset;
             replacement->repl = operation->repl;
+            replacement->mode = operation->default_is_intercepted
+                ? operation->is_intercepted ? replace_all : replace_null
+                : replace_not_null;
             
             i++;
         }
@@ -733,7 +810,7 @@ static int foreign_interceptor_init(
     {
         replacements[i].operation_offset = intermediate_operation->operation_offset;
         replacements[i].repl = intermediate_operation->repl;
-        
+        replacements[i].mode = replace_all;
         i++;
     }
     BUG_ON(i != n_intermediates);
@@ -777,6 +854,8 @@ int kedr_coi_interceptor_start(struct kedr_coi_interceptor* interceptor)
         if(result) goto err_use_payloads;
     }
     
+    close_operations(interceptor);
+
     result = interceptor_create_replacements(interceptor);
     
     if(result) goto err_create_replacements;
@@ -1044,7 +1123,7 @@ int kedr_coi_interceptor_get_intermediate_info(
 {
     int result;
     /*
-     * This function is allowed to call only by inter mediate operation.
+     * This function is allowed to call only by intermediate operation.
      * Intermediate operation may be called only after successfull 
      * 'watch' call, which in turn may be only in 'started' state of
      * the interceptor.
@@ -1062,10 +1141,14 @@ int kedr_coi_interceptor_get_intermediate_info(
         struct operation_info* operation = interceptor_find_operation(
             interceptor, operation_offset);
 
-        BUG_ON(!operation || !operation->is_intercepted);
+        BUG_ON(operation == NULL);
 
-        info->pre = operation->pre;
-        info->post = operation->post;
+        info->pre = info->op_orig
+            ? operation->pre_handlers.elems
+            : operation->default_pre_handlers.elems;
+        info->post = info->op_orig
+            ? operation->post_handlers.elems
+            : operation->default_post_handlers.elems;
 
         return 0;
     }

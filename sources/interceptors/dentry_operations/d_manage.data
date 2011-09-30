@@ -10,8 +10,7 @@ operation.arg.name = mounting_here
 
 operation.object = dentry
 
-# Called by follow_managed. Checked via flag DCACHE_MANAGE_TRANSIT. Flag is set externally.
-# So, if replace NULL pointer, shouldn't be called at all.
+# Called by follow_managed. Checked via flag DCACHE_MANAGE_TRANSIT.
 
 header =>>
 /* 'dentry_operations' has 'd_manage' member */

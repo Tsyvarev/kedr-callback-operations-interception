@@ -1,0 +1,15 @@
+(insert release date here)
+KEDR COI 0.1 released
+
+This is the first public stable version of KEDR COI library. 
+Main features of this version:
+    * support for flexible interception of callback operations: pre-
+    and post-handlers, interception in case when pointer to callback
+    operation is NULL;
+    * support for automatic watching newly created objects with
+    operations copied from another object ('foreign interceptor');
+    * already implemented interceptors for objects of types
+    'struct file_system_type', 'struct super_block', 'struct inode',
+    'struct dentry', 'struct file';
+    * easy implementation of interceptors for new types of objects
+    with usage of template generation tool.

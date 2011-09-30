@@ -1,6 +1,6 @@
 <!-- release- and version-related stuff -->
 <!ENTITY rel-version "@KEDR_COI_VERSION_MAJOR@.@KEDR_COI_VERSION_MINOR@">
-<!ENTITY rel-date    "(has not released yet)">
+<!ENTITY rel-date    "September 30, 2011">
 <!ENTITY kedr-coi-lifespan   "2010-2011">
 
 <!-- email addresses -->

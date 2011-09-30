@@ -110,7 +110,7 @@ kbuild_include_directories("${CMAKE_BINARY_DIR}")
 # Make "Release" the default build type
 if (NOT CMAKE_BUILD_TYPE)
     set (CMAKE_BUILD_TYPE "Release" CACHE STRING
-      "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
+      "Choose the type of build, options are: Debug Release RelWithDebInfo."
       FORCE)
 endif ()
 message (STATUS "Build type is \"${CMAKE_BUILD_TYPE}\"")
@@ -119,6 +119,13 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     kbuild_add_definitions(
         "-DKEDR_COI_DEBUG -g"
     )
+elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
+elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    kbuild_add_definitions(
+        "-g"
+    )
+else (CMAKE_BUILD_TYPE STREQUAL "Debug")
+	message(FATAL_ERROR "Incorrect build type: ${CMAKE_BUILD_TYPE}. Should be one of 'Debug', 'Release' or 'RelWithDebInfo'")
 endif()
 
 #######################################################################

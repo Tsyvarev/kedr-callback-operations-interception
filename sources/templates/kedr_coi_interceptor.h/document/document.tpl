@@ -29,6 +29,20 @@ extern struct kedr_coi_foreign_interceptor*
     const struct kedr_coi_foreign_intermediate* intermediate_operations,
     void (*trace_unforgotten_object)(void* object));<$endif$>
 
+
+#ifndef KEDR_COI_CALLBACK_CHECKED
+#define KEDR_COI_CALLBACK_CHECKED(func, type) BUILD_BUG_ON_ZERO(!__builtin_types_compatible_p(typeof(&func), type)) + (char*)(&func)
+#endif /* KEDR_COI_CALLBACK_CHECKED */
+
+// Define marcos for interception handlers types(local)
+<$block: join(\n)$>
+
+// Declare interception handlers types
+<$interception_handlers_types: join(\n)$>
+
+// Undef macros for interception handlers types
+<$undef_types_macros: join(\n)$>
+
 // Handlers for concrete operations
 <$operation_handlers: join(\n)$>
 

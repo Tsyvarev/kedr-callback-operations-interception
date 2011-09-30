@@ -1,5 +1,5 @@
 /*
- * Test functuonality of indirect interceptor concerned
+ * Test functuonality of indirect interceptor concerned with
  * grouping of intermediate operations.
  */
 
@@ -33,7 +33,7 @@ struct test_object
 };
 
 
-int op1_call_counter = 0;
+/*int op1_call_counter = 0;
 KEDR_COI_TEST_DEFINE_OP_ORIG(op1_orig, op1_call_counter);
 
 int op2_call_counter = 0;
@@ -49,18 +49,18 @@ int op5_call_counter = 0;
 KEDR_COI_TEST_DEFINE_OP_ORIG(op5_orig, op5_call_counter);
 
 int op6_call_counter = 0;
-KEDR_COI_TEST_DEFINE_OP_ORIG(op6_orig, op6_call_counter);
+KEDR_COI_TEST_DEFINE_OP_ORIG(op6_orig, op6_call_counter);*/
 
 
 
 struct test_operations test_operations_orig =
 {
-    .op1 = op1_orig,
+/*    .op1 = op1_orig,
     .op2 = op2_orig,
     .op3 = op3_orig,
     .op4 = op4_orig,
     .op5 = op5_orig,
-    .op6 = op6_orig
+    .op6 = op6_orig*/
 };
 
 struct kedr_coi_interceptor* interceptor;
@@ -94,13 +94,13 @@ KEDR_COI_TEST_DEFINE_POST_HANDLER_FUNC(op4_post1, op4_post1_call_counter)
 
 static struct kedr_coi_pre_handler pre_handlers1[] =
 {
-    PRE_HANDLER(op1, op1_pre1),
+    PRE_HANDLER_EXTERNAL(op1, op1_pre1),
     kedr_coi_pre_handler_end
 };
 
 static struct kedr_coi_post_handler post_handlers1[] =
 {
-    POST_HANDLER(op4, op4_post1),
+    POST_HANDLER_EXTERNAL(op4, op4_post1),
     kedr_coi_post_handler_end
 };
 
@@ -126,15 +126,15 @@ KEDR_COI_TEST_DEFINE_POST_HANDLER_FUNC(op3_post2_1, op3_post2_1_call_counter)
 
 static struct kedr_coi_pre_handler pre_handlers2[] =
 {
-    PRE_HANDLER(op1, op1_pre2),
-    PRE_HANDLER(op3, op3_pre2),
+    PRE_HANDLER_EXTERNAL(op1, op1_pre2),
+    PRE_HANDLER_EXTERNAL(op3, op3_pre2),
     kedr_coi_pre_handler_end
 };
 
 static struct kedr_coi_post_handler post_handlers2[] =
 {
-    POST_HANDLER(op3, op3_post2),
-    POST_HANDLER(op3, op3_post2_1),
+    POST_HANDLER_EXTERNAL(op3, op3_post2),
+    POST_HANDLER_EXTERNAL(op3, op3_post2_1),
     kedr_coi_post_handler_end
 };
 
@@ -203,119 +203,30 @@ int test_run(void)
         goto err_watch;
     }
 
-    op1_call_counter = 0;
-    op1_pre1_call_counter = 0;
-    op1_pre2_call_counter = 0;
-    
-    object.ops->op1(&object, NULL);
-    
-    if(op1_pre1_call_counter == 0)
-    {
-        pr_err("Pre handler 1 for operation 1 wasn't called.");
-        result = -EINVAL;
-        goto err_test;
-    }
-    
-    if(op1_pre2_call_counter == 0)
-    {
-        pr_err("Pre handler 2 for operation 1 wasn't called.");
-        result = -EINVAL;
-        goto err_test;
-    }
-    
-    if(op1_call_counter == 0)
-    {
-        pr_err("Original operation 1 wasn't called.");
-        result = -EINVAL;
-        goto err_test;
-    }
-
-
-    op3_call_counter = 0;
-    op3_pre2_call_counter = 0;
-    op3_post2_call_counter = 0;
-    op3_post2_1_call_counter = 0;
-    
-    object.ops->op3(&object, NULL);
-    
-    if(op3_pre2_call_counter == 0)
-    {
-        pr_err("Pre handler 2 for operation 3 wasn't called.");
-        result = -EINVAL;
-        goto err_test;
-    }
-    
-    if(op3_post2_call_counter == 0)
-    {
-        pr_err("Post handler 2 for operation 3 wasn't called.");
-        result = -EINVAL;
-        goto err_test;
-    }
-    
-    if(op3_post2_1_call_counter == 0)
-    {
-        pr_err("Post handler 2_1 for operation 3 wasn't called.");
-        result = -EINVAL;
-        goto err_test;
-    }
-    
-    if(op3_call_counter == 0)
-    {
-        pr_err("Original operation 3 wasn't called.");
-        result = -EINVAL;
-        goto err_test;
-    }
-
-    
-    op4_call_counter = 0;
-    op4_post1_call_counter = 0;
-    
-    object.ops->op4(&object, NULL);
-    
-    if(op4_post1_call_counter == 0)
-    {
-        pr_err("Post handler 1 for operation 4 wasn't called.");
-        result = -EINVAL;
-        goto err_test;
-    }
-    
-    if(op4_call_counter == 0)
-    {
-        pr_err("Original operation 4 wasn't called.");
-        result = -EINVAL;
-        goto err_test;
-    }
-
-
     // There are no handlers for operation 2, but intermediate operation
     // for it is grouped with 1, for which there is 1 handler
-    op2_call_counter = 0;
+  
+    if(object.ops->op2 == NULL)
+    {
+        pr_err("Intermediate wasn't used for operation2(NULL), while it "
+            "is grouped with operation1(NULL), for which external "
+            "interception handler exist.");
+        result = -EINVAL;
+        goto err_test;
+    }
     
+    //Simply call, for check that nothing will be crashed
     object.ops->op2(&object, NULL);
     
-    if(op2_call_counter == 0)
-    {
-        pr_err("Original operation 2 wasn't called.");
-        result = -EINVAL;
-        goto err_test;
-    }
-
-    if(object.ops->op2 != op2_repl)
-    {
-        pr_err("Operation 2 wasn't replaced while it grouped with operation 1, which has handlers.");
-        result = -EINVAL;
-        goto err_test;
-    }
-
     // Operations 5 and 6 are grouped, but neither of them has handlers
-    if(object.ops->op5 != op5_orig)
+    if(object.ops->op5 != NULL)
     {
         pr_err("Operation 5 was changed even without handlers.");
         result = -EINVAL;
         goto err_test;
     }
 
-    if(object.ops->op6 != op6_orig)
+    if(object.ops->op6 != NULL)
     {
         pr_err("Operation 6 was changed even without handlers.");
         result = -EINVAL;

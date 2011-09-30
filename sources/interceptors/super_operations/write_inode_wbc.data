@@ -9,6 +9,8 @@ operation.arg.type = struct writeback_control*
 operation.arg.name = wbc
 
 operation.object = inode
+
+# Called from write_inode
 operation.default = return 0;
 
 header=>>

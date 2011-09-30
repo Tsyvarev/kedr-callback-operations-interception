@@ -235,6 +235,8 @@ struct kedr_coi_pre_handler
     size_t operation_offset;
     // function to execute
     void* func;
+    // Whether need to intercept even default operation(NULL-pointer)
+    bool external;
 };
 
 // End mark in pre-handlers array
@@ -264,6 +266,8 @@ struct kedr_coi_post_handler
     size_t operation_offset;
     // function to execute
     void* func;
+    // Whether need to intercept even default operation(NULL-pointer)
+    bool external;
 };
 
 // End mark in post-handlers array
@@ -464,6 +468,15 @@ struct kedr_coi_intermediate
      * without interception of this operation.
      */
     int group_id;
+    /*
+     *  If flag is set, intermediate is not applicable for external
+     * interception.
+     * 
+     * In that case, external handlers may not be used for this
+     * operation and pointer to original operation is always not NULL
+     * inside this intermediate.
+     */
+    bool internal_only;
 };
 
 /*
@@ -589,6 +602,8 @@ struct kedr_coi_foreign_intermediate
 {
     size_t operation_offset;
     void* repl;
+    // Foreign intermediate is always external - it intercepts
+    // state-change.
 };
 
 /*

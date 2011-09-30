@@ -27,10 +27,10 @@ Another example - file system, which is implemented via object of type '<type>st
 <glossterm><emphasis>Callback operation interception</emphasis></glossterm>
 <glossdef>
     <para>
-An ability to perform actions when <link linkend="callback_operation">callback operation</link> is called as virtual function for some object. These actions may not depend from callback operation itself, and may be written by the person who doesn't concerned with author of concrete callback operation.
+An ability to perform actions when <link linkend="callback_operation">callback operation</link> is called as virtual function for some object. These actions may be indedepend from callback operation itself, and may be written by the person who doesn't concerned with author of concrete callback operation.
     </para>
     <para>
-KEDR COI library support executing user-defined function(s) before and/or after callback operation call, these functions reffered to as <link linkend="pre_handler">pre-handlers</link> and <link linkend="post_handler">post-handlers</link> correspondingly.
+KEDR COI library support executing user-defined function(s) before and/or after callback operation call, these functions are reffered to as <link linkend="pre_handler">pre-handlers</link> and <link linkend="post_handler">post-handlers</link> correspondingly.
     </para>
 </glossdef>
 </glossentry>
@@ -48,7 +48,7 @@ An user-provided function for call along with call of the <link linkend="callbac
 <glossterm><emphasis>Pre handler</emphasis>(for callback operation)</glossterm>
 <glossdef>
     <para>
-A user-provided function which is called before some <link linkend="callback_operation">callback operation</link>.
+A user-provided function which is called before some <link linkend="callback_operation">callback operation</link>. In KEDR COI library is implemented by <type linkend="api_reference.struct_pre_handler">struct kedr_coi_pre_handler</type>.
     </para>
 </glossdef>
 </glossentry>
@@ -57,7 +57,7 @@ A user-provided function which is called before some <link linkend="callback_ope
 <glossterm><emphasis>Post handler</emphasis>(for callback operation)</glossterm>
 <glossdef>
     <para>
-A user-provided function which is called after some <link linkend="callback_operation">callback operation</link>.
+A user-provided function which is called after some <link linkend="callback_operation">callback operation</link>. In KEDR COI library is implemented by <type linkend="api_reference.struct_post_handler">struct kedr_coi_post_handler</type>.
     </para>
 </glossdef>
 </glossentry>
@@ -98,6 +98,9 @@ An object which encapsulates all information about how <link linkend="callback_o
     <para>
 Each interceptor may work with one type of objects. But several interceptors may be defined for one type of objects, e.g. for call different interception handlers for objects in different non-overlapping sets.
     </para>
+    <para>
+In KEDR COI library is implemented by <type linkend="api_reference.interceptor.struct">struct kedr_coi_interceptor</type>.
+    </para>
 </glossdef>
 </glossentry>
 
@@ -105,13 +108,16 @@ Each interceptor may work with one type of objects. But several interceptors may
 <glossterm><emphasis>Foreign interceptor</emphasis></glossterm>
 <glossdef>
     <para>
-An object, which, like normal <link linkend="interceptor">interceptor</link>, implements interception of object's <link linkend="callback_operation">callback operations</link>. But the only purpose of this interception - intercept moment when object is created. At this moment created object become watched by another interceptor, which is binded with the foreign one.
+An object, which, like normal <link linkend="interceptor">interceptor</link>, implements interception of object's <link linkend="callback_operation">callback operations</link>. But the only purpose of this interception - intercept moment when object is created. At this moment created object become watched by another interceptor, which is <emphasis>binded</emphasis> with the foreign one.
     </para>
     <para>
 Foreign interceptor is applied for objects, containing pointer to struct with operations worked with another object. When foreign interceptor watch an object with foreign operations, and another object is created and use that operations, the second object become watched by the binded interceptor.
     </para>
     <para>
 Each foreign interceptor may work with one type of objects with foreign operations. But several foreign interceptors may be defined for one of objects and be binded with different normal interceptors. Also, one 'normal' interceptor may have different foreign interceptors binded with it.
+    </para>
+    <para>
+In KEDR COI library is implemented by <type linkend="api_reference.foreign_interceptor.struct">struct kedr_coi_foreign_interceptor</type>.
     </para>
 </glossdef>
 </glossentry>
@@ -121,6 +127,12 @@ Each foreign interceptor may work with one type of objects with foreign operatio
 <glossdef>
     <para>
 A function which is called instead of corresponded <link linkend="callback_operation">callback operation</link> for perform <link linkend="callback_operation_interception">interception</link>. This function has same signature as corresponded callback operation and  performs calls of all needed <link linkend="interception_handler">interception handlers</link> and original callback operation.
+    </para>
+    <para>
+In KEDR COI library intermediate operation is described with <type linkend="api_reference.interceptor_creation.struct_intermediate">struct kedr_coi_intermediate</type>.
+    </para>
+    <para>
+<link linkend="foreign_interceptor">Foreign interceptors</link> also use intermediate operations, but instead of calling interception handlers and original callback operation they do some another work. These intermediate operations are described with <type linkend="api_reference.foreign_interceptor_creation.struct_intermediate">struct kedr_coi_foreign_intermediate</type>.
     </para>
 </glossdef>
 </glossentry>
@@ -136,6 +148,4 @@ For these handlers take an effect, the payload should be registered with <link l
     </para>
 </glossdef>
 </glossentry>
-
-
 </glossary>

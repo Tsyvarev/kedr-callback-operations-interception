@@ -1,5 +1,19 @@
 /*
- * Implements binding of file system objects.
+ * Implements bindings between interceptors of different file system
+ * objects. Interceptors are:
+ * 
+ * -file_system_type_interceptor
+ * -super_operations_interceptor
+ * -dentry_operations_interceptor
+ * -inode_operations_interceptor
+ * -file_operations_interceptor
+ * 
+ * Bindings are so that all super blocks, dentries, inodes and files
+ * belonging to all watched filesystems are watched automatically.
+ * 
+ * So user should only call file_system_type_interceptor_watch and 
+ * file_system_type_interceptor_forget[_norestore] when needed.
+ * Watch/forget functions for others interceptors shouldn't be called.
  */
 
 /* ========================================================================
@@ -72,7 +86,8 @@ static void dentry_operations_all_interceptor_watch(struct dentry* dentry)
 #if defined(FILE_SYSTEM_TYPE_HAS_GET_SB)
 static void fst_get_sb_post_super_lifetime(struct file_system_type* type,
     int flags, const char* name, void* data,
-    struct vfsmount* mnt, int returnValue)
+    struct vfsmount* mnt, int returnValue,
+    struct kedr_coi_operation_call_info* call_info)
 {
     if(returnValue == 0)
     {
@@ -82,7 +97,8 @@ static void fst_get_sb_post_super_lifetime(struct file_system_type* type,
 #elif defined(FILE_SYSTEM_TYPE_HAS_MOUNT)
 static void fst_mount_post_super_lifetime(struct file_system_type* type,
     int flags, const char* name, void* data,
-    struct dentry* returnValue)
+    struct dentry* returnValue,
+    struct kedr_coi_operation_call_info* call_info)
 {
     if(returnValue != NULL)
     {
@@ -93,7 +109,8 @@ static void fst_mount_post_super_lifetime(struct file_system_type* type,
 #error Cannot bind super_block with file_system_type because neither 'get_sb' nor 'mount' is defined for 'file_system_type' structure.
 #endif /*FILE_SYSTEM_TYPE_HAS_GET_SB*/
 
-static void fst_kill_sb_post_super_lifetime(struct super_block *sb)
+static void fst_kill_sb_post_super_lifetime(struct super_block *sb,
+    struct kedr_coi_operation_call_info* call_info)
 {
     super_operations_interceptor_forget_norestore(sb);
 }
@@ -102,7 +119,8 @@ static void fst_kill_sb_post_super_lifetime(struct super_block *sb)
 #if defined(FILE_SYSTEM_TYPE_HAS_GET_SB)
 static void fst_get_sb_post_root_lifetime(struct file_system_type* type,
     int flags, const char* name, void* data,
-    struct vfsmount* mnt, int returnValue)
+    struct vfsmount* mnt, int returnValue,
+    struct kedr_coi_operation_call_info* call_info)
 {
     if(returnValue == 0)
     {
@@ -112,7 +130,8 @@ static void fst_get_sb_post_root_lifetime(struct file_system_type* type,
 #elif defined(FILE_SYSTEM_TYPE_HAS_MOUNT)
 static void fst_mount_post_root_lifetime(struct file_system_type* type,
     int flags, const char* name, void* data,
-    struct dentry* returnValue)
+    struct dentry* returnValue,
+    struct kedr_coi_operation_call_info* call_info)
 {
     if(returnValue != NULL)
     {
@@ -146,15 +165,17 @@ static struct kedr_coi_payload file_system_type_payload =
 /******************** Super block payload *****************************/
 
 /* Determine lifetime of inode object(from super block)*/
-static void sops_destory_inode_pre_inode_lifetime(struct inode* inode)
+static void sops_destory_inode_pre_inode_lifetime(struct inode* inode,
+    struct kedr_coi_operation_call_info* call_info)
 {
     inode_operations_all_interceptor_forget_norestore(inode);
+    //pr_info("Inode at %p was destroyed.", inode);
 }
 
 /* Combine all handler for super_operations together */
 static struct kedr_coi_pre_handler super_operations_pre_handlers[] =
 {
-    super_operations_destroy_inode_pre(sops_destory_inode_pre_inode_lifetime),
+    super_operations_destroy_inode_pre_external(sops_destory_inode_pre_inode_lifetime),
     kedr_coi_pre_handler_end
 };
 
@@ -170,7 +191,8 @@ static struct kedr_coi_payload super_operations_payload =
 
 /* Determine lifetime of dentry object(from object itself)*/
 
-static void dops_d_release_pre_dentry_lifetime(struct dentry* dentry)
+static void dops_d_release_pre_dentry_lifetime(struct dentry* dentry,
+    struct kedr_coi_operation_call_info* call_info)
 {
     // inode lifetime is determine in another way
     dentry_operations_interceptor_forget(dentry);
@@ -178,7 +200,8 @@ static void dops_d_release_pre_dentry_lifetime(struct dentry* dentry)
 
 /* Update watching for dentry object */
 static void dops_d_revalidate_post_dentry_watch(struct dentry* dentry,
-    struct nameidata* nd, int returnValue)
+    struct nameidata* nd, int returnValue,
+    struct kedr_coi_operation_call_info* call_info)
 {
     if(returnValue > 0)
     {
@@ -189,7 +212,7 @@ static void dops_d_revalidate_post_dentry_watch(struct dentry* dentry,
 /* Combine all handlers for dentry operations together*/
 static struct kedr_coi_pre_handler dentry_operations_pre_handlers[] =
 {
-    dentry_operations_d_release_pre(dops_d_release_pre_dentry_lifetime),
+    dentry_operations_d_release_pre_external(dops_d_release_pre_dentry_lifetime),
     kedr_coi_pre_handler_end
 };
 
@@ -212,18 +235,51 @@ static struct kedr_coi_payload dentry_operations_payload =
 /* Determine lifetime of dentry object from another inode object*/
 static void iops_lookup_post_dentry_lifetime(struct inode *inode,
 	struct dentry *dentry, struct nameidata *nd,
-    struct dentry *returnValue)
+    struct dentry *returnValue,
+    struct kedr_coi_operation_call_info* call_info)
 {
-    if(returnValue && !IS_ERR(returnValue))
+    if(IS_ERR(returnValue)) return;
+    
+    else if(returnValue)
     {
         dentry_operations_all_interceptor_watch(returnValue);
     }
+    else
+    {
+        dentry_operations_all_interceptor_watch(dentry);
+    }
+}
+
+static void iops_mkdir_post_dentry_lifetime(struct inode* dir,
+    struct dentry* dentry, int mode, int returnValue,
+    struct kedr_coi_operation_call_info* call_info)
+{
+    if(returnValue == 0)
+        dentry_operations_all_interceptor_watch(dentry);
+}
+
+static void iops_link_post_dentry_lifetime(struct dentry* old_dentry,
+    struct inode* dir, struct dentry* dentry, int returnValue,
+    struct kedr_coi_operation_call_info* call_info)
+{
+    if(returnValue == 0)
+        dentry_operations_all_interceptor_watch(dentry);
+}
+
+
+static void iops_create_post_dentry_lifetime(struct inode* dir,
+    struct dentry* dentry, int mode, struct nameidata* nm,
+    int returnValue, struct kedr_coi_operation_call_info* call_info)
+{
+    if(returnValue == 0)
+        dentry_operations_all_interceptor_watch(dentry);
 }
 
 /* Update watching for inode object(from object itself)*/
 static void iops_lookup_post_inode_watch(struct inode *inode,
 	struct dentry *dentry, struct nameidata *nd,
-    struct dentry *returnValue)
+    struct dentry *returnValue,
+    struct kedr_coi_operation_call_info* call_info)
 {
     inode_operations_all_interceptor_watch(inode);
 }
@@ -231,17 +287,21 @@ static void iops_lookup_post_inode_watch(struct inode *inode,
 
 /* Update watching for dentry object(from its inode object)*/
 static void iops_getattr_post_dentry_watch(struct vfsmount* mnt,
-    struct dentry* dentry, struct kstat* stat, int returnValue)
+    struct dentry* dentry, struct kstat* stat, int returnValue,
+    struct kedr_coi_operation_call_info* call_info)
 {
     dentry_operations_all_interceptor_watch(dentry);
 }
 
-//.. others inode operations
 
 // Combine all handlers for inode operations
 static struct kedr_coi_post_handler inode_operations_post_handlers[] =
 {
     inode_operations_lookup_post(iops_lookup_post_dentry_lifetime),
+    inode_operations_mkdir_post(iops_mkdir_post_dentry_lifetime),
+    inode_operations_create_post(iops_create_post_dentry_lifetime),
+    inode_operations_link_post(iops_link_post_dentry_lifetime),
+    
     inode_operations_lookup_post(iops_lookup_post_inode_watch),
     inode_operations_getattr_post(iops_getattr_post_dentry_watch),
     kedr_coi_post_handler_end,
@@ -259,7 +319,8 @@ static struct kedr_coi_payload inode_operations_payload =
 
 /* Update watching for the file object(from object itself)*/
 static void fops_open_post_file_watch(struct inode* inode,
-    struct file* filp, int returnValue)
+    struct file* filp, int returnValue,
+    struct kedr_coi_operation_call_info* call_info)
 {
     if(returnValue == 0)
     {
@@ -270,7 +331,8 @@ static void fops_open_post_file_watch(struct inode* inode,
 
 /* Determine lifetime of file object(from object iteself) */
 static void fops_open_post_file_lifetime(struct inode* inode,
-    struct file* filp, int returnValue)
+    struct file* filp, int returnValue,
+    struct kedr_coi_operation_call_info* call_info)
 {
     if(returnValue)
     {
@@ -280,7 +342,8 @@ static void fops_open_post_file_lifetime(struct inode* inode,
 }
 
 static void fops_release_post_file_lifetime(struct inode* inode,
-    struct file* filp, int returnValue)
+    struct file* filp, int returnValue,
+    struct kedr_coi_operation_call_info* call_info)
 {
     if(returnValue == 0)
     {
@@ -288,12 +351,25 @@ static void fops_release_post_file_lifetime(struct inode* inode,
     }
 }
 
+/* Update interception information about inode(from file) */
+static void fops_release_post_inode_update(struct inode* inode,
+    struct file* filp, int returnValue,
+    struct kedr_coi_operation_call_info* call_info)
+{
+    if(returnValue == 0)
+    {
+        inode_operations_all_interceptor_watch(inode);
+    }
+}
+
+
 // Combine all handlers for file together
 static struct kedr_coi_post_handler file_operations_post_handlers[] =
 {
     file_operations_open_post(fops_open_post_file_watch),
     file_operations_open_post(fops_open_post_file_lifetime),
-    file_operations_release_post(fops_release_post_file_lifetime),
+    file_operations_release_post_external(fops_release_post_file_lifetime),
+    file_operations_release_post(fops_release_post_inode_update),
     kedr_coi_post_handler_end
 };
 
@@ -309,14 +385,36 @@ static struct kedr_coi_payload file_operations_payload =
 
 int fs_interception_start(void)
 {
-    // TODO: errors should be processed.
-    file_operations_interceptor_start();
-    inode_operations_interceptor_start();
-    dentry_operations_interceptor_start();
-    super_operations_interceptor_start();
-    file_system_type_interceptor_start();
+    int result;
+    
+    result = file_operations_interceptor_start();
+    if(result) goto err_file_operations;
+    
+    result = inode_operations_interceptor_start();
+    if(result) goto err_inode_operations;
+    
+    result = dentry_operations_interceptor_start();
+    if(result) goto err_dentry_operations;
+    
+    result = super_operations_interceptor_start();
+    if(result) goto err_super_operations;
+    
+    result = file_system_type_interceptor_start();
+    if(result) goto err_file_system_type;
     
     return 0;
+
+err_file_system_type:
+    super_operations_interceptor_stop();
+err_super_operations:
+    dentry_operations_interceptor_stop();
+err_dentry_operations:
+    inode_operations_interceptor_stop();
+err_inode_operations:
+    file_operations_interceptor_stop();
+err_file_operations:
+    
+    return result;
 }
 
 
@@ -364,6 +462,7 @@ int fs_interception_init(void)
 {
     int result;
     
+    // Create interceptors
     result = file_operations_interceptor_init(&trace_unforgotten_file);
     if(result) goto err_file_operations;
     
@@ -384,7 +483,7 @@ int fs_interception_init(void)
         &trace_unforgotten_inode_for_file);
     if(result) goto err_inode_file_operations;
 
-    //
+    // Set connections between interceptors using payloads
     result = file_operations_interceptor_payload_register(&file_operations_payload);
     if(result) goto err_file_operations_payload;
 

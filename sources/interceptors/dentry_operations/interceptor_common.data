@@ -43,7 +43,6 @@ operation.arg.name = nd
 operation.object = dentry
 
 # Called from d_revalidate; checked in d_set_d_op
-operation.default = return 1;//always valid dentry
 
 [group]
 operation.name = d_release
@@ -87,54 +86,4 @@ operation.arg.name = buflen
 operation.object = dentry
 
 # Called by d_path[_with_unreachable]
-
-# Implementation of path construction.
-#
-# Because some sync mechanizms are not accessible for modules, NULL
-# poiner to operation shouldn't be replaced.
-implementation_header=>>
-
-static int prepend(char **buffer, int *buflen, const char *str, int namelen)
-{
-    *buflen -= namelen;
-    if (*buflen < 0)
-         return -ENAMETOOLONG;
-    *buffer -= namelen;
-    memcpy(*buffer, str, namelen);
-    return 0;
-}
-
-static char *dentry_path_my(struct dentry *dentry, char *buf, int buflen)
-{
-    char *end = buf + buflen;
-    char *retval;
-
-    prepend(&end, &buflen, "\0", 1);
-    if (d_unlinked(dentry) &&
-         (prepend(&end, &buflen, "//deleted", 9) != 0))
-                 goto Elong;
-    if (buflen < 1)
-         goto Elong;
-    /* Get '/' right */
-    retval = end-1;
-    *retval = '/';
-
-    while (!IS_ROOT(dentry)) {
-         struct dentry *parent = dentry->d_parent;
-
-         prefetch(parent);
-         if ((prepend(&end, &buflen, dentry->d_name.name, dentry->d_name.len) != 0) ||
-             (prepend(&end, &buflen, "/", 1) != 0))
-                 goto Elong;
-
-         retval = end;
-         dentry = parent;
-    }
-    return retval;
-Elong:
-    return ERR_PTR(-ENAMETOOLONG);
-}
-
-<<
-
-operation.default = return dentry_path_my(dentry, buf, buflen);
+# Default implementation is difficult and subtle

@@ -1,11 +1,14 @@
-set(module_name "read_counter_module")
-
+set(module_name "kedr_sample_target")
+set(install_dir "${KEDR_COI_EXAMPLE_PATH}/read_counter")
 # List of example files which are not configured and should be copied as is
 set(sources_non_configured
     "read_counter.c"
-    "functions.data"
+    "read_counter.h"
+    "cfake.c"
+    "cfake.h"
     "cdev_file_operations.data"
 )
+
 
 kedr_coi_load_install_prefixes()
 set(KEDR_COI_INCLUDE_DIR "${KEDR_COI_INSTALL_INCLUDE_DIR}")
@@ -29,16 +32,21 @@ endforeach(source ${sources_non_configured})
 
 
 install(FILES ${sources_non_configured_abs}
-        DESTINATION "${KEDR_COI_EXAMPLE_PATH}/read_counter"
+        DESTINATION "${install_dir}"
 )
 
-install(FILES   "${CMAKE_CURRENT_BINARY_DIR}/makefile_installed"
-        DESTINATION "${KEDR_COI_EXAMPLE_PATH}/read_counter"
+install(FILES "kedr_sample_target"
+        DESTINATION "${install_dir}"
+        PERMISSIONS  OWNER_WRITE OWNER_READ GROUP_READ WORLD_READ OWNER_EXECUTE GROUP_EXECUTE WORLD_EXECUTE
+)
+
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/makefile_installed"
+        DESTINATION "${install_dir}"
         RENAME makefile
 )
 
-install(FILES   "${CMAKE_CURRENT_BINARY_DIR}/Kbuild_installed"
-        DESTINATION "${KEDR_COI_EXAMPLE_PATH}/read_counter"
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/Kbuild_installed"
+        DESTINATION "${install_dir}"
         RENAME Kbuild
 )
 

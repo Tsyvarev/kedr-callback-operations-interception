@@ -26,8 +26,3 @@ operation.arg.name = qstr2
 operation.object = dentry1
 
 # Called from __d_lookup[_rcu]; checked in d_set_d_op
-operation.default =>>
-    //simple string comparision
-    return (len1 != qstr2->len) || memcmp(str1, qstr2->name, len1);
-<<
-

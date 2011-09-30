@@ -1,0 +1,78 @@
+#!/bin/sh
+
+sample_target_name="@module_name@"
+sample_target_script="sh @CMAKE_CURRENT_BINARY_DIR@/kedr_sample_target"
+
+kedr_coi_module="@CMAKE_BINARY_DIR@/core/kedr_coi.ko"
+
+dev="/dev/cfake0"
+dev1="/dev/cfake1"
+
+counter_file="/sys/module/${sample_target_name}/parameters/read_counter"
+
+unload_all()
+{
+    ${sample_target_script} unload
+    /sbin/rmmod ${kedr_coi_module}
+}
+
+if ! /sbin/insmod ${kedr_coi_module}; then
+    printf "Failed load KEDR COI core module into kernel.\n"
+    exit 1
+fi
+
+if ! ${sample_target_script} load; then
+    printf "Failed to load sample target module into kernel.\n"
+    /sbin/rmmod ${kedr_coi_module}
+    exit 1
+fi
+
+if ! echo "123456" > ${dev}; then
+    printf "Failed to write into character device.\n"
+    unload_all
+    exit 1
+fi
+
+read_counter=`cat ${counter_file}`
+if test ${read_counter} != "0"; then
+    printf "With no reads read counter should be 0, but it is %s .\n" "${read_counter}"
+    unload_all
+    exit 1
+fi
+
+if ! dd count=5 bs=1 if=${dev} of=/dev/null 2> /dev/null; then
+    printf "Failed to read from character device.\n"
+    unload_all
+    exit 1
+fi
+
+read_counter=`cat ${counter_file}`
+if test ${read_counter} != "5"; then
+    printf "Read counter should be 5, but it is %s .\n" "${read_counter}"
+    unload_all
+    exit 1
+fi
+
+if ! echo "6543321" > ${dev1}; then
+    printf "Failed to write into another character device.\n"
+    unload_all
+    exit 1
+fi
+
+if ! dd count=2 bs=2 if=${dev1} of=/dev/null 2> /dev/null; then
+    printf "Failed to read from another character device.\n"
+    unload_all
+    exit 1
+fi
+
+read_counter=`cat ${counter_file}`
+if test ${read_counter} != "7"; then
+    printf "Read counter should be 7, but it is %s .\n" "${read_counter}"
+    unload_all
+    exit 1
+fi
+
+${sample_target_script} unload
+/sbin/rmmod "${kedr_coi_module}"
+
+exit 0

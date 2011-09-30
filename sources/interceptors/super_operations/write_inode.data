@@ -9,6 +9,8 @@ operation.arg.type = int
 operation.arg.name = sync
 
 operation.object = inode
+
+# Called from write_inode
 operation.default = return 0;
 
 header=>>

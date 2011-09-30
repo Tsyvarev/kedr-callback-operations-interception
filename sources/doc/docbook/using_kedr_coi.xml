@@ -4,6 +4,12 @@
 <!-- General description of library -->
 &kedr_coi_description;
 
+<!-- Payloads -->
+&kedr_coi_payload;
+
+<!-- Objects watching -->
+&objects_watching;
+
 <!-- Creation of interceptors -->
 &kedr_coi_interceptor_creation;
 

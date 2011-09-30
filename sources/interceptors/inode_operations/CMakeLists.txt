@@ -7,30 +7,6 @@ foreach(piece ${pieces})
     list(APPEND pieces_full "${CMAKE_CURRENT_SOURCE_DIR}/${piece}")
 endforeach(piece ${pieces})
 
-set(is_simple_setattr_exist_message "Looking for simple_setattr() function")
-if(NOT DEFINED is_simple_setattr_exist)
-    
-    kmodule_try_compile(is_simple_setattr_exist_tmp
-        "${CMAKE_CURRENT_BINARY_DIR}/try_simple_setattr"
-        "${CMAKE_CURRENT_SOURCE_DIR}/check_simple_setattr.c"
-    )
-
-    set(is_simple_setattr_exist ${is_simple_setattr_exist_tmp} CACHE
-        INTERNAL "Whether simple_setattr function exist.")
-else(NOT DEFINED is_simple_setattr_exist)
-    set(is_simple_setattr_exist_message "${is_simple_setattr_exist_message} [cached]")
-endif(NOT DEFINED is_simple_setattr_exist)
-
-if(is_simple_setattr_exist)
-    set(is_simple_setattr_exist_message "${is_simple_setattr_exist_message} - found")
-    list(APPEND pieces_full "${CMAKE_CURRENT_SOURCE_DIR}/setattr_via_simple_setattr.data")
-else(is_simple_setattr_exist)
-    set(is_simple_setattr_exist_message "${is_simple_setattr_exist_message} - not found")
-    list(APPEND pieces_full "${CMAKE_CURRENT_SOURCE_DIR}/setattr_via_inode_setattr.data")
-endif(is_simple_setattr_exist)
-message(STATUS "${is_simple_setattr_exist_message}")
-
-
 kmodule_is_operation_exist(is_inode_fallocate_exist
     "${CMAKE_CURRENT_BINARY_DIR}/try_fallocate"
     ${CMAKE_CURRENT_SOURCE_DIR}

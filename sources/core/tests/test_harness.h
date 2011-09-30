@@ -11,11 +11,46 @@ typedef void (*kedr_coi_test_op_t)(void* object, void* another_object);
 
 #ifdef OPERATION_OFFSET
 
-#define INTERMEDIATE(op_name, op_repl) {.operation_offset = OPERATION_OFFSET(op_name), .repl = (void*)&op_repl}
+#define INTERMEDIATE(op_name, op_repl) {\
+    .operation_offset = OPERATION_OFFSET(op_name),\
+    .repl = (void*)&op_repl\
+}
 
-#define PRE_HANDLER(op_name, handler_func){.operation_offset = OPERATION_OFFSET(op_name), .func = (void*)&handler_func}
+#define INTERMEDIATE_INTERNAL_ONLY(op_name, op_repl) {\
+    .operation_offset = OPERATION_OFFSET(op_name),\
+    .repl = (void*)&op_repl,\
+    .internal_only = true\
+}
 
-#define POST_HANDLER(op_name, handler_func){.operation_offset = OPERATION_OFFSET(op_name), .func = (void*)&handler_func}
+#define HANDLER_FUNC_CHECKED(handler_func, type) BUILD_BUG_ON_ZERO(!__builtin_types_compatible_p(typeof(&handler_func), type)) + (char*)&handler_func
+
+typedef void (*kedr_coi_test_pre_handler_t)(void*, void*, struct kedr_coi_operation_call_info*, int);
+#define PRE_HANDLER_FUNC_CHECKED(handler_func) HANDLER_FUNC_CHECKED(handler_func, kedr_coi_test_pre_handler_t)
+
+typedef void (*kedr_coi_test_post_handler_t)(void*, void*, struct kedr_coi_operation_call_info*);
+#define POST_HANDLER_FUNC_CHECKED(handler_func) HANDLER_FUNC_CHECKED(handler_func, kedr_coi_test_post_handler_t)
+
+#define PRE_HANDLER(op_name, handler_func){\
+    .operation_offset = OPERATION_OFFSET(op_name),\
+    .func = PRE_HANDLER_FUNC_CHECKED(handler_func)\
+}
+
+#define POST_HANDLER(op_name, handler_func){\
+    .operation_offset = OPERATION_OFFSET(op_name),\
+    .func = POST_HANDLER_FUNC_CHECKED(handler_func)\
+}
+
+#define PRE_HANDLER_EXTERNAL(op_name, handler_func){\
+    .operation_offset = OPERATION_OFFSET(op_name),\
+    .func = PRE_HANDLER_FUNC_CHECKED(handler_func),\
+    .external = true\
+}
+
+#define POST_HANDLER_EXTERNAL(op_name, handler_func){\
+    .operation_offset = OPERATION_OFFSET(op_name),\
+    .func = POST_HANDLER_FUNC_CHECKED(handler_func),\
+    .external = true\
+}
 
 #endif /* OPERATION_OFFSET */
 
@@ -65,7 +100,7 @@ void func_name(void* object, void* data) \
 
 
 #define KEDR_COI_TEST_DEFINE_PRE_HANDLER_FUNC(func_name, counter) \
-void func_name(void* object, void* data, struct kedr_coi_operation_call_info* info)\
+void func_name(void* object, void* data, struct kedr_coi_operation_call_info* info, int unused)\
 {\
     counter++;\
 }

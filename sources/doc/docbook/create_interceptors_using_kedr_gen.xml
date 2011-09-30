@@ -14,7 +14,7 @@ But intermediate operation should call interception handlers and original callba
 From the other side, a little information is needed for create intermediate operations for particular object type. And this information may be expressed in the terms of concrete types and names - type of the object, names of the callback operations, types and names of their arguments, etc - which is much less error-prone than writing code of intermediate operations. For create code of intermediate operations from such information template-base generator may be used.
 </para>
 <para>
-KEDR COI has templates suitable for create interceptors using 'kedr_gen' generator. The only thing which should be provided by the user is a 'definition' file contained some information about object's type and its operations. Generator itself and format of definition files are fully described in the documentation of KEDR project (<ulink url='http://kedr.berlios.de/kedr-doc/extend.html#using_gen'/>). Templates are placed in the '/usr/local/share/kedr-coi/tepmplates' directory.
+KEDR COI has templates suitable for create interceptors using 'kedr_gen' generator. The only thing which should be provided by the user is a 'definition' file contained some information about object's type and its operations. Generator itself and format of definition files are fully described in the documentation of KEDR project (<ulink url='http://kedr.berlios.de/kedr-doc/extend.html#using_gen'/>). Templates are placed in the directory <filename class="directory">/usr/local/share/kedr-coi/tepmplates</filename>.
 </para>
 
 <section id="create_interceptors_using_kedr_gen.output">
@@ -31,28 +31,28 @@ Using template <filename class="directory">kedr_coi_interceptor.h</filename> one
 Definition file for interceptor should contain definitions for the following parameters:
 <variablelist>
     <varlistentry><term>interceptor.name</term>
-        <listitem>name of the interceptor, used in its constructor</listitem>
+        <listitem>Name of the interceptor, used in its constructor. This name also is used as a prefix for all exported functions and macros for this interceptor (<replaceable>prefix</replaceable> in the functions description).</listitem>
     </varlistentry>
-    <varlistentry><term>interceptor.prefix</term>
-        <listitem>string which will be used as prefix for all exported functions and macros for this interceptor</listitem>
+    <varlistentry><term>interceptor.operations_prefix</term>
+        <listitem>String which will be used as prefix for all operations-specific definitions (<replaceable>opprefix</replaceable> in the functions description).</listitem>
     </varlistentry>
     <varlistentry><term>header</term>
-        <listitem>includes and other C-code, which contains definition of types and functions used for interceptor</listitem>
+        <listitem>Includes and other C-code, which contains definition of types and functions used for interceptor. May be multi-valued, in that case all values are joined together.</listitem>
     </varlistentry>
     <varlistentry><term>implementation_header</term>
-        <listitem>Additional includes and other C-code, which used in implementation of intermediate functions.</listitem>
+        <listitem>Additional includes and other C-code, which used in implementation of intermediate functions. May be multi-valued, in that case all values are joined together.</listitem>
     </varlistentry>
     <varlistentry><term>object.type</term>
-        <listitem>type of the objects for which instrumentor should be applied</listitem>
+        <listitem>Type of the objects for which interceptor should be applied (<replaceable>object_t</replaceable> in the functions description).</listitem>
     </varlistentry>
     <varlistentry><term>interceptor.is_direct</term>
-        <listitem>should be not empty for direct interceptor(see <xref linkend="interceptor_creation.object_geometry.direct"/>), for indirect instrumentor should be empty or not defined</listitem>
+        <listitem>Empty for direct interceptor, for indirect interceptor should be empty or not defined. <xref linkend="interceptor_creation.object_geometry"/> describes interceptor types. </listitem>
     </varlistentry>
     <varlistentry><term>object.operations_field</term>
-        <listitem>field in the object struct which is a pointer to the operations structure(only for indirect instrumentor)</listitem>
+        <listitem>Field in the object struct which is a pointer to the operations structure (only for indirect interceptor)</listitem>
     </varlistentry>
     <varlistentry><term>operations.type</term>
-        <listitem>type of the operations structure(only for indirect instrumentor)</listitem>
+        <listitem>Type of the operations structure (only for indirect insterceptor)</listitem>
     </varlistentry>
 </variablelist>
 </para>
@@ -60,10 +60,10 @@ Definition file for interceptor should contain definitions for the following par
 For every callback operations, interception of which should be supported, a group should be prepared in the definition file. Each group should contain definitions for the following parameters:
 <variablelist>
     <varlistentry><term>operation.name</term>
-        <listitem>name of the callback operation, as a field name in the object/operations structure</listitem>
+        <listitem>Name of the callback operation, as a field name in the object/operations structure</listitem>
     </varlistentry>
     <varlistentry><term>operation.returnType</term>
-        <listitem>type returning by this operation; if operation doesn't return value should be empty or isn't defined</listitem>
+        <listitem>Type returning by this operation; if operation doesn't return value should be empty or isn't defined</listitem>
     </varlistentry>
     <varlistentry><term>operation.arg.type</term>
         <listitem>(multi-valued) types of the parameters of the callback operation, starting with the first one</listitem>
@@ -72,13 +72,14 @@ For every callback operations, interception of which should be supported, a grou
         <listitem>(multi-valued) names of the parameters of the callback operation, starting with the first one. Parameters will be accessible via these names in the code.</listitem>
     </varlistentry>
     <varlistentry><term>operation.object</term>
-        <listitem>parameter name or other c-expression returned owner object for this operation call. Names of operation's parameters and global functions and variables may be used in this expression.</listitem>
+        <listitem>Parameter name or other c-expression returned owner object for this operation call. Names of operation's parameters and global functions and variables may be used in this expression.</listitem>
     </varlistentry>
     <varlistentry><term>operation.default</term>
-        <listitem>Implementation of the <link linkend="default_callback_operation">default callback operation</link>. It will be executed in case when pointer to original operation is <constant>NULL</constant>. Names of operation's parameters and global functions and variables may be used in this code. If this parameter is not defined, <constant>NULL</constant> pointer to the operation is treated as error.</listitem>
+        <listitem>Implementation of the <link linkend="default_callback_operation">default callback operation</link>. It will be executed in case when pointer to original operation is <constant>NULL</constant>. Names of operation's parameters and global functions and variables may be used in this code.
+        <para>If this parameter is not defined or empty, intermediate for that operation is used for only internal interception (see <xref linkend="interceptor_creation.intermediate_operations.internal_only"/>).</para></listitem>
     </varlistentry>
     <varlistentry><term>operation.group_id</term>
-        <listitem>Number identified operations group. Operations from the same group either are all replaced by intermediates or aren't replaced at all. Grouping is not used if this parameter is <constant>0</constant> or isn't defined. See <xref linkend="interceptor_creation.intermediate_operations.grouping"/> for example of using this parameter.</listitem>
+        <listitem>Number identified operations group. Operations from the same group either are all replaced by intermediates or aren't replaced at all. Grouping is not used if this parameter is <constant>0</constant> or isn't defined. See <xref linkend="interceptor_creation.intermediate_operations.grouping"/> for example of using this parameter. Shouldn't be defined if 'operation.default' parameter is not defined.</listitem>
     </varlistentry>
 </variablelist>
 </para>
@@ -101,25 +102,28 @@ Using template <filename class="directory">kedr_coi_foreign_interceptor.h</filen
 Definition file for foreign interceptor should contain definitions for the following parameters:
 <variablelist>
     <varlistentry><term>interceptor.name</term>
-        <listitem>name of the interceptor, used in its constructor</listitem>
-    </varlistentry>
-    <varlistentry><term>interceptor.prefix</term>
-        <listitem>string which will be used as prefix for all exported functions and macros for this interceptor</listitem>
+        <listitem>Name of the interceptor, used in its constructor. This name also is used as a prefix for all exported functions and macros for this interceptor (<replaceable>prefix</replaceable> in the functions description).</listitem>
     </varlistentry>
     <varlistentry><term>header</term>
-        <listitem>includes and other C-code, which contains definition of types and functions used for interceptor</listitem>
+        <listitem>Includes and other C-code, which contains definition of types and functions used for interceptor. May be multi-valued, in that case all values are joined together.</listitem>
     </varlistentry>
     <varlistentry><term>implementation_header</term>
-        <listitem>Additional includes and other C-code, which used in implementation of intermediate functions.</listitem>
+        <listitem>Additional includes and other C-code, which used in implementation of intermediate functions. May be multi-valued, in that case all values are joined together.</listitem>
     </varlistentry>
     <varlistentry><term>prototype_object.type</term>
-        <listitem>type of the prototype objects for which foreign instrumentor should be applied</listitem>
+        <listitem>Type of the prototype objects for which foreign interceptor is applied (<replaceable>object_t</replaceable> in the functions description).</listitem>
     </varlistentry>
     <varlistentry><term>prototype_object.operations_field</term>
-        <listitem>field in the prototype object struct which is a pointer to the operations structure</listitem>
+        <listitem>Field in the prototype object struct which is a pointer to the operations structure</listitem>
+    </varlistentry>
+    <varlistentry><term>object.type</term>
+        <listitem>Type of the owner object to which operations belong. Binded interceptor operates with objects of this type.</listitem>
+    </varlistentry>
+    <varlistentry><term>object.operations_field</term>
+        <listitem>Field in the owner object struct which is a pointer to the operations structure. (In the current templates this field is not used.)</listitem>
     </varlistentry>
     <varlistentry><term>operations.type</term>
-        <listitem>type of the operations structure</listitem>
+        <listitem>Type of the operations structure.</listitem>
     </varlistentry>
 </variablelist>
 </para>
@@ -127,10 +131,10 @@ Definition file for foreign interceptor should contain definitions for the follo
 For every callback operation which is called just after new object is created a group should be prepared in the definition file. Each group should contain definitions for the following parameters:
 <variablelist>
     <varlistentry><term>operation.name</term>
-        <listitem>name of the callback operation, as a field name in the operations structure</listitem>
+        <listitem>Name of the callback operation, as a field name in the operations structure.</listitem>
     </varlistentry>
     <varlistentry><term>operation.returnType</term>
-        <listitem>type returning by this operation; if operation doesn't return value should be empty or isn't defined</listitem>
+        <listitem>Type returning by this operation; if operation doesn't return value should be empty or isn't defined.</listitem>
     </varlistentry>
     <varlistentry><term>operation.arg.type</term>
         <listitem>(multi-valued) types of the parameters of the callback operation, starting with the first one</listitem>
@@ -139,13 +143,13 @@ For every callback operation which is called just after new object is created a 
         <listitem>(multi-valued) names of the parameters of the callback operation, starting with the first one. Parameters will be accessible via these names in the code.</listitem>
     </varlistentry>
     <varlistentry><term>operation.object</term>
-        <listitem>parameter name or other c-expression returned owner object for this operation call. Names of operation's parameters and global functions and variables may be used in this expression.</listitem>
+        <listitem>Parameter name or other c-expression returned owner object for this operation call. Names of operation's parameters and global functions and variables may be used in this expression.</listitem>
     </varlistentry>
     <varlistentry><term>operation.prototype_object</term>
-        <listitem>parameter name or other c-expression returned prototype object. from wich owner object is created. Names of operation's parameters and global functions and variables may be used in this expression.</listitem>
+        <listitem>parameter name or other c-expression returned prototype object from wich new object is created. Names of operation's parameters and global functions and variables may be used in this expression.</listitem>
     </varlistentry>
     <varlistentry><term>operation.default</term>
-        <listitem>Implementation of the <link linkend="default_callback_operation">default callback operation</link>. It will be executed in case when pointer to chained operation is <constant>NULL</constant>. Names of operation's parameters and global functions and variables may be used in this code. If this parameter is not defined, <constant>NULL</constant> pointer to the operation is treated as error.</listitem>
+        <listitem>Implementation of the <link linkend="default_callback_operation">default callback operation</link>. It will be executed in case when pointer to the chained operation is <constant>NULL</constant>. Names of operation's parameters and global functions and variables may be used in this code. It is allowed to let this parameter empty only when the callback operation may not be NULL in any case.</listitem>
     </varlistentry>
 </variablelist>
 </para>

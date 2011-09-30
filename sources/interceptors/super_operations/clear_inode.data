@@ -5,7 +5,9 @@ operation.arg.type = struct inode *
 operation.arg.name = inode
 
 operation.object = inode
-operation.default = 
+
+# Called from clear_inode
+operation.default = return;
 
 header =>>
 /* 'super_operations' has 'clear_inode' method */

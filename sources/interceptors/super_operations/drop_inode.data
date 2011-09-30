@@ -5,6 +5,8 @@ operation.arg.type = struct inode *
 operation.arg.name = inode
 
 operation.object = inode
+
+# Called from iput_final
 operation.default = generic_drop_inode(inode);
 
 header=>>

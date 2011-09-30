@@ -8,7 +8,7 @@ operation.arg.type = int
 operation.arg.name = flags
 
 operation.object = inode
-operation.default = 
+operation.default = return;
 
 header=>>
 /* 'dirty_inode' method of 'super_operations' accept 'flags' parameter */

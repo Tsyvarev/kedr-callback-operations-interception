@@ -32,9 +32,11 @@ MODULE_LICENSE("GPL");
 
 #include "fs_interception.h"
 
+// Counter of regular files openings
 unsigned file_counter = 0;
 module_param(file_counter, uint, S_IRUGO);
 
+// Counter of file system mounts
 static unsigned mount_counter = 0;
 module_param(mount_counter, uint, S_IRUGO);
 
@@ -42,9 +44,10 @@ module_param(mount_counter, uint, S_IRUGO);
 
 /* Update file counter */
 static void fops_open_post_update_file_counter(struct inode* inode,
-    struct file* filp, int returnValue)
+    struct file* filp, int returnValue,
+    struct kedr_coi_operation_call_info* call_info)
 {
-    if(returnValue == 0)
+    if((returnValue == 0) && S_ISREG(inode->i_mode))
     {
         file_counter ++;
     }
@@ -53,7 +56,7 @@ static void fops_open_post_update_file_counter(struct inode* inode,
 // Combine all handlers for file together
 static struct kedr_coi_post_handler file_operations_post_handlers[] =
 {
-    file_operations_open_post(fops_open_post_update_file_counter),
+    file_operations_open_post_external(fops_open_post_update_file_counter),
     kedr_coi_post_handler_end
 };
 
@@ -69,7 +72,8 @@ struct kedr_coi_payload file_operations_payload =
 #if defined(FILE_SYSTEM_TYPE_HAS_GET_SB)
 static void fst_get_sb_post_mount_counter(struct file_system_type* type,
     int flags, const char* name, void* data,
-    struct vfsmount* mnt, int returnValue)
+    struct vfsmount* mnt, int returnValue,
+    struct kedr_coi_operation_call_info* call_info)
 {
     if(returnValue == 0)
     {
@@ -79,7 +83,8 @@ static void fst_get_sb_post_mount_counter(struct file_system_type* type,
 #else
 static void fst_mount_post_mount_counter(struct file_system_type* type,
     int flags, const char* name, void* data,
-    struct dentry* returnValue)
+    struct dentry* returnValue,
+    struct kedr_coi_operation_call_info* call_info)
 {
     if(returnValue != NULL)
     {
@@ -105,18 +110,21 @@ static struct kedr_coi_payload file_system_type_payload =
 };
 
 /* Define lifetime of file system type(from global functions) */
-static void register_filesystem_pre_fst_lifetime(struct file_system_type* fs)
+static void register_filesystem_pre_fst_lifetime(
+    struct file_system_type* fs)
 {
     file_system_type_interceptor_watch(fs);
 }
 
-static void register_filesystem_post_fst_lifetime(struct file_system_type* fs, int returnValue)
+static void register_filesystem_post_fst_lifetime(
+    struct file_system_type* fs, int returnValue)
 {
     if(returnValue) //error path
         file_system_type_interceptor_forget(fs);
 }
 
-static void unregister_filesystem_post_fst_lifetime(struct file_system_type* fs, int returnValue)
+static void unregister_filesystem_post_fst_lifetime(
+    struct file_system_type* fs, int returnValue)
 {
     if(!returnValue)
         file_system_type_interceptor_forget(fs);
@@ -173,6 +181,10 @@ struct kedr_payload payload =
     .target_unload_callback = on_target_unload
 };
 
+/*
+ *  These two functions are defined in 'functions_support.c',
+ * generated from functions_support.data.
+ */
 extern int functions_support_register(void);
 extern void functions_support_unregister(void);
 

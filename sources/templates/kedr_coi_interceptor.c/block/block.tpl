@@ -1,8 +1,9 @@
 #define intermediate_operation_<$operation.name$>    {\
         .operation_offset = OPERATION_OFFSET(<$operation.name$>),\
         .repl = OPERATION_CHECKED_TYPE(&intermediate_repl_<$operation.name$>, <$operation.name$>),\
-    <$if operation.group_id$>    .group_id = <$operation.group_id$>,\
-    <$endif$>}
+<$if operation.group_id$>        .group_id = <$operation.group_id$>,\
+<$endif$><$if operation.default$><$else$>        .internal_only = true,\
+<$endif$>}
 
 <$if operation.default$>static <$if operation.returnType$><$operation.returnType$><$else$>void<$endif$> intermediate_operation_default_<$operation.name$>(<$argumentSpec$>)
 {

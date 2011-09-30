@@ -10,6 +10,7 @@ operation.arg.name = mnt
 
 operation.object = mnt->mnt_sb
 
+# Called from show_vfsmnt
 implementation_header=>>
 #include <linux/seq_file.h>
 <<

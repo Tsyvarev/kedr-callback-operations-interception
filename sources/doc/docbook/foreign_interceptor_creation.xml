@@ -1,7 +1,7 @@
 ﻿<section id="foreign_interceptor_creation">
 <title>Creation of the foreign interceptors</title>
 <para>
-Foreign interceptor is created with function <function>kedr_coi_foreign_interceptor_create</function>. Next information should be passed to this function for describe interceptor created: object's geometry, intermediate operations and normal interceptor, which will be binded with new one.
+Foreign interceptor is created with function <function linkend="api_reference.foreign_interceptor_creation.indirect">kedr_coi_foreign_interceptor_create</function>. Next information should be passed to this function for describe interceptor created: object's geometry, intermediate operations and normal interceptor, which will be binded with new one.
 </para>
 
 <section id="foreign_interceptor_creation.binded_interceptor">
@@ -36,13 +36,13 @@ Intermediate operation for foreign interceptor should have same signature as ope
 Locally allocate(on stack) pointer to the original operation.
 </para></step>
 <step><para>
-Call <function>kedr_coi_bind_prototype_with_object</function> and pass to it foriegn interceptor, prototype object, newly created object, offset of the operation replaced by this intermediate one and reference to the allocated pointer to the original operation.
+Call <function linkend="api_reference.foreign_interceptor_creation.bind">kedr_coi_bind_prototype_with_object</function> and pass to it foriegn interceptor, prototype object, newly created object, offset of the operation replaced by this intermediate one and reference to the allocated pointer to the original operation.
 </para></step>
 <step><para>
-Call original callback operation. If pointer to it is <constant>NULL</constant>, <firstterm linkend="default_callback_operation">default callback operation</firstterm> should be called.
+Call original callback operation. If pointer to it is <constant>NULL</constant>, <firstterm linkend="default_callback_operation">default callback operation</firstterm> should be called instead.
 </para></step>
 <step><para>
-If original operation returns any value, return this value.
+If original(or default) operation returns any value, return this value.
 </para></step>
 </procedure>
 <para>
@@ -65,6 +65,10 @@ static int intermediate_open(struct inode* inode, struct file* filp)
 ]]></programlisting>
 Note, that like for a normal interceptor, intermediate operation for foreing interceptor should correctly process case when original callback operation is <constant>NULL</constant>. For <function>open</function> operation <constant>NULL</constant> pointer equivalents to callback simply returning <constant>0</constant>.
 </para>
+
+<note><para>
+Unlike to normal interceptor, intermediate operations for foreign interceptor are used for replace original callback operation of object in any case. So 'internal_only' flag and grouping has no sence for intermediate operations of foreign interceptor.
+</para></note>
 </section>
 <!-- End of "foreign_interceptor_creation.intermediate_operations" -->
 

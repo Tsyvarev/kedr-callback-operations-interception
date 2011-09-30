@@ -24,11 +24,6 @@ header =>>
 #include <linux/fs.h>
 <<
 
-implementation_header=>>
-#include <linux/xattr.h>
-#include <linux/security.h>
-<<
-
 object.type = struct inode
 object.operations_field = i_op
 
@@ -239,8 +234,7 @@ operation.object = dentry->d_inode
 # Called unconditionally from __do_follow_link and other places.
 
 # It seems, that indicator of operation's existing(pointer is not NULL)
-# is inode mode instead of pointer itself. So, if pointer is NULL for
-# for some inode, it means that it will never be checked.
+# is inode mode instead of pointer itself.
 
 [group]
 operation.name = put_link
@@ -271,21 +265,35 @@ operation.object = inode
 operation.default = return;
 
 
-#[group]
-# Called from vmtruncate_range, shouldn't replace NULL pointer at all(!).
-#operation.name = truncate_range
-#
-#operation.arg.type = struct inode *
-#operation.arg.name = inode
-#
-#operation.arg.type = loff_t
-#operation.arg.name = offset
-#
-#operation.arg.type = loff_t
-#operation.arg.name = end
-#
-#operation.object = inode
+[group]
+operation.name = truncate_range
 
+operation.arg.type = struct inode *
+operation.arg.name = inode
+
+operation.arg.type = loff_t
+operation.arg.name = offset
+
+operation.arg.type = loff_t
+operation.arg.name = end
+
+operation.object = inode
+# Called from vmtruncate_range, shouldn't replace NULL pointer at all.
+
+[group]
+operation.name = setattr
+operation.returnType = int
+
+operation.arg.type = struct dentry *
+operation.arg.name = dentry
+
+operation.arg.type = struct iattr *
+operation.arg.name = attr
+
+operation.object = dentry->d_inode
+
+# Called from notify_change
+# Default implementation is system-depended and not easy.
 
 [group]
 operation.name = getattr
@@ -330,11 +338,7 @@ operation.arg.name = flags
 operation.object = dentry->d_inode
 
 # Called by __vfs_setxattr_noperm
-# If operations are 'secure', allow them to be processed. Otherwise not supported.
-operation.default =>>
-    return strncmp(name, XATTR_SECURITY_PREFIX,
-        XATTR_SECURITY_PREFIX_LEN) ? -EOPNOTSUPP : 0;
-<<
+# Default implementation is very kernel-depended and subtle.
 
 [group]
 operation.name = getxattr
@@ -373,11 +377,8 @@ operation.arg.name = size
 operation.object = dentry->d_inode
 
 # Called by vfs_listxattr
-# Really default implementation should call security_inode_listsecurity(),
-# But this function is not exported for modules.
-#
-# Interception shouldn't be used when original pointer is NULL.
-operation.default = return -ENOTSUPP;
+# Default implementation should call security_inode_listsecurity(),
+# but this function is not exported for modules.
 
 [group]
 operation.name = removexattr

@@ -1,0 +1,147 @@
+<section id="install">
+<title>Installation</title>
+
+<para>
+It is recommended to build KEDR COI from source. This allows to avoid a lot of issues concerning the differences between many versions and variants of the Linux kernel. For the present, there is no official binary distribution of KEDR COI.
+</para>
+
+<para>
+The source code of the framework can be downloaded from the <ulink url="&kedr-coi-url;">project site</ulink> at Google Code.
+</para>
+
+<itemizedlist>
+<para>
+To be able to build KEDR COI, you need the following:
+</para>
+
+<listitem><para>
+Your Linux system should have kernel version 2.6.31 or newer. <command>uname -r</command> command should tell you what kernel version you are currently using. x86 and x86-64 architectures are currently supported.
+</para></listitem>
+
+<listitem><para>
+CMake build system (<ulink url="http://cmake.org/">http://cmake.org/</ulink>) version 2.6 or newer (version 2.8 or newer is preferable)
+</para></listitem>
+
+<listitem><para>
+GNU C and C++ compilers version 4.0 or newer
+</para></listitem>
+
+<listitem><para>
+GNU Make
+</para></listitem>
+
+<listitem><para>
+Other tools and packages necessary to build kernel modules: on some systems it can be <quote>kernel-*-devel</quote>, <quote>kernel-*-source</quote>, <quote>kernel-*-syms</quote>, <quote>linux-headers-*</quote> or other packages. On some systems you may also need to install <quote>DKMS</quote> package or something like that.
+</para></listitem>
+</itemizedlist>
+
+<para>
+After all the prerequisites have been met, unpack the archive with the sources (<filename>kedr-coi-&rel-version;.tar.bz2</filename>) and create another directory, say, <filename class='directory'>kedr-coi-build</filename> where KEDR will be built.
+</para>
+
+<note><para>
+It is highly recommended to use an out-of-source build, i.e. not to build KEDR COI from the directory containing its sources. With an out-of-source build, you leave the source tree of KEDR COI unchanged, which can be convenient. The source tree can even be read-only in this case. You can also configure and build the framework from different build directories with different options if you want to. An in-source build would make this impossible.
+</para></note>
+
+<para>
+Change current directory to <filename class='directory'>kedr-coi-build</filename> and configure the package using the following command:
+</para>
+
+<programlisting>
+cmake ../kedr-coi-&rel-version;/
+</programlisting>
+
+<para>
+During configuration phase, the information about the environment is analyzed and appropriate settings are prepared for KEDR COI to tune it properly to your system. This is done automatically.
+</para>
+
+<para>
+Some options may be passed to cmake for configure KEDR COI package for your own needs. These options should be written in form of standard CMake variables: <code>-D<replaceable>option-name</replaceable>=<replaceable>option-value</replaceable></code>. E.g., for install KEDR COI to directory <filename class='directory'>/opt/kedr-coi/</filename> instead of default <filename class='directory'>/usr/local/</filename> you may write:
+</para>
+
+<programlisting>
+cmake -DCMAKE_INSTALL_PREFIX=/opt/kedr-coi/ ../kedr-coi-&rel-version;/
+</programlisting>
+
+<para>
+<link linkend="install.configuration_options">Full list</link> of available configuration options is provided at the end of this section.
+</para>
+
+<para>
+If the configuration stage completes successfully, you can type <command>make</command> to build the package and <command>make install</command> - to install it. You may need to execute <command>make install</command> as a root user.
+</para>
+
+<para>
+To remove the files installed with <command>make install</command>, you can use <command>make uninstall</command> command.
+</para>
+
+<note><para>
+Currently, <command>make uninstall</command> does not remove directories, only files.
+</para></note>
+
+<para>
+KEDR COI package also contains a set of tests for KEDR COI library and other components. You may want to run these tests after KEDR COI is built but before it is installed to see if the tools provided by the package correctly operate on your system. To do so, just execute <command>make check</command> (as root user).
+</para>
+
+<section id="install.configuration_options">
+<title>Configuration options</title>
+<para>
+Here is a list of options which may passed to <command>cmake</command> utility for configure KEDR COI package.
+<variablelist>
+    <varlistentry><term>CMAKE_INSTALL_PREFIX</term>
+        <listitem>Directory where KEDR COI should be installed. Default is <filename class='directory'>/usr/local/</filename>.</listitem>
+    </varlistentry>
+    <varlistentry><term>KEDR_INSTALL_PREFIX</term>
+        <listitem>Directory where KEDR(not KEDR COI!) package is(or will be) installed.
+        <para>
+        Some examples for using KEDR COI library also use KEDR framework. If <emphasis>KEDR_INSTALL_PREFIX</emphasis> variable is set, those examples will be installed being configured for using KEDR installation pointed by this variable.
+        </para></listitem>
+    </varlistentry>
+    <varlistentry><term>KEDR_GEN_INSTALLED</term>
+        <listitem>Directory where 'kedr_gen' tool is(or will be) installed.
+        <para>
+        While some <link linkend="interceptor">interceptors</link> are already provided with KEDR COI library, one may need interceptors for callback operations for other object types. For make life easier, KEDR COI provide templates for generate interceptor's code from definition files.
+        </para>
+        <para>
+        By default, generation tool is installed with KEDR COI library. But if you already have this tools, you may set <emphasis>KEDR_GEN_INSTALLED</emphasis> variable pointed to it, so another instance of 'kedr_gen' will not be installed by KEDR COI package. Also, examples for KEDR COI library using will be configured to use this installation.
+        </para>
+        <para>
+        For more information about 'kedr_gen' generation tool and its using for KEDR COI, see <xref linkend="create_interceptors_using_kedr_gen"/>.
+        </para></listitem>
+    </varlistentry>
+    <varlistentry><term>KEDR_GEN</term>
+        <listitem>Directory where 'kedr_gen' tool is installed for use it for build KEDR COI package.
+        <para>
+        This variable is similar to <emphasis>KEDR_GEN_INSTALLED</emphasis> one, but, if set, it will be used only during building KEDR COI package. It may save some time in that process, because template generation tool needn't to be builded.
+        </para>
+        <para>
+        If you have KEDR package has already installed, this variable may be set to <command>kedr_gen</command> in KEDR installation (same value may be assign to <emphasis>KEDR_GEN_INSTALLED</emphasis> variable). But if you build KEDR in parallel with KEDR_COI, <emphasis>KEDR_GEN</emphasis> variable should be point to <command>kedr_gen</command> inside KEDR build tree (something like to <filename class="directory"><replaceable>kedr-build-dir</replaceable>/kedr_gen.install</filename>).
+        </para></listitem>
+    </varlistentry>
+</variablelist>
+</para>
+<para>
+Next variables are primarily intended to use for debugging and developing KEDR COI package.
+<variablelist>
+    <varlistentry><term>CMAKE_BUILD_TYPE</term>
+        <listitem>Type of build KEDR COI package. May be 'Debug', 'Release' or 'RelWithDebInfo'. Default is 'Release'.</listitem>
+    </varlistentry>
+    <varlistentry><term>KEDR_COI_GENERATE_DOC</term>
+        <listitem>If set, generate documentation from source. By default precompiled documentation files are used.</listitem>
+    </varlistentry>
+    <varlistentry><term>DOCBOOK_DTD_FILE</term>
+        <listitem>Path to DTD file for DocBook, which will be used for generate documentation. Make sence only when <emphasis>KEDR_COI_GENERATE_DOC</emphasis> is set.</listitem>
+    </varlistentry>
+    <varlistentry><term>DOCBOOK_XSL_PATH</term>
+        <listitem>Directory containing XSL stylesheets for DocBook, which will be used for generate documentation. Make sence only when <emphasis>KEDR_COI_GENERATE_DOC</emphasis> is set.</listitem>
+    </varlistentry>
+    <varlistentry><term>XSLTPROC</term>
+        <listitem>Path to xsltproc tool, which will be used for generate documentation. Make sence only when <emphasis>KEDR_COI_GENERATE_DOC</emphasis> is set. Should be set only if <command>xsltproc</command> is installed into unusual way, otherwise it will be founded automatically.</listitem>
+    </varlistentry>
+
+</variablelist>
+
+</para>
+</section> <!-- End if section "install.configuration_options"-->
+
+</section> <!-- End of section "install" -->

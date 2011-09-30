@@ -11,13 +11,7 @@ operation.arg.name = mnt
 operation.object = mnt->mnt_sb
 
 # Called by show_mountinfo.
-implementation_header=>>
-#include <linux/seq_file.h>
-<<
-operation.default =>>
-    seq_dentry(m, mnt->mnt_root, " \t\n\\");
-    return 0;
-<<
+# Default implementation use seq_dentry, which is not accessible for modules.
 
 header=>>
 /* 'super_operations' has method 'show_path' */

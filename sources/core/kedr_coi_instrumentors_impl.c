@@ -27,12 +27,22 @@
 #include <linux/slab.h> /* memory allocations */
 #include <linux/spinlock.h> /* spinlocks */
 
-// Get operation at given offset(in the operations structure or in the object)
+/** Helpers for simplify access to operation */
+
+/*
+ * Get operation at given offset in the operations structure or in
+ * the object.
+ */
 static inline void*
 operation_at_offset(const void* ops, size_t operation_offset)
 {
     return *((void**)((const char*)ops + operation_offset));
 }
+
+/*
+ * Get pointer to operation at given offset in the operations structure
+ * or in the object.
+ */
 
 static inline void**
 operation_at_offset_p(void* ops, size_t operation_offset)
@@ -40,6 +50,91 @@ operation_at_offset_p(void* ops, size_t operation_offset)
     return ((void**)((char*)ops + operation_offset));
 }
 
+/** Helpers for simplify operation replacement*/
+
+/*
+ * Replace operation if it is needed by replacement mode.
+ * 
+ * Note: original operation should be stored before in any way.
+ */
+static void replace_operation(void** op_p,
+    const struct kedr_coi_replacement* replacement)
+{
+    if(replacement->mode == replace_all)
+    {
+        *op_p = replacement->repl;
+    }
+    else if(*op_p)
+    {
+        if(replacement->mode == replace_not_null) *op_p = replacement->repl;
+    }
+    else
+    {
+        if(replacement->mode == replace_null) *op_p = replacement->repl;
+    }
+}
+
+/*
+ * Update replacement of the operation.
+ * 
+ * Also update stored original operation if needed.
+ */
+static void update_operation(void** op_p,
+    const struct kedr_coi_replacement* replacement,
+    void** op_orig)
+{
+    if(replacement->repl != *op_p)
+    {
+        *op_orig = *op_p;
+        replace_operation(op_p, replacement);
+    }
+}
+
+/*
+ * Restore operation if it was replaced.
+ */
+static void restore_operation(void** op_p,
+    const struct kedr_coi_replacement* replacement,
+    void* op_orig)
+{
+#ifdef KEDR_COI_DEBUG
+    if((replacement->mode == replace_not_null) && !op_orig);
+    else if((replacement->mode == replace_null) && op_orig);
+    else if(replacement->repl != *op_p)
+    {
+        pr_info("Operation was changed externally from %pF to %pF.",
+            replacement->repl, *op_p);
+    }
+#endif /* KEDR_COI_DEBUG */
+    if(replacement->repl == *op_p) *op_p = op_orig;
+}
+
+/*
+ * Return operation before replace when no stored original operation
+ * has found.
+ * 
+ * Return ERR_PTR() if original operation cannot be reconstructed.
+ */
+static void* get_orig_operation_nodata(void* op,
+    const struct kedr_coi_replacement* replacement)
+{
+    if(op != replacement->repl) return op;
+    if(replacement->mode == replace_null) return NULL;
+    return ERR_PTR(-ENODEV);
+}
+
+/*
+ * Return replaced operation. Usefull when operation has been replaced
+ * again.
+ */
+static void* get_repl_operation(
+    const struct kedr_coi_replacement* replacement,
+    void* op_orig)
+{
+    void* op = op_orig;
+    replace_operation(&op, replacement);
+    return op;
+}
 /**********************************************************************/
 /***********Instrumentor which does not instrument at all**************/
 /**********************************************************************/
@@ -381,8 +476,8 @@ instrumentor_direct_impl_replace_operations(
          
         *operation_at_offset_p(object_ops_orig, operation_offset) =
             *operation_p;
-        
-        *operation_p = replacement->repl;
+
+        replace_operation(operation_p, replacement);
     }
     
     return 0;
@@ -414,9 +509,9 @@ instrumentor_direct_impl_clean_replacement(
             void** operation_p = operation_at_offset_p(
                 object, operation_offset);
              
-            if(*operation_p == replacement->repl)
-                *operation_p = operation_at_offset(
-                    object_ops_orig, operation_offset);
+            
+            restore_operation(operation_p, replacement,
+                operation_at_offset(object_ops_orig, operation_offset));
         }
     }
     
@@ -446,13 +541,8 @@ instrumentor_direct_impl_update_operations(
         void** operation_p = operation_at_offset_p(
             object, operation_offset);
          
-        if(*operation_p != replacement->repl)
-        {
-            *operation_at_offset_p(
-                object_ops_orig, operation_offset) = *operation_p;
-            
-            *operation_p = replacement->repl;
-        }
+        update_operation(operation_p, replacement, 
+            operation_at_offset_p(object_ops_orig, operation_offset));
     }
     
     return 0;
@@ -924,8 +1014,10 @@ instrumentor_indirect_impl_add_ops_data(
         replacement->operation_offset != -1;
         replacement++)
     {
-        *operation_at_offset_p(ops_repl, replacement->operation_offset) =
-            replacement->repl;
+        void** operation_p = operation_at_offset_p(ops_repl,
+            replacement->operation_offset);
+
+        replace_operation(operation_p, replacement);
     }
 
     return ops_data;
@@ -1027,7 +1119,7 @@ instrumentor_indirect_impl_get_ops_data(
  * about some operations structure.
  * 
  * Helper check whether operation at the given offset is not our
- * replacement operation. It it is so, it return that operation.
+ * replacement operation. If it is so, it return that operation.
  * Otherwise ERR_PTR() is returned.
  * 
  * Should be executed under lock(for make sure that object operations
@@ -1047,12 +1139,8 @@ static void* instrumentor_indirect_impl_get_operation_not_replaced(
         if(replacement->operation_offset == operation_offset)
         {
             void* op = operation_at_offset(object_ops, operation_offset);
-            if(replacement->repl != op)
-            {
-                return op;
-            }
-            // Cannot determine original operation
-            return ERR_PTR(-ENOENT);
+            
+            return get_orig_operation_nodata(op, replacement);
         }
     }
     // operation_offset is invalid
@@ -2262,8 +2350,10 @@ instrumentor_indirect1_impl_add_ops_data(
         replacement->operation_offset != -1;
         replacement++)
     {
-        *operation_at_offset_p((void*)ops, replacement->operation_offset) =
-            replacement->repl;
+        void** operation_p = operation_at_offset_p((void*)ops,
+            replacement->operation_offset);
+        
+        replace_operation(operation_p, replacement);
     }
     return ops_data;
 }
@@ -2285,8 +2375,13 @@ instrumentor_indirect1_impl_remove_ops_data(
         replacement->operation_offset != -1;
         replacement++)
     {
-        *operation_at_offset_p(ops_data->object_ops, replacement->operation_offset) =
-            operation_at_offset(ops_data->ops_orig, replacement->operation_offset);
+        void* operation_orig;
+        void** operation_p = operation_at_offset_p(
+            ops_data->object_ops, replacement->operation_offset);
+        operation_orig = operation_at_offset(
+            ops_data->ops_orig, replacement->operation_offset);
+        
+        restore_operation(operation_p, replacement, operation_orig);
     }
 
     kedr_coi_hash_table_remove_elem(&instrumentor_impl->hash_table_ops,
@@ -2386,12 +2481,7 @@ static void* instrumentor_indirect1_impl_get_operation_not_replaced(
         if(replacement->operation_offset == operation_offset)
         {
             void* op = operation_at_offset(object_ops, operation_offset);
-            if(replacement->repl != op)
-            {
-                return op;
-            }
-            // Cannot determine original operation
-            return ERR_PTR(-ENOENT);
+            return get_orig_operation_nodata(op, replacement);
         }
     }
     // operation is not replaced by us
@@ -2751,7 +2841,11 @@ struct instrumentor_indirect1_with_foreign_ops_data
     void* ops_orig;
     // Refcount for share per-operation instance between per-object data.
     int refs;
-    // List of foreign per-operations data, which share same operations.
+    /*
+     * List of foreign per-operations data, which share same operations.
+     * From the most inner one to the outmost, which operations are
+     * stored(indirectly) in the object.
+     */
     struct list_head foreign_ops_data;
     // Element in the global table of instrumented operations.
     struct kedr_coi_hash_elem operations_elem;
@@ -2959,8 +3053,10 @@ instrumentor_indirect1_with_foreign_impl_add_ops_data(
         replacement->operation_offset != -1;
         replacement++)
     {
-        *operation_at_offset_p((void*)ops, replacement->operation_offset) =
-            replacement->repl;
+        void** operation_p = operation_at_offset_p((void*)ops,
+            replacement->operation_offset);
+        
+        replace_operation(operation_p, replacement);
     }
 
     return ops_data;
@@ -2983,8 +3079,13 @@ instrumentor_indirect1_with_foreign_impl_remove_ops_data(
         replacement->operation_offset != -1;
         replacement++)
     {
-        *operation_at_offset_p(ops_data->object_ops, replacement->operation_offset) =
-            operation_at_offset(ops_data->ops_orig, replacement->operation_offset);
+        void* operation_orig;
+        void** operation_p = operation_at_offset_p(
+            ops_data->object_ops, replacement->operation_offset);
+        operation_orig = operation_at_offset(ops_data->ops_orig,
+            replacement->operation_offset);
+        
+        restore_operation(operation_p, replacement, operation_orig);
     }
 
     kedr_coi_hash_table_remove_elem(&instrumentor_impl->hash_table_ops,
@@ -3076,10 +3177,11 @@ static void*
 instrumentor_indirect1_with_foreign_impl_get_repl_operation_common(
     struct instrumentor_indirect1_with_foreign_impl* instrumentor_impl,
     struct instrumentor_indirect1_with_foreign_ops_data* ops_data,
-    const void* object,
     size_t operation_offset)
 {
     const struct kedr_coi_replacement* replacement;
+    void* op_orig = operation_at_offset(ops_data->ops_orig,
+        operation_offset);
 
     for(replacement = instrumentor_impl->replacements;
         replacement->operation_offset != -1;
@@ -3087,11 +3189,11 @@ instrumentor_indirect1_with_foreign_impl_get_repl_operation_common(
     {
         if(replacement->operation_offset == operation_offset)
         {
-            return replacement->repl;
+            return get_repl_operation(replacement, op_orig);
         }
     }
     
-    return operation_at_offset(ops_data->ops_orig, operation_offset);
+    return op_orig;
 }
 
 // Implementation of the advance indirect foreign instrumentor.
@@ -3209,6 +3311,7 @@ foreign_instrumentor_indirect1_impl_add_ops_data(
     
     INIT_LIST_HEAD(&ops_data->list);
     ops_data->replacements = instrumentor_impl->replacements;
+    ops_data->refs = 1;
     
     kedr_coi_hash_elem_init(&ops_data->object_ops_elem, ops);
     
@@ -3222,6 +3325,9 @@ foreign_instrumentor_indirect1_impl_add_ops_data(
         replacement->operation_offset != -1;
         replacement++)
     {
+        // For foreign intstrumentor all replacements are external.
+        BUG_ON(replacement->mode != replace_all);
+        
         *operation_at_offset_p((void*)ops, replacement->operation_offset) =
             replacement->repl;
     }
@@ -3245,12 +3351,15 @@ foreign_instrumentor_indirect1_impl_add_ops_data(
  * for normal ones.
  */
 static void foreign_instrumentor_indirect1_impl_rollback_replacement(
+    struct instrumentor_indirect1_with_foreign_impl* instrumentor_impl,
     const struct kedr_coi_replacement* replacement,
     struct instrumentor_indirect1_with_foreign_ops_data* ops_data_binded,
     struct foreign_instrumentor_indirect1_ops_data* ops_data_next)
 {
     void** op = operation_at_offset_p(ops_data_binded->object_ops,
         replacement->operation_offset);
+
+    BUG_ON(replacement->mode != replace_all);
     if(*op != replacement->repl) return;
 
     list_for_each_entry_continue_reverse(ops_data_next,
@@ -3263,12 +3372,16 @@ static void foreign_instrumentor_indirect1_impl_rollback_replacement(
         {
             if(replacement_tmp->operation_offset == replacement->operation_offset)
             {
+                BUG_ON(replacement_tmp->mode != replace_all);
                 *op = replacement_tmp->repl;
                 return;
             }
         }
     }
-    *op = operation_at_offset(ops_data_binded->ops_orig, replacement->operation_offset);
+    *op = instrumentor_indirect1_with_foreign_impl_get_repl_operation_common(
+        instrumentor_impl,
+        ops_data_binded,
+        replacement->operation_offset);
 }
 
 /*
@@ -3298,6 +3411,7 @@ foreign_instrumentor_indirect1_impl_remove_ops_data(
         replacement++)
     {
         foreign_instrumentor_indirect1_impl_rollback_replacement(
+            instrumentor_impl->instrumentor_impl_binded,
             replacement,
             ops_data_binded,
             ops_data_next);
@@ -3553,10 +3667,7 @@ instrumentor_indirect1_with_foreign_impl_get_orig_operation_nodata(
     {
         if(replacement->operation_offset == operation_offset)
         {
-            if(op == replacement->repl)
-            {
-                op = ERR_PTR(-EINVAL);
-            }
+            op = get_orig_operation_nodata(op, replacement);
             goto out;
         }
     }
@@ -3683,6 +3794,17 @@ static void instrumentor_indirect1_with_foreign_impl_clean_replacement(
 {
     unsigned long flags;
 
+#ifdef KEDR_COI_DEBUG
+    const void* object_ops = indirect_operations(object,
+        instrumentor_impl->operations_field_offset);
+    if(object_ops != object_data->ops_data->object_ops)
+    {
+        pr_info("Operations at offset %zu was changed for object %p "
+            "from %p to %p.",
+            instrumentor_impl->operations_field_offset, object,
+            object_data->ops_data->object_ops, object_ops);
+    }
+#endif /* KEDR_COI_DEBUG */
     spin_lock_irqsave(&instrumentor_impl->ops_lock, flags);
     instrumentor_indirect1_with_foreign_impl_unref_ops_data(instrumentor_impl,
         object_data->ops_data);
@@ -3742,7 +3864,6 @@ static int instrumentor_indirect1_replace_operations_from_prototype(
     *op_repl = instrumentor_indirect1_with_foreign_impl_get_repl_operation_common(
         instrumentor_impl,
         object_data_new->ops_data,
-        object,
         operation_offset);
     return 0;
 }
@@ -3769,7 +3890,6 @@ static int instrumentor_indirect1_update_operations_from_prototype(
         *op_repl = instrumentor_indirect1_with_foreign_impl_get_repl_operation_common(
             instrumentor_impl,
             object_data->ops_data,
-            object,
             operation_offset);
 
         return 0;
@@ -3790,7 +3910,6 @@ static int instrumentor_indirect1_update_operations_from_prototype(
         *op_repl = instrumentor_indirect1_with_foreign_impl_get_repl_operation_common(
             instrumentor_impl,
             object_data->ops_data,
-            object,
             operation_offset);
 
         return 0;
@@ -3814,7 +3933,6 @@ static int instrumentor_indirect1_update_operations_from_prototype(
     *op_repl = instrumentor_indirect1_with_foreign_impl_get_repl_operation_common(
         instrumentor_impl,
         object_data->ops_data,
-        object,
         operation_offset);
 
     return 0;
@@ -3908,6 +4026,7 @@ static int instrumentor_indirect1_restore_foreign_operations_nodata(
         {
             if(replacement->operation_offset == operation_offset)
             {
+                BUG_ON(replacement->mode != replace_all);
                 *op_orig = replacement->repl;
                 spin_unlock_irqrestore(&instrumentor_impl_binded->ops_lock, flags_binded);
                 return 0;
@@ -3938,7 +4057,6 @@ static void* instrumentor_indirect1_chain_operation(
     return instrumentor_indirect1_with_foreign_impl_get_repl_operation_common(
         instrumentor_impl,
         object_data->ops_data,
-        object,
         operation_offset);
 }
 
@@ -3962,7 +4080,7 @@ instrumentor_indirect1_impl_if_iface_free_object_data(
 {
     struct foreign_instrumentor_indirect1_object_data* object_data_real =
         container_of(object_data, typeof(*object_data_real), base);
-    
+
     kfree(object_data_real);
 }
 

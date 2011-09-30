@@ -1,5 +1,10 @@
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/test.sh.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/test.sh"
+    @ONLY)
+
 add_custom_target("read_counter_module_test"
     DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${module_name}.ko"
+    DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/kedr_sample_target"
 )
 
 add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${module_name}.ko"
@@ -25,7 +30,9 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/../makefile.in"
 )
 
 rule_copy_source("${CMAKE_CURRENT_SOURCE_DIR}/.."
-    ${sources_non_configured}
+    ${sources_non_configured} "kedr_sample_target"
 )
 
 kedr_coi_test_add_target("read_counter_module_test")
+
+kedr_coi_test_add_script("read_counter" "test.sh")

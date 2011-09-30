@@ -1,5 +1,9 @@
 /*
- * Count reads from file, created for character device.
+ * Add counter of readings to the module implemented character device.
+ * 
+ * The only thing is needed from module - annotation of kernel
+ * functions which add and remove character device.
+ * (And adding some initialization/deinitialization routins).
  */
 
 /* ========================================================================
@@ -26,29 +30,26 @@
 #include <linux/fs.h>
 #include <linux/cdev.h>
 
-#include <kedr/core/kedr.h>
-
-MODULE_AUTHOR("Andrey Tsyvarev");
-MODULE_LICENSE("GPL");
-
 #include <kedr-coi/interceptors/file_operations_interceptor.h>
 #include "cdev_file_operations_interceptor.h"
 
 unsigned read_counter = 0;
 module_param(read_counter, uint, S_IRUGO);
 
+/** Intercept reads from file and determine lifetime of file object */
+
 /* Counter update */
-static void file_operation_read_post(struct file* filp, char __user* buf,
-    size_t count, loff_t* f_pos, ssize_t returnValue)
+static void file_operation_read_post_counter_update(struct file* filp,
+    char __user* buf, size_t count, loff_t* f_pos, ssize_t returnValue,
+    struct kedr_coi_operation_call_info* call_info)
 {
-    pr_info("Post handler for read() file operation was called. Position is %d.",
-        (int)*f_pos);
     if(returnValue > 0) read_counter++;
 }
 
 /* Set watching for the file (file operations interceptor)*/
-static void file_operation_open_post(struct inode* inode,
-    struct file* filp, int returnValue)
+static void file_operation_open_post_file_lifetime(struct inode* inode,
+    struct file* filp, int returnValue,
+    struct kedr_coi_operation_call_info* call_info)
 {
     if(returnValue == 0)
     {
@@ -62,8 +63,9 @@ static void file_operation_open_post(struct inode* inode,
     }
 }
 
-static void file_operation_release_post(struct inode* inode,
-    struct file* filp, int returnValue)
+static void file_operation_release_post_file_lifetime(struct inode* inode,
+    struct file* filp, int returnValue,
+    struct kedr_coi_operation_call_info* call_info)
 {
     if(returnValue == 0)
     {
@@ -73,104 +75,28 @@ static void file_operation_release_post(struct inode* inode,
 
 static struct kedr_coi_post_handler file_operations_post_handlers[] =
 {
-    {
-        .operation_offset = offsetof(struct file_operations, read),
-        .func = file_operation_read_post
-    },
-    {
-        .operation_offset = offsetof(struct file_operations, open),
-        .func = file_operation_open_post
-    },
-    {
-        .operation_offset = offsetof(struct file_operations, release),
-        .func = file_operation_release_post
-    },
-    {
-        .operation_offset = -1
-    }
+    file_operations_read_post(file_operation_read_post_counter_update),
+    file_operations_open_post(file_operation_open_post_file_lifetime),
+    file_operations_release_post_external(file_operation_release_post_file_lifetime),
+    kedr_coi_post_handler_end
 };
 
 struct kedr_coi_payload file_operations_payload =
 {
-    .mod = THIS_MODULE,
+    /*
+     *  Because this payload is embedded into module implemented
+     * character device, 'mod' field shouldn't be set for payload.
+     * 
+     * Otherwise one will unable to unload module.
+     */
     
     .post_handlers = file_operations_post_handlers,
-};
-
-/* Set wathcing for the file operations in cdev(KEDR payloads) */
-static void cdev_add_pre(struct cdev* dev, dev_t devno, unsigned count)
-{
-    cdev_file_operations_interceptor_watch(dev);
-}
-
-
-static void cdev_add_post(struct cdev* dev, dev_t devno, unsigned count, int returnValue)
-{
-    //error-path
-    if(returnValue)
-        cdev_file_operations_interceptor_forget(dev);
-}
-
-static void cdev_del_post(struct cdev* dev)
-{
-    cdev_file_operations_interceptor_forget(dev);
-}
-
-struct kedr_pre_pair pre_pairs[] = 
-{
-    {
-        .orig = cdev_add,
-        .pre = cdev_add_pre
-    },
-    {
-        .orig = NULL
-    }
-};
-
-struct kedr_post_pair post_pairs[] = 
-{
-    {
-        .orig = cdev_add,
-        .post = cdev_add_post
-    },
-    {
-        .orig = cdev_del,
-        .post = cdev_del_post
-    },
-    {
-        .orig = NULL
-    }
-};
-
-
-void on_target_load(struct module* m)
-{
-    file_operations_interceptor_start();
-    
-    read_counter = 0;
-}
-
-void on_target_unload(struct module* m)
-{
-    file_operations_interceptor_stop();
-}
-
-
-struct kedr_payload payload =
-{
-    .mod = THIS_MODULE,
-    
-    .pre_pairs = pre_pairs,
-    .post_pairs = post_pairs,
-    
-    .target_load_callback = on_target_load,
-    .target_unload_callback = on_target_unload
 };
 
 extern int functions_support_register(void);
 extern void functions_support_unregister(void);
 
-static int __init read_counter_module_init(void)
+int read_counter_init(void)
 {
     int result;
     
@@ -186,17 +112,13 @@ static int __init read_counter_module_init(void)
     result = file_operations_interceptor_payload_register(&file_operations_payload);
     if(result) goto err_file_operations_payload;
 
-    result = functions_support_register();
-    if(result) goto err_functions_support;
-
-    result = kedr_payload_register(&payload);
-    if(result) goto err_payload;
-
+    result = file_operations_interceptor_start();
+    if(result) goto err_file_operations_start;
+    
+    read_counter = 0;
     return 0;
 
-err_payload:
-    functions_support_unregister();
-err_functions_support:
+err_file_operations_start:
     file_operations_interceptor_payload_unregister(&file_operations_payload);
 err_file_operations_payload:
     cdev_file_operations_interceptor_destroy();
@@ -207,14 +129,10 @@ err_file_operations:
     return result;
 }
 
-static void __exit read_counter_module_exit(void)
+void read_counter_destroy(void)
 {
-    kedr_payload_unregister(&payload);
-    functions_support_unregister();
+    file_operations_interceptor_stop();
     file_operations_interceptor_payload_unregister(&file_operations_payload);
     cdev_file_operations_interceptor_destroy();
     file_operations_interceptor_destroy();
 }
-
-module_init(read_counter_module_init);
-module_exit(read_counter_module_exit);

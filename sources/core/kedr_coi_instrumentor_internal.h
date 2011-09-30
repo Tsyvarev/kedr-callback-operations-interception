@@ -10,6 +10,23 @@
 
 #include "kedr_coi_hash_table.h"
 
+/*
+ * Description of one replacement for instrumentor.
+ */
+enum replacement_mode
+{
+    replace_null,
+    replace_not_null,
+    replace_all
+};
+
+struct kedr_coi_replacement
+{
+    size_t operation_offset;
+    void* repl;
+    int mode;
+};
+
 //***********Simple implementation of objects with interfaces ********//
 // Basic interface structure
 struct kedr_coi_interface
@@ -240,13 +257,6 @@ kedr_coi_instrumentor_get_orig_operation(
 
 
 //********** Creation of the normal instrumentors ********************
-
-struct kedr_coi_replacement
-{
-    size_t operation_offset;
-    void* repl;
-};
-
 struct kedr_coi_instrumentor_normal*
 kedr_coi_instrumentor_create_indirect(
     size_t operations_field_offset,
@@ -469,7 +479,6 @@ kedr_coi_foreign_instrumentor_bind_prototype_with_object(
 
 
 //*********** Foreign instrumentor creation ************************
-
 struct kedr_coi_foreign_instrumentor*
 kedr_coi_instrumentor_with_foreign_create_foreign_indirect(
     struct kedr_coi_instrumentor_with_foreign* instrumentor,

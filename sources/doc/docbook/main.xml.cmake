@@ -4,8 +4,11 @@
         <!ENTITY % kedr-coi-entities SYSTEM "entities.xml"> %kedr-coi-entities; 
         <!ENTITY kedr_coi_intro SYSTEM "intro.xml">
         <!ENTITY kedr_coi_overview SYSTEM "overview.xml">
+        <!ENTITY kedr_coi_install SYSTEM "install.xml">
         <!ENTITY kedr_coi_using SYSTEM "using_kedr_coi.xml">
         <!ENTITY kedr_coi_description SYSTEM "description.xml">
+        <!ENTITY objects_watching SYSTEM "objects_watching.xml">
+        <!ENTITY kedr_coi_payload SYSTEM "payload.xml">
         <!ENTITY kedr_coi_interceptor_creation SYSTEM "interceptor_creation.xml">
         <!ENTITY kedr_coi_foreign_interceptor_creation SYSTEM "foreign_interceptor_creation.xml">
         <!ENTITY pre_existed_interceptors SYSTEM "pre_existed_interceptors.xml">
@@ -19,7 +22,7 @@
 <article lang="en">
 <title>KEDR COI &rel-version; Reference Manual</title>
 <articleinfo>
-    <releaseinfo>KEDR COI Framework version &rel-version; (&rel-date;)</releaseinfo>
+    <releaseinfo>KEDR COI Library version &rel-version; (&rel-date;)</releaseinfo>
     <authorgroup>
         <author>
             <firstname>Andrey</firstname>
@@ -33,7 +36,9 @@
 <!-- Introduction -->
 &kedr_coi_intro;
 <!-- Overview -->
-&kedr_coi_overview; 
+&kedr_coi_overview;
+<!-- Installation -->
+&kedr_coi_install;
 <!-- Using -->
 &kedr_coi_using; 
 <!-- Pre-existed interceptors -->

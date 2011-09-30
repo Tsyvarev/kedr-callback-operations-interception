@@ -1,0 +1,27 @@
+<section id="payload_description">
+<title>Payloads for callback operations interception</title>
+<para>
+<firstterm linkend="api_reference.struct_payload">Payload object</firstterm> contains <firstterm linkend="interception_handler">interception handlers</firstterm>. Every interception handler define what function should be called and for what callback operation. Functions for interception handlers accept all parameters of callback operation plus some additional information. These handlers are grouped in two arrays - one for <link linkend="pre_handler">pre handlers</link>, which functions will be called before corresponding callback operation call and another for <link linkend="post_handler">post handlers</link>, which functions will be called after the callback operation.
+</para>
+<para>
+For tell interceptor to use all handlers from payload, this payload should be registered with function <function linkend="api_reference.interceptor.payload_register">kedr_coi_payload_register</function>. After all work is done, payload should be unregistered with <function linkend="api_reference.interceptor.payload_unregister">kedr_coi_payload_unregister</function>.
+</para>
+<section id="payload_description.internal_and_external">
+<title>Internal and external interception of callback operations</title>
+<para>
+Pointer to callback operation of the object may be <constant>NULL</constant>, which has special meaning: instead of calling callback some other actions should be perfromed. These actions are the same for all objects and are known to all, so usually no interception is needed in that case.
+</para>
+<para>
+By default, function from interception handler is called only when callback operation is set for watched object. Such interception is reffered to as <emphasis>internal</emphasis>: pre- and post- handlers process parameters and result of the callback operation, which is an internal property of the object. ('internal' in that sence that this property is usually not observable by the object user.)
+</para>
+<para>
+Sometimes one need to call a function whenever state of the object - external property - is changed, and this state changing is accompanied by calling some callback operation. The key feature of this case - the state will be changed even when corresponded callback operation is not set for the object.
+</para>
+<para>
+Such state changing may be traced using <emphasis>external</emphasis> interception of corresponded callback operation. Function from external interception handler will be called even when pointer to callback operation of the object is <constant>NULL</constant>. In that case a moment of the callback operation call is assumed to be a moment when pointer to callback operation is tested. Parameters of the interception function are those as would be if callback operation is set for the object.
+</para>
+<para>
+For mark interception handler as external, its 'external' flag should be set. See <xref linkend="api_reference.struct_pre_handler" /> for formal description of this flag.
+</para>
+</section> <!-- End of "payload_description.internal_and_external" -->
+</section> <!-- End of "payload_description"-->

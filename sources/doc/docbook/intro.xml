@@ -2,7 +2,7 @@
 <title>Introduction</title>
 
 <para>
-<emphasis>KEDR COI</emphasis> is a library which allow to intercept callback operations of the kernel's object in Linux. The library is inspired by <quote><phrase role="emphasized">KEDR</phrase></quote> - framework for runtime analysis of Linux kernel modules. The library extends abilities of <quote>KEDR</quote>, which itself allow to intercept only global functions calls, not a dynamicaly established callbacks calls. While the main purpose of KEDR COI library is using in conjunction with KEDR, it may also be used without <quote>KEDR</quote>.
+<emphasis>KEDR COI</emphasis> is a library which allow to intercept callback operations of the kernel's object in Linux. The library is inspired by <phrase role="emphasized">KEDR</phrase> - framework for runtime analysis of Linux kernel modules. The library extends abilities of KEDR, which itself allow to intercept only global functions calls, not a dynamicaly established callbacks calls. While the main purpose of KEDR COI library is using in conjunction with KEDR, it may also be used without it.
 </para>
 
 <para>

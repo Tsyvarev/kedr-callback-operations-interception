@@ -8,7 +8,7 @@ Aside from providing basic API for implementing interceptors for any object's ty
 For each such interceptor its API is declared in header file placed in <filename class="directory">/usr/local/include/kedr-coi/interceptors</filename> directory and implemented in source file placed in <filename class="directory">/usr/local/share/kedr-coi/interceptors</filename> directory. So, for use this API one should use include directive like this <code>#include &lt;kedr-coi/interceptors/<replaceable>interceptor_name.h</replaceable>&gt;</code> and use corresponded source file when compile kernel module.
 </para>
 <para>
-Each specific interceptor implementation use its own string as prefix for all exported functions, definitions and macro. In the API description below <replaceable>prefix</replaceable> will denote this prefix; <replaceable>object_t</replaceable> will denote object type for which the interceptor is intended to use.
+Each specific interceptor implementation use its own string as prefix for all exported functions, definitions and macros. In the API description below <replaceable>prefix</replaceable> will denote this prefix; <replaceable>object_t</replaceable> will denote object type for which the interceptor is intended to use.
 </para>
 
 <section id="pre_existed_interceptors.interceptor_api">
@@ -17,7 +17,7 @@ Each specific interceptor implementation use its own string as prefix for all ex
 Next functions are defined for interceptor for object of specific type:
 <variablelist>
     <varlistentry><term>int <replaceable>prefix</replaceable>_init(void (*trace_unforgotten_object)(<replaceable>object_t</replaceable>*  object))</term>
-        <listitem>Initialize interceptor. 'trace_unforgotten_object' has same sence as so-named parameter of instrumentor's constructor. Wrapper around of <link linkend="api_reference.interceptor_creation.indirect">kedr_coi_interceptor_create</link> or <link linkend="api_reference.interceptor_creation.direct">kedr_coi_interceptor_create_direct</link> depended whether interceptor is indirect or direct. Return 0 if interceptor was successfully created and negative error code otherwise.</listitem>
+        <listitem>Initialize interceptor. 'trace_unforgotten_object' has same sence as so-named parameter of instrumentor's constructor. Wrapper around of <link linkend="api_reference.interceptor_creation.indirect">kedr_coi_interceptor_create</link> or <link linkend="api_reference.interceptor_creation.direct">kedr_coi_interceptor_create_direct</link> depended whether interceptor is indirect or direct. Return <constant>0</constant> if interceptor was successfully created and negative error code otherwise.</listitem>
     </varlistentry>
     <varlistentry><term>void <replaceable>prefix</replaceable>_destroy(void);</term>
         <listitem>Destroy interceptor, freeing all resources used by it. Wrapper around <link linkend="api_reference.interceptor_creation.destroy">kedr_coi_interceptor_destroy</link>.</listitem>
@@ -49,13 +49,26 @@ Next functions are defined for interceptor for object of specific type:
 Also, for each operation &lt;op&gt; which is allowable for intercept using this interceptor,
 next macros are defined:
 <variablelist>
-    <varlistentry><term><replaceable>prefix</replaceable>_&lt;op&gt;_pre(func)</term>
-        <listitem>Use function as pre-handler for operation. Also check that function has correct signature.</listitem>
+    <varlistentry><term><replaceable>opprefix</replaceable>_&lt;op&gt;_pre(func)</term>
+        <listitem>Define pre-handler for operation which use given function. Also check that function has correct signature.</listitem>
     </varlistentry>
-    <varlistentry><term><replaceable>prefix</replaceable>_&lt;op&gt;_post(func)</term>
-        <listitem>Use function as post-handler for operation. Also check that function has correct signature.</listitem>
+    <varlistentry><term><replaceable>opprefix</replaceable>_&lt;op&gt;_post(func)</term>
+        <listitem>Define post-handler for operation which use given function. Also check that function has correct signature.</listitem>
     </varlistentry>
 </variablelist>
+<replaceable>opprefix</replaceable> here denotes prefix for operations, which is usually same as <replaceable>prefix</replaceable> but without 'interceptor' word.
+</para>
+<para>
+If intermediate operation supports external interception (see <xref linkend="payload_description.internal_and_external"/>), next macros are defined for corresponded callback operation:
+<variablelist>
+    <varlistentry><term><replaceable>opprefix</replaceable>_&lt;op&gt;_pre_external(func)</term>
+        <listitem>Define external pre-handler for operation which use given function. Also check that function has correct signature.</listitem>
+    </varlistentry>
+    <varlistentry><term><replaceable>opprefix</replaceable>_&lt;op&gt;_post_external(func)</term>
+        <listitem>Define external pre-handler for operation which use given function. Also check that function has correct signature.</listitem>
+    </varlistentry>
+</variablelist>
+
 </para>
 <para>
 Also, for indirect interceptor next function will be exported for create foreign interceptor for this one:
@@ -86,7 +99,7 @@ extern int <replaceable>prefix</replaceable>_interceptor_init(
         void (*trace_unforgotten_object)(void* object)),
     void (*trace_unforgotten_object)(<replaceable>object_t</replaceable>* object));
 </programlisting>
-The first argument is expected to be a function '<replaceable>prefix</replaceable>_foreign_interceptor_create' generated for a normal interceptor, second argument has same sence as so-named argument of <function>kedr_coi_foreign_interceptor_create</function>. Return 0 if foreign interceptor was successfully created and negative error code otherwise.
+The first argument is expected to be a function '<replaceable>prefix</replaceable>_foreign_interceptor_create' generated for a normal interceptor, second argument has same sence as so-named argument of <function linkend="api_reference.foreign_interceptor_creation.indirect">kedr_coi_foreign_interceptor_create</function>. Return <constant>0</constant> if foreign interceptor was successfully created and negative error code otherwise.
 </para>
 
 <para>
