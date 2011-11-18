@@ -8,4 +8,11 @@ kbuild_include_directories("${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_subdirectory(indirect)
 add_subdirectory(direct)
-add_subdirectory(foreign)
+add_subdirectory(factory)
+add_subdirectory(creation_interceptor)
+
+set(indirect_use_copy "yes")
+
+add_subdirectory(indirect indirect_use_copy)
+add_subdirectory(factory factory_use_copy)
+add_subdirectory(creation_interceptor creation_interceptor_use_copy)

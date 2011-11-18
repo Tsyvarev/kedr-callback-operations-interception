@@ -22,7 +22,7 @@ file_operations_interceptor.c: $(kedr_coi_interceptors_dir)/file_operations_inte
 	cp -p $^ $@
 
 cdev_file_operations_interceptor.c cdev_file_operations_interceptor.h: cdev_file_operations_interceptor.%: cdev_file_operations.data
-	$(kedr_gen_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_foreign_interceptor.$*/ $^ > $@
+	$(kedr_gen_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_factory_interceptor.$*/ $^ > $@
 
 
 clean:

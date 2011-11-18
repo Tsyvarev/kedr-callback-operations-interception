@@ -19,7 +19,7 @@ execute_process(
 )
 
 
-# create_predefined_interceptor_header(header_filename data_file [FOREIGN])
+# create_predefined_interceptor_header(header_filename data_file [FACTORY])
 #
 # Create header file of interceptor from datafile.
 #
@@ -38,9 +38,9 @@ execute_process(
 function(create_predefined_interceptor_header header_filename data_file)
     set(template_class "kedr_coi_interceptor")
 	foreach(arg ${ARGN})
-		if(arg STREQUAL "FOREIGN")
-			set(template_class "kedr_coi_foreign_interceptor")
-		endif(arg STREQUAL "FOREIGN")
+		if(arg STREQUAL "FACTORY")
+			set(template_class "kedr_coi_factory_interceptor")
+		endif(arg STREQUAL "FACTORY")
 	endforeach(arg ${ARGN})
 	# Generate header file
 	execute_process(
@@ -63,7 +63,7 @@ function(create_predefined_interceptor_header header_filename data_file)
 endfunction(create_predefined_interceptor_header header data_file)
 
 
-# create_predefined_interceptor_source(source_filename data_file [FOREIGN])
+# create_predefined_interceptor_source(source_filename data_file [FACTORY])
 #
 # Create source file of interceptor from datafile.
 #
@@ -79,9 +79,9 @@ endfunction(create_predefined_interceptor_header header data_file)
 function(create_predefined_interceptor_source source_filename data_file)
     set(template_class "kedr_coi_interceptor")
 	foreach(arg ${ARGN})
-		if(arg STREQUAL "FOREIGN")
-			set(template_class "kedr_coi_foreign_interceptor")
-		endif(arg STREQUAL "FOREIGN")
+		if(arg STREQUAL "FACTORY")
+			set(template_class "kedr_coi_factory_interceptor")
+		endif(arg STREQUAL "FACTORY")
 	endforeach(arg ${ARGN})
 	# Generate source file
     execute_process(

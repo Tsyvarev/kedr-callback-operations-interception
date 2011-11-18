@@ -60,19 +60,30 @@ EXPORT_SYMBOL(kedr_coi_interceptor_forget);
 EXPORT_SYMBOL(kedr_coi_interceptor_forget_norestore);
 
 EXPORT_SYMBOL(kedr_coi_interceptor_create);
+EXPORT_SYMBOL(kedr_coi_interceptor_create_use_copy);
 EXPORT_SYMBOL(kedr_coi_interceptor_create_direct);
 
 EXPORT_SYMBOL(kedr_coi_interceptor_get_intermediate_info);
 
 EXPORT_SYMBOL(kedr_coi_interceptor_destroy);
 
-// Foreign instrumentor
-EXPORT_SYMBOL(kedr_coi_foreign_interceptor_watch);
-EXPORT_SYMBOL(kedr_coi_foreign_interceptor_forget);
-EXPORT_SYMBOL(kedr_coi_foreign_interceptor_forget_norestore);
+// Factory instrumentor
+EXPORT_SYMBOL(kedr_coi_factory_interceptor_watch);
+EXPORT_SYMBOL(kedr_coi_factory_interceptor_forget);
+EXPORT_SYMBOL(kedr_coi_factory_interceptor_forget_norestore);
 
-EXPORT_SYMBOL(kedr_coi_foreign_interceptor_create);
+EXPORT_SYMBOL(kedr_coi_factory_interceptor_create);
 
-EXPORT_SYMBOL(kedr_coi_bind_prototype_with_object);
+EXPORT_SYMBOL(kedr_coi_bind_object_with_factory);
 
-EXPORT_SYMBOL(kedr_coi_foreign_interceptor_destroy);
+EXPORT_SYMBOL(kedr_coi_factory_interceptor_destroy);
+
+// Creation instrumentor
+EXPORT_SYMBOL(kedr_coi_creation_interceptor_watch);
+EXPORT_SYMBOL(kedr_coi_creation_interceptor_forget);
+
+EXPORT_SYMBOL(kedr_coi_creation_interceptor_create);
+
+EXPORT_SYMBOL(kedr_coi_bind_object);
+
+EXPORT_SYMBOL(kedr_coi_creation_interceptor_destroy);

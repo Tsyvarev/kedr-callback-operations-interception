@@ -52,7 +52,7 @@ static struct kedr_coi_intermediate intermediate_operations[] =
 //******************Test infrastructure**********************************//
 int test_init(void)
 {
-    interceptor = kedr_coi_interceptor_create("Simple indirect interceptor",
+    interceptor = INDIRECT_CONSTRUCTOR("Simple indirect interceptor",
         offsetof(struct test_object, ops),
         sizeof(struct test_operations),
         intermediate_operations,

@@ -532,51 +532,76 @@ kedr_coi_interceptor_create_direct(const char* name,
 void
 kedr_coi_interceptor_destroy(
     struct kedr_coi_interceptor* interceptor);
-/**************Interceptor for foreign operations*******************/
+
 
 /*
- * This type of interceptor is intended to use for object's operations
- * which are not executed at place, but are copied into another object(s)
- * and are executed for it. Initial object is used as prototype for
- * another object in that case.
+ * Externally - same as kedr_coi_interceptor_create, but do not replace
+ * operations at place.
+ * 
+ * Instead, copy operations struct, replace operations in it and
+ * set pointer to operations inside object to copied operations struct.
+ * 
+ * Useful when original operation struct is write-protected or is widely
+ * used by the system, so replacement its content is dangerous.
+ * 
+ * Should be used only when it is really needed, because interception
+ * mechanizm is disabled not only when ponter to operations is externally
+ * set to other operations, but also when it set to original operations.
+ */
+struct kedr_coi_interceptor*
+kedr_coi_interceptor_create_use_copy(const char* name,
+    size_t operations_field_offset,
+    size_t operations_struct_size,
+    struct kedr_coi_intermediate* intermediate_operations,
+    void (*trace_unforgotten_object)(void* object));
+
+/**Interceptor for object creation using its operations in factory object**/
+
+/*
+ * This type of interceptor is intended to use for objects with
+ * operations which are not executed at place, but are copied into
+ * another object(s) and are executed for it.
+ * Initial object is used as a factory for another object in that case.
  * 
  * Unlike from normal interceptor, which is used for intercepts object's
- * callback operations, this interceptor intercepts creation of another
- * object. If such object was created from the prototype object, which
- * is watched by this interceptor, then newly created object will be
- * automatically watched by the normal interceptor.
+ * callback operations for execute any actions, this interceptor only
+ * intercepts creation of another object. If such object was created
+ * from the factory object, which is watched by this interceptor,
+ * then newly created object will be automatically watched by the normal
+ * interceptor.
  * 
  * '*_watch'() '*_forget'() and '*_forget_norestore'() functions for
- * interceptor of foreign operations has similar behavour as for
+ * factory interceptor has similar behavour as for
  * interceptor of normal operations.
  */
 
-struct kedr_coi_foreign_interceptor;
+struct kedr_coi_factory_interceptor;
 
-int kedr_coi_foreign_interceptor_watch(
-    struct kedr_coi_foreign_interceptor* interceptor,
-    void* prototype_object);
+int kedr_coi_factory_interceptor_watch(
+    struct kedr_coi_factory_interceptor* interceptor,
+    void* factory);
 
-int kedr_coi_foreign_interceptor_forget(
-    struct kedr_coi_foreign_interceptor* interceptor,
-    void* prototype_object);
+int kedr_coi_factory_interceptor_forget(
+    struct kedr_coi_factory_interceptor* interceptor,
+    void* factory);
 
-int kedr_coi_foreign_interceptor_forget_norestore(
-    struct kedr_coi_foreign_interceptor* interceptor,
-    void* prototype_object);
+int kedr_coi_factory_interceptor_forget_norestore(
+    struct kedr_coi_factory_interceptor* interceptor,
+    void* factory);
 
-void kedr_coi_foreign_interceptor_destroy(
-    struct kedr_coi_foreign_interceptor* interceptor);
+void kedr_coi_factory_interceptor_destroy(
+    struct kedr_coi_factory_interceptor* interceptor);
     
 /*******Creation of the foreign operations interceptor****************/
 
 /*
- * If given prototype object is watched by foreign interceptor,
- * watch for given object or return negative error code.
- * In other cases, 0 is returned.
+ * If given factory object is watched by factory interceptor, watch for
+ * the given object.
+ * 
+ * Return negative error code on fail. In other cases, 0 is returned.
  * 
  * This function is intended to be used ONLY in the implementation
- * of the intermediate foreign operation.
+ * of the intermediate operation for factory interceptor.
  * 
  * 'op_chained' will be set to operation which should be called at the end
  * of intermediate operation. If fail to calculate chained operation,
@@ -586,37 +611,38 @@ void kedr_coi_foreign_interceptor_destroy(
  * (not an error indicator).
  */
 
-int kedr_coi_bind_prototype_with_object(
-    struct kedr_coi_foreign_interceptor* interceptor,
-    void* prototype_object,
+int kedr_coi_bind_object_with_factory(
+    struct kedr_coi_factory_interceptor* interceptor,
     void* object,
+    void* factory,
     size_t operation_offset,
     void** op_chained);
 
 /*
  * Replacement for operation which should call
- * kedr_coi_bind_prototype_with_object() and then call original operation.
- * which is returned by that function.
+ * kedr_coi_bind_object_with_factory() and then call chained operation.
+ * which is set by that function.
  */
-struct kedr_coi_foreign_intermediate
+struct kedr_coi_factory_intermediate
 {
     size_t operation_offset;
     void* repl;
-    // Foreign intermediate is always external - it intercepts
-    // state-change.
+    /*
+     *  Intermediate for factory interceptor is always external -
+     * it intercepts state-change.
+     */
 };
 
 /*
- * Create interceptor for specific type of object with operations
- * for foreign object(not for object itself).
+ * Create interceptor for specific type of factory object.
  * 
  * 'interceptor_indirect' - interceptor which is used for the operations
  * with its natural object.
  *
  * 'name' is a name of the interceptor created and used internally(in messages).
  * 
- * 'prototype_operations_field_offset' is an offset of the pointer
- *      to the operations struct inside prototype object structure.
+ * 'factory_operations_field_offset' is an offset of the pointer
+ *      to the operations struct inside factory object structure.
  * 'intermediate_operations' contain array of all known operations
  *      in the operations struct, which are called when object
  *      is created. Last element in that array should have '-1'
@@ -626,15 +652,165 @@ struct kedr_coi_foreign_intermediate
  * Function returns interceptor descriptor.
  */
 
-struct kedr_coi_foreign_interceptor*
-kedr_coi_foreign_interceptor_create(
+struct kedr_coi_factory_interceptor*
+kedr_coi_factory_interceptor_create(
     struct kedr_coi_interceptor* interceptor_indirect,
     const char* name,
-    size_t foreign_operations_field_offset,
-    const struct kedr_coi_foreign_intermediate* intermediate_operations,
+    size_t factory_operations_field_offset,
+    const struct kedr_coi_factory_intermediate* intermediate_operations,
     void (*trace_unforgotten_object)(void* object));
 
-/**************************************/
+/*****************Interceptor object creation**************************/
 
+/*
+ * Generalization of factory interceptor.
+ * 
+ * This type of interceptor is intended to use for object's operations
+ * which will be copied into another object(s) and are executed for it.
+ * 
+ * Unlike from normal interceptor, which is used for intercepts object's
+ * callback operations for execute any actions, this interceptor
+ * intercepts moment of creation of another object. If such object was
+ * created and use given operations, then it will be automatically
+ * watched by the normal interceptor.
+ */
+
+struct kedr_coi_creation_interceptor;
+
+/*
+ *  Accept by reference pointer to operations structure.
+ * Change that pointer or operations pointer by it so, that operations
+ * retain semantic that them had before call plus:
+ *  - any newly-created object which use these operations will be
+ *    watched by the binded(normal) interceptor.
+ * 
+ * 'id' is an identificator which should be used for cancel such
+ * objects' 'autowatching'.
+ * 
+ * 'tie' is something that describe originating of operations.
+ * For newly-created object being watched, it should pass this pointer
+ * to the 'autowatching' function (TODO: more precise description is required).
+ * 
+ * Return 0 on success and negative error code on fail.
+ * 
+ * If 'id' is already used for some operations replacement, update this
+ * replacement and return 1 on success and negative error code on fail.
+ * 
+ * Comparision with factory interceptor:
+ * kedr_coi_factory_interceptor_watch(*,factory)
+ *      corresponds to
+ * kedr_coi_creation_interceptor_watch(*, factory,
+ *                          factory_ops_p, factory)
+ * 
+ * NOTE: Main difference from factory interceptor is that 'tie' may be
+ * not unique for different factories.
+ */
+int kedr_coi_creation_interceptor_watch(
+    struct kedr_coi_creation_interceptor* interceptor,
+    void* id,
+    void* tie,
+    const void** ops_p);
+
+/*
+ * Accept identificator which was previously used for call
+ * kedr_coi_creation_interceptor_watch().
+ * 
+ * Cancel objects' 'autowatching' registered for this id.
+ * Also free all resources concerned with such 'autowatching'.
+ * 
+ * If 'ops_p' is not NULL, set it to the pointer to the original
+ * operations, that was before watching.
+ * 
+ * Return 0 on success, negative error code on fail.
+ * If 'id' isn't registered, return 1.
+ * 
+ * Comparision with factory interceptor:
+ * kedr_coi_factory_interceptor_forget(*, factory)
+ *      corresponds to
+ * kedr_coi_creation_interceptor_forget(*, factory,
+ *                                  factory_ops_p)
+ * 
+ * kedr_coi_factory_interceptor_forget_norestore(*, factory)
+ *      corresponds to
+ * kedr_coi_creation_interceptor_forget(*, factory, NULL)
+ */
+
+int kedr_coi_creation_interceptor_forget(
+    struct kedr_coi_creation_interceptor* interceptor,
+    void* id,
+    const void** ops_p);
+
+void kedr_coi_creation_interceptor_destroy(
+    struct kedr_coi_creation_interceptor* interceptor);
+    
+/**********Creation of the interceptor for object's creation***********/
+
+/*
+ * If 'tie' was used for some operations replacement (TODO: more presize
+ * description is required), watch for a given 'object' with binded
+ * interceptor.
+ * 
+ * This function is intended to be used ONLY in the implementation
+ * of the intermediate for creation interceptor.
+ * 
+ * 'op_chained' will be set to operation which should be called at the end
+ * of intermediate operation. If fail to calculate chained operation,
+ * 'op_chained' will be set to ERR_PTR().
+ * 
+ * If 0 is returned then 'op_chained' is a correct operation
+ * (not an error indicator).
+ * 
+ * Comparision with foreign interceptor:
+ * kedr_coi_bind_object_with_factory(*, object, factory,
+ *                                      operation_offset, op_chained)
+ *    corresponds to
+ * kedr_coi_bind_object(*, object, factory,
+ *                  operation_offset, op_chained)
+ */
+
+int kedr_coi_bind_object(
+    struct kedr_coi_creation_interceptor* interceptor,
+    void* object,
+    void* tie,
+    size_t operation_offset,
+    void** op_chained);
+
+/*
+ * Replacement for operation which should call
+ * kedr_coi_bind_object() and then call chained operation.
+ * which is set by that function.
+ */
+struct kedr_coi_creation_intermediate
+{
+    size_t operation_offset;
+    void* repl;
+};
+
+/*
+ * Create interceptor for specific ...(TODO) type of object with operations
+ * for foreign object(not for object itself).
+ * 
+ * 'interceptor_indirect' - interceptor which is used for the operations
+ * with its natural object.
+ *
+ * 'name' is a name of the interceptor created and used internally(in messages).
+ * 
+ * 'intermediate_operations' contain array of all known operations
+ *      in the operations struct, which are called when object
+ *      is created. Last element in that array should have '-1'
+ *      in 'operation_offset' field.
+ *      Usually this array contains only one operation.
+ * 
+ * Function returns interceptor descriptor.
+ */
+
+struct kedr_coi_creation_interceptor*
+kedr_coi_creation_interceptor_create(
+    struct kedr_coi_interceptor* interceptor_indirect,
+    const char* name,
+    const struct kedr_coi_creation_intermediate* intermediate_operations,
+    void (*trace_unforgotten_ops)(void* id, void* tie));
+
+/**************************************/
 
 #endif /* OPERATIONS_INTERCEPTION_H */

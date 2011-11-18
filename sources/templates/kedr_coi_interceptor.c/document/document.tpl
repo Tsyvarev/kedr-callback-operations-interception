@@ -28,16 +28,12 @@ static struct kedr_coi_intermediate intermediate_operations[] =
 
 int <$interceptor.name$>_init(void (*trace_unforgotten_object)(<$object.type$>* object))
 {
-<$if interceptor.is_direct$>    interceptor = kedr_coi_interceptor_create_direct("<$interceptor.name$>",
-       sizeof(<$object.type$>),
-       intermediate_operations,
-       (void (*)(void*))trace_unforgotten_object);
-<$else$>    interceptor = kedr_coi_interceptor_create("<$interceptor.name$>",
+    interceptor = <$if interceptor.is_direct$>kedr_coi_interceptor_create_direct("<$interceptor.name$>",
+       sizeof(<$object.type$>)<$else$>kedr_coi_interceptor_create<$if interceptor.use_copy$>_use_copy<$endif$>("<$interceptor.name$>",
        offsetof(<$object.type$>, <$object.operations_field$>),
-       sizeof(<$operations.type$>),
+       sizeof(<$operations.type$>)<$endif$>,
        intermediate_operations,
        (void (*)(void*))trace_unforgotten_object);
-<$endif$>    
 
     if(interceptor == NULL)
         return -EINVAL;//TODO: how to report concrete error?
@@ -85,18 +81,31 @@ int <$interceptor.name$>_forget_norestore(<$object.type$> *object)
     return kedr_coi_interceptor_forget_norestore(interceptor, object);
 }<$if interceptor.is_direct$><$else$>
 
-// For create foreign interceptors
-extern struct kedr_coi_foreign_interceptor*
-<$interceptor.name$>_foreign_interceptor_create(
+// For create factory and creation interceptors
+extern struct kedr_coi_factory_interceptor*
+<$interceptor.name$>_factory_interceptor_create(
     const char* name,
-    size_t foreign_operations_field_offset,
-    const struct kedr_coi_foreign_intermediate* _intermediate_operations,
-    void (*trace_unforgotten_object)(void* object))
+    size_t factory_operations_field_offset,
+    const struct kedr_coi_factory_intermediate* _intermediate_operations,
+    void (*trace_unforgotten_factory)(void* factory))
 {
-    return kedr_coi_foreign_interceptor_create(
+    return kedr_coi_factory_interceptor_create(
         interceptor,
         name,
-        foreign_operations_field_offset,
+        factory_operations_field_offset,
         _intermediate_operations,
-        trace_unforgotten_object);
+        trace_unforgotten_factory);
+}
+
+extern struct kedr_coi_creation_interceptor*
+<$interceptor.name$>_creation_interceptor_create(
+    const char* name,
+    const struct kedr_coi_creation_intermediate* _intermediate_operations,
+    void (*trace_unforgotten_watch)(void* id, void* tie))
+{
+    return kedr_coi_creation_interceptor_create(
+        interceptor,
+        name,
+        _intermediate_operations,
+        trace_unforgotten_watch);
 }<$endif$>

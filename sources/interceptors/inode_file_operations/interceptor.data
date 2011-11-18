@@ -23,8 +23,8 @@ header =>>
 #include <linux/fs.h>
 <<
 
-prototype_object.type = struct inode
-prototype_object.operations_field = i_fop
+factory.type = struct inode
+factory.operations_field = i_fop
 
 object.type = struct file
 object.operations_field = f_op
@@ -41,7 +41,7 @@ operation.arg.name = inode
 operation.arg.type = struct file *
 operation.arg.name = filp
 
-operation.prototype_object = inode
+operation.factory = inode
 operation.object = filp
 
 operation.default = return 0;

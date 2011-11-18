@@ -104,7 +104,7 @@ int read_counter_init(void)
     if(result) goto err_file_operations;
     
     result = cdev_file_operations_interceptor_init(
-        file_operations_interceptor_foreign_interceptor_create,
+        file_operations_interceptor_factory_interceptor_create,
         NULL);
 
     if(result) goto err_cdev_file_operations;

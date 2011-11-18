@@ -21,13 +21,19 @@ extern int <$interceptor.name$>_forget(<$object.type$>* object);
 
 extern int <$interceptor.name$>_forget_norestore(<$object.type$>* object);<$if interceptor.is_direct$><$else$>
 
-// For create foreign interceptors
-extern struct kedr_coi_foreign_interceptor*
-<$interceptor.name$>_foreign_interceptor_create(
+// For create factory and creation interceptors
+extern struct kedr_coi_factory_interceptor*
+<$interceptor.name$>_factory_interceptor_create(
     const char* name,
-    size_t foreign_operations_field_offset,
-    const struct kedr_coi_foreign_intermediate* intermediate_operations,
-    void (*trace_unforgotten_object)(void* object));<$endif$>
+    size_t factory_operations_field_offset,
+    const struct kedr_coi_factory_intermediate* intermediate_operations,
+    void (*trace_unforgotten_factory)(void* factory));
+
+extern struct kedr_coi_creation_interceptor*
+<$interceptor.name$>_creation_interceptor_create(
+    const char* name,
+    const struct kedr_coi_creation_intermediate* intermediate_operations,
+    void (*trace_unforgotten_watch)(void* id, void* tie));<$endif$>
 
 
 #ifndef KEDR_COI_CALLBACK_CHECKED

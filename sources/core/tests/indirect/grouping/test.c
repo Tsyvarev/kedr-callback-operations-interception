@@ -33,34 +33,8 @@ struct test_object
 };
 
 
-/*int op1_call_counter = 0;
-KEDR_COI_TEST_DEFINE_OP_ORIG(op1_orig, op1_call_counter);
-
-int op2_call_counter = 0;
-KEDR_COI_TEST_DEFINE_OP_ORIG(op2_orig, op2_call_counter);
-
-int op3_call_counter = 0;
-KEDR_COI_TEST_DEFINE_OP_ORIG(op3_orig, op3_call_counter);
-
-int op4_call_counter = 0;
-KEDR_COI_TEST_DEFINE_OP_ORIG(op4_orig, op4_call_counter);
-
-int op5_call_counter = 0;
-KEDR_COI_TEST_DEFINE_OP_ORIG(op5_orig, op5_call_counter);
-
-int op6_call_counter = 0;
-KEDR_COI_TEST_DEFINE_OP_ORIG(op6_orig, op6_call_counter);*/
-
-
-
 struct test_operations test_operations_orig =
 {
-/*    .op1 = op1_orig,
-    .op2 = op2_orig,
-    .op3 = op3_orig,
-    .op4 = op4_orig,
-    .op5 = op5_orig,
-    .op6 = op6_orig*/
 };
 
 struct kedr_coi_interceptor* interceptor;
@@ -148,7 +122,7 @@ static struct kedr_coi_payload payload2 =
 //******************Test infrastructure**********************************//
 int test_init(void)
 {
-    interceptor = kedr_coi_interceptor_create("Indirect interceptor with several payloads",
+    interceptor = INDIRECT_CONSTRUCTOR("Indirect interceptor with several payloads",
         offsetof(struct test_object, ops),
         sizeof(struct test_operations),
         intermediate_operations,

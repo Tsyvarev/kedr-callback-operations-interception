@@ -479,7 +479,7 @@ int fs_interception_init(void)
     if(result) goto err_inode_operations;
     
     result = inode_file_operations_interceptor_init(
-        file_operations_interceptor_foreign_interceptor_create,
+        file_operations_interceptor_factory_interceptor_create,
         &trace_unforgotten_inode_for_file);
     if(result) goto err_inode_file_operations;
 

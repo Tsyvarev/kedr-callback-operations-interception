@@ -85,4 +85,22 @@ struct kedr_coi_hash_elem*
 kedr_coi_hash_table_find_elem(struct kedr_coi_hash_table* table,
     const void* key);
 
+/*
+ * Move content of the element into another place.
+ * 
+ * Before: 'elem' should be the element of the table 'table'.
+ * After: 'elem_new' become element of the table with same key, as
+ *  'elem' was, 'elem' is no longer element of the table.
+ */
+static inline void
+kedr_coi_hash_table_transmit_elem(struct kedr_coi_hash_table* table,
+    struct kedr_coi_hash_elem* elem,
+    struct kedr_coi_hash_elem* elem_new)
+{
+    elem_new->key = elem->key;
+    INIT_HLIST_NODE(&elem_new->node);
+    
+    hlist_add_before(&elem_new->node, &elem->node);
+    hlist_del(&elem->node);
+}
 #endif /* KEDR_COI_HASH_TABLE_H */

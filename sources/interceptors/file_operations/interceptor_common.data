@@ -220,6 +220,7 @@ operation.arg.name = vma
 
 operation.object = filp
 
+# Checked in do_mmap_pgoff, then called in mmap_region
 operation.default = return -ENODEV;
 
 [group]

@@ -1,10 +1,10 @@
 module_name=@module_name@
 
 interceptors_normal = 
-interceptors_foreign =
+interceptors_factory =
 interceptors_standard = file_operations inode_file_operations file_system_type super_operations inode_operations dentry_operations
 
 ccflags-y :=  -I@KEDR_COI_INCLUDE_DIR@ -I@KEDR_INSTALL_DIR@/include
 obj-m := ${module_name}.o
 ${module_name}-y := file_access_counter.o functions_support.o fs_interception.o
-${module_name}-y += $(addsuffix _interceptor.o, $(interceptors_normal) $(interceptors_foreign) $(interceptors_standard))
+${module_name}-y += $(addsuffix _interceptor.o, $(interceptors_normal) $(interceptors_factory) $(interceptors_standard))

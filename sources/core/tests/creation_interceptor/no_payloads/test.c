@@ -1,0 +1,190 @@
+/*
+ * Test functionality of creation interceptor with no payloads.
+ */
+
+#include <kedr-coi/operations_interception.h>
+
+#define OPERATION_OFFSET(op_name) offsetof(struct test_operations, op_name)
+#include "test_harness.h"
+#include "test_harness_creation.h"
+
+/* Operations for test */
+struct test_operations
+{
+    void* some_field;
+    kedr_coi_test_op_t op1;
+    void* other_fields[5];
+    kedr_coi_test_op_t op2;
+};
+
+
+struct test_object
+{
+    int some_field;
+    const struct test_operations* ops;
+};
+
+int op1_call_counter = 0;
+KEDR_COI_TEST_DEFINE_OP_ORIG(op1_orig, op1_call_counter);
+
+int op2_call_counter = 0;
+KEDR_COI_TEST_DEFINE_OP_ORIG(op2_orig, op2_call_counter);
+
+struct test_operations test_operations_orig =
+{
+    .op1 = op1_orig,
+    .op2 = op2_orig
+};
+
+struct kedr_coi_interceptor* interceptor;
+
+KEDR_COI_TEST_DEFINE_INTERMEDIATE_FUNC(op1_repl, OPERATION_OFFSET(op1), interceptor);
+KEDR_COI_TEST_DEFINE_INTERMEDIATE_FUNC(op2_repl, OPERATION_OFFSET(op2), interceptor);
+
+static struct kedr_coi_intermediate intermediate_operations[] =
+{
+    INTERMEDIATE(op1, op1_repl),
+    INTERMEDIATE(op2, op2_repl),
+    INTERMEDIATE_FINAL
+};
+
+
+// Prototype object and creation interceptor
+static void* get_tie(void* data)
+{
+    return data;
+}
+
+struct kedr_coi_creation_interceptor* creation_interceptor;
+
+KEDR_COI_TEST_DEFINE_CREATION_INTERMEDIATE_FUNC(op1_creation_repl,
+    get_tie, OPERATION_OFFSET(op1), creation_interceptor);
+
+static struct kedr_coi_creation_intermediate creation_intermediate_operations[] =
+{
+    INTERMEDIATE(op1, op1_creation_repl),
+    INTERMEDIATE_FINAL
+};
+
+
+//******************Test infrastructure**********************************//
+int test_init(void)
+{
+    interceptor = INDIRECT_CONSTRUCTOR("Simple indirect interceptor",
+        offsetof(struct test_object, ops),
+        sizeof(struct test_operations),
+        intermediate_operations,
+        NULL);
+    
+    if(interceptor == NULL)
+    {
+        pr_err("Failed to create interceptor for test.");
+        return -EINVAL;
+    }
+    
+    creation_interceptor = kedr_coi_creation_interceptor_create(
+        interceptor,
+        "Simple creation interceptor",
+        creation_intermediate_operations,
+        NULL);
+    
+    if(creation_interceptor == NULL)
+    {
+        pr_err("Failed to create creation interceptor for test.");
+        kedr_coi_interceptor_destroy(interceptor);
+        return -EINVAL;
+    }
+
+
+    return 0;
+}
+void test_cleanup(void)
+{
+    kedr_coi_creation_interceptor_destroy(creation_interceptor);
+    kedr_coi_interceptor_destroy(interceptor);
+}
+
+// Test itself
+int test_run(void)
+{
+    int result;
+    const struct test_operations* object_operations =
+        &test_operations_orig;
+    void* id = (void*)0x123;
+    void* tie = (void*)0x654;
+
+    struct test_object object;
+    
+    result = kedr_coi_interceptor_start(interceptor);
+    if(result)
+    {
+        pr_err("Interceptor failed to start.");
+        goto err_start;
+    }
+    
+    result = kedr_coi_creation_interceptor_watch(creation_interceptor,
+        id, tie, (const void**)&object_operations);
+    if(result < 0)
+    {
+        pr_err("Creation interceptor failed to watch for an object.");
+        goto err_creation_watch;
+    }
+
+    // As if normal object was created with watched operations and its 
+    // operation 1 was called.
+    object.ops = object_operations;
+
+    op1_call_counter = 0;
+    
+    object.ops->op1(&object, tie);
+    
+    if(op1_call_counter == 0)
+    {
+        pr_err("Original operation 1 wasn't called.");
+        result = -EINVAL;
+        goto err_test;
+    }
+
+    // Check another operation
+    op2_call_counter = 0;
+    
+    object.ops->op2(&object, NULL);
+    
+    if(op2_call_counter == 0)
+    {
+        pr_err("Original operation 2 wasn't called.");
+        result = -EINVAL;
+        goto err_test;
+    }
+
+    result = kedr_coi_interceptor_forget(interceptor, &object);
+    if(result < 0)
+    {
+        pr_err("Error occured when forget normal object.");
+        goto err_forget;
+    }
+    // It is allowable for creation interceptors do not automatically watch
+    // for an object, if normal interceptor binded with it has no handlers
+    //if(result == 1)
+    //{
+        //pr_err("Normal object should be automatically watched, but 'forget' return 1.");
+        //result = -EINVAL;
+        //goto err_forget;
+    //}
+
+    kedr_coi_creation_interceptor_forget(creation_interceptor, id,
+        (const void**)&object_operations);
+    kedr_coi_interceptor_stop(interceptor);
+
+    return 0;
+
+err_test:
+    kedr_coi_interceptor_forget(interceptor, &object);
+err_forget:
+    kedr_coi_creation_interceptor_forget(creation_interceptor, id,
+        (const void**)&object_operations);
+err_creation_watch:
+    kedr_coi_interceptor_stop(interceptor);
+err_start:
+    return result;
+}

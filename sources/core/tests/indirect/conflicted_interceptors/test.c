@@ -74,7 +74,7 @@ static struct kedr_coi_payload payload_another =
 //******************Test infrastructure**********************************//
 int test_init(void)
 {
-    interceptor = kedr_coi_interceptor_create("Simple indirect interceptor",
+    interceptor = INDIRECT_CONSTRUCTOR("Simple indirect interceptor",
         offsetof(struct test_object, ops),
         sizeof(struct test_operations),
         intermediate_operations,
@@ -86,7 +86,7 @@ int test_init(void)
         return -EINVAL;
     }
     
-    interceptor_another = kedr_coi_interceptor_create("Another indirect interceptor",
+    interceptor_another = INDIRECT_CONSTRUCTOR("Another indirect interceptor",
         offsetof(struct test_object, ops),
         sizeof(struct test_operations),
         intermediate_operations_another,
