@@ -5,13 +5,22 @@ operation.returnType = int
 operation.arg.type = struct file *
 operation.arg.name = filp
 
+operation.arg.type = loff_t
+operation.arg.name = start
+
+operation.arg.type = loff_t
+operation.arg.name = end
+
 operation.arg.type = int
 operation.arg.name = datasync
 
 operation.object = filp
 
+# noop_fsync() return 0. What is a default implementation really?
 operation.default = return -EINVAL;
 header =>>
 /* 'fsync' method of 'file_operations' doesn't accept dentry parameter */
 #define FILE_OPERATIONS_FSYNC_ACCEPT_DENTRY 0
+/* 'fsync' method of 'file_operations' accept range parameters */
+#define FILE_OPERATIONS_FSYNC_ACCEPT_RANGE 1
 <<

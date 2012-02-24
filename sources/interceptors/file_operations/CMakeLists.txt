@@ -39,9 +39,20 @@ kmodule_is_operation_exist(is_fsync_accept_dentry
 )
 
 if(is_fsync_accept_dentry)
-    list(APPEND pieces_full "${CMAKE_CURRENT_SOURCE_DIR}/fsync.data")
+    list(APPEND pieces_full "${CMAKE_CURRENT_SOURCE_DIR}/fsync_with_dentry.data")
 else(is_fsync_accept_dentry)
-    list(APPEND pieces_full "${CMAKE_CURRENT_SOURCE_DIR}/fsync_without_dentry.data")
+    kmodule_is_operation_exist(is_fsync_accept_range
+        "${CMAKE_CURRENT_BINARY_DIR}/try_fsync_with_range"
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        "struct file_operations"
+        "fsync"
+        "int (*) (struct file *, loff_t, loff_t, int datasync)"
+    )
+    if(is_fsync_accept_range)
+        list(APPEND pieces_full "${CMAKE_CURRENT_SOURCE_DIR}/fsync_with_range.data")
+    else(is_fsync_accept_range)
+        list(APPEND pieces_full "${CMAKE_CURRENT_SOURCE_DIR}/fsync.data")
+    endif(is_fsync_accept_range)
 endif(is_fsync_accept_dentry)
 
 
