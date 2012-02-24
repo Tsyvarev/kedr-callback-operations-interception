@@ -91,14 +91,14 @@ Here is a list of options which may passed to <command>cmake</command> utility f
     <varlistentry><term>CMAKE_INSTALL_PREFIX</term>
         <listitem>Directory where KEDR COI should be installed. Default is <filename class='directory'>/usr/local/</filename>.</listitem>
     </varlistentry>
-    <varlistentry><term>KEDR_INSTALL_PREFIX</term>
+    <varlistentry><term>KEDR_INSTALL_DIR</term>
         <listitem>Directory where KEDR(not KEDR COI!) package is(or will be) installed.
         <para>
-        Some examples for using KEDR COI library also use KEDR framework. If <emphasis>KEDR_INSTALL_PREFIX</emphasis> variable is set, those examples will be installed being configured for using KEDR installation pointed by this variable.
+        Some examples for using KEDR COI library also use KEDR framework. If <emphasis>KEDR_INSTALL_DIR</emphasis> variable is set, those examples will be installed being configured for using KEDR installation pointed by this variable.
         </para></listitem>
     </varlistentry>
     <varlistentry><term>KEDR_GEN_INSTALLED</term>
-        <listitem>Directory where 'kedr_gen' tool is(or will be) installed.
+        <listitem>Path to the installed 'kedr_gen' tool or where it will be installed later.
         <para>
         While some <link linkend="interceptor">interceptors</link> are already provided with KEDR COI library, one may need interceptors for callback operations for other object types. For make life easier, KEDR COI provide templates for generate interceptor's code from definition files.
         </para>
@@ -110,7 +110,7 @@ Here is a list of options which may passed to <command>cmake</command> utility f
         </para></listitem>
     </varlistentry>
     <varlistentry><term>KEDR_GEN</term>
-        <listitem>Directory where 'kedr_gen' tool is installed for use it for build KEDR COI package.
+        <listitem>Path to the installed 'kedr_gen' tool.
         <para>
         This variable is similar to <emphasis>KEDR_GEN_INSTALLED</emphasis> one, but, if set, it will be used only during building KEDR COI package. It may save some time in that process, because template generation tool needn't to be builded.
         </para>

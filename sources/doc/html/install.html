@@ -40,17 +40,17 @@ Currently, <span class="command"><strong>make uninstall</strong></span> does not
 KEDR COI package also contains a set of tests for KEDR COI library and other components. You may want to run these tests after KEDR COI is built but before it is installed to see if the tools provided by the package correctly operate on your system. To do so, just execute <span class="command"><strong>make check</strong></span> (as root user).
 </p><div class="section"><div class="titlepage"><div><div><h3 class="title"><a name="install.configuration_options"></a>3.1. Configuration options</h3></div></div></div><p>
 Here is a list of options which may passed to <span class="command"><strong>cmake</strong></span> utility for configure KEDR COI package.
-</p><div class="variablelist"><dl><dt><span class="term">CMAKE_INSTALL_PREFIX</span></dt><dd>Directory where KEDR COI should be installed. Default is <code class="filename">/usr/local/</code>.</dd><dt><span class="term">KEDR_INSTALL_PREFIX</span></dt><dd>Directory where KEDR(not KEDR COI!) package is(or will be) installed.
+</p><div class="variablelist"><dl><dt><span class="term">CMAKE_INSTALL_PREFIX</span></dt><dd>Directory where KEDR COI should be installed. Default is <code class="filename">/usr/local/</code>.</dd><dt><span class="term">KEDR_INSTALL_DIR</span></dt><dd>Directory where KEDR(not KEDR COI!) package is(or will be) installed.
         <p>
-        Some examples for using KEDR COI library also use KEDR framework. If <span class="emphasis"><em>KEDR_INSTALL_PREFIX</em></span> variable is set, those examples will be installed being configured for using KEDR installation pointed by this variable.
-        </p></dd><dt><span class="term">KEDR_GEN_INSTALLED</span></dt><dd>Directory where 'kedr_gen' tool is(or will be) installed.
+        Some examples for using KEDR COI library also use KEDR framework. If <span class="emphasis"><em>KEDR_INSTALL_DIR</em></span> variable is set, those examples will be installed being configured for using KEDR installation pointed by this variable.
+        </p></dd><dt><span class="term">KEDR_GEN_INSTALLED</span></dt><dd>Path to the installed 'kedr_gen' tool or where it will be installed later.
         <p>
         While some <a class="link" href="glossary.html#interceptor">interceptors</a> are already provided with KEDR COI library, one may need interceptors for callback operations for other object types. For make life easier, KEDR COI provide templates for generate interceptor's code from definition files.
         </p><p>
         By default, generation tool is installed with KEDR COI library. But if you already have this tools, you may set <span class="emphasis"><em>KEDR_GEN_INSTALLED</em></span> variable pointed to it, so another instance of 'kedr_gen' will not be installed by KEDR COI package. Also, examples for KEDR COI library using will be configured to use this installation.
         </p><p>
         For more information about 'kedr_gen' generation tool and its using for KEDR COI, see <a class="xref" href="create_interceptors_using_kedr_gen.html">Section 6, “Create interceptors using template-based file generation”</a>.
-        </p></dd><dt><span class="term">KEDR_GEN</span></dt><dd>Directory where 'kedr_gen' tool is installed for use it for build KEDR COI package.
+        </p></dd><dt><span class="term">KEDR_GEN</span></dt><dd>Path to the installed 'kedr_gen' tool.
         <p>
         This variable is similar to <span class="emphasis"><em>KEDR_GEN_INSTALLED</em></span> one, but, if set, it will be used only during building KEDR COI package. It may save some time in that process, because template generation tool needn't to be builded.
         </p><p>
