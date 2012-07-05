@@ -2,8 +2,8 @@
         .operation_offset = OPERATION_OFFSET(<$operation.name$>),\
         .repl = OPERATION_CHECKED_TYPE(&intermediate_repl_<$operation.name$>, <$operation.name$>),\
 <$if operation.group_id$>        .group_id = <$operation.group_id$>,\
-<$endif$><$if operation.default$><$else$>        .internal_only = true,\
-<$endif$>}
+<$endif$><$if operation.default$><$else$><$if operation.no_default$><$else$>        .internal_only = true,\
+<$endif$><$endif$>}
 
 <$if operation.default$>static <$if operation.returnType$><$operation.returnType$><$else$>void<$endif$> intermediate_operation_default_<$operation.name$>(<$argumentSpec$>)
 {
@@ -39,7 +39,8 @@
             (*pre_function)(<$argumentList_comma$>&call_info);
     }
     
-    <$if operation.returnType$>returnValue = <$endif$><$if operation.default$>orig ? orig(<$argumentList$>)
+    <$if operation.no_default$>BUG_ON(orig == NULL);
+    <$endif$><$if operation.returnType$>returnValue = <$endif$><$if operation.default$>orig ? orig(<$argumentList$>)
         : intermediate_operation_default_<$operation.name$>(<$argumentList$>)<$else$>orig(<$argumentList$>)<$endif$>;
 
     if(intermediate_info.post != NULL)

@@ -18,3 +18,8 @@ operation.object = filp
 
 # Called from do_fallocate
 operation.default = return -EOPNOTSUPP;
+
+header=>>
+/* 'file_operations' has fallocate method */
+#define FILE_OPERATIONS_HAS_FALLOCATE
+<<

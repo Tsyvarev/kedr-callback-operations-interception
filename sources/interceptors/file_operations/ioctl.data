@@ -17,3 +17,8 @@ operation.arg.name = arg
 operation.object = filp
 
 operation.default = return -ENOTTY;
+
+header=>>
+/* 'file_operations' has ioctl method */
+#define FILE_OPERATIONS_HAS_IOCTL
+<<

@@ -19,6 +19,8 @@ operation.arg.name = mnt
 
 operation.object = type
 
+operation.no_default = yes
+
 header =>>
 /* 'file_system_type' structure has 'get_sb' member*/
 #define FILE_SYSTEM_TYPE_HAS_GET_SB

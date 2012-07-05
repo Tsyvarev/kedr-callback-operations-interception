@@ -578,9 +578,10 @@ static int interceptor_check_payload(
             if(pre_handler->external && operation->internal_only)
             {
                 pr_err("Cannot register payload %p for interceptor '%s' because it requires "
-                    "to externally intercept operation at offset %zu,"
+                    "to externally intercept operation at offset %zu, "
                     "but only internal interception is supported for it.",
                         payload, interceptor->name, pre_handler->operation_offset);
+                return -EINVAL;
             }
         }
     }
@@ -605,9 +606,10 @@ static int interceptor_check_payload(
             if(post_handler->external && operation->internal_only)
             {
                 pr_err("Cannot register payload %p because it requires "
-                    "to externally intercept operation at offset %zu,"
+                    "to externally intercept operation at offset %zu, "
                     "but only internal interception is supported for it.",
                         payload, post_handler->operation_offset);
+                return -EINVAL;
             }
         }
     }
@@ -782,7 +784,8 @@ struct kedr_coi_foreign_core
     // Element of the list of foreign interceptor binded with normal one.
     struct list_head list;
     
-    void (*trace_unforgotten_watch)(struct kedr_coi_foreign_core* foreign_core, void* id, void* tie);
+    void (*trace_unforgotten_watch)(
+        struct kedr_coi_foreign_core* foreign_core, void* id, void* tie);
     /*
      *  Replacements taken immediately from intermediate operations.
      * Used when interceptor is starting.
@@ -813,7 +816,8 @@ static void kedr_coi_foreign_core_trace_unforgotten_watch(void* id,
 static void kedr_coi_foreign_core_init(
     struct kedr_coi_foreign_core* foreign_core,
     struct kedr_coi_replacement* replacements,
-    void (*trace_unforgotten_watch)(struct kedr_coi_foreign_core* foreign_core, void* id, void* tie))
+    void (*trace_unforgotten_watch)(
+        struct kedr_coi_foreign_core* foreign_core, void* id, void* tie))
 {
     foreign_core->replacements = replacements;
     

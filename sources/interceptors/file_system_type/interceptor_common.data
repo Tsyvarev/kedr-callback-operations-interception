@@ -35,3 +35,5 @@ operation.arg.type = struct super_block *
 operation.arg.name = s
 
 operation.object = s->s_type
+
+operation.no_default = yes
