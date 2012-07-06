@@ -7,7 +7,7 @@ operation.arg.name = inode
 operation.arg.type = int
 operation.arg.name = flags
 
-operation.object = inode
+operation.object = inode->i_sb
 operation.default = return;
 
 header=>>

@@ -4,7 +4,7 @@ operation.name = dirty_inode
 operation.arg.type = struct inode *
 operation.arg.name = inode
 
-operation.object = inode
+operation.object = inode->i_sb
 operation.default = return;
 
 header =>>

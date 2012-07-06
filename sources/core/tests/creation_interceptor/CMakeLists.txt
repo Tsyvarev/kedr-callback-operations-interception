@@ -34,3 +34,5 @@ add_subdirectory(internal_replacement)
 add_subdirectory(self_creation)
 
 add_subdirectory(same_tie)
+
+add_subdirectory(null_ops)

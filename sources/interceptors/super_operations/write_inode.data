@@ -8,7 +8,7 @@ operation.arg.name = inode
 operation.arg.type = int
 operation.arg.name = sync
 
-operation.object = inode
+operation.object = inode->i_sb
 
 # Called from write_inode
 operation.default = return 0;

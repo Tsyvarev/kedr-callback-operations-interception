@@ -50,8 +50,22 @@
 static inline void*
 operation_at_offset(const void* ops, size_t operation_offset)
 {
+    if(ops == NULL) return NULL;
     return *((void**)((const char*)ops + operation_offset));
 }
+
+/*
+ * Get operation at given offset in the operations structure.
+ * Operations pointer cannot be NULL.
+ * 
+ */
+static inline void*
+operation_at_offset_not_null(const void* ops, size_t operation_offset)
+{
+    BUG_ON(ops != NULL);
+    return *((void**)((const char*)ops + operation_offset));
+}
+
 
 /*
  * Get reference to operation at given offset in the operations
@@ -626,8 +640,7 @@ instrumentor_direct_impl_get_orig_operation(
     struct instrumentor_direct_watch_data* watch_data,
     size_t operation_offset)
 {
-    return operation_at_offset(watch_data->ops_orig,
-        operation_offset);
+    return operation_at_offset(watch_data->ops_orig, operation_offset);
 }
 
 //************ Interface of direct instrumentor ***********************
@@ -997,8 +1010,20 @@ instrumentor_indirect_impl_add_ops_data(
         goto hash_elem_ops_repl_err;
     }
 
-    memcpy(ops_data->ops_repl, ops_orig,
-        instrumentor_impl->operations_struct_size);
+    if(ops_orig)
+    {
+        memcpy(ops_data->ops_repl, ops_orig,
+            instrumentor_impl->operations_struct_size);
+    }
+    else
+    {
+        /* 
+         * NULL pointer to operations is equvalent to zeroes for all
+         * operations.
+         */
+        memset(ops_data->ops_repl, 0,
+            instrumentor_impl->operations_struct_size);
+    }
     replace_operations(ops_data->ops_repl,
         instrumentor_impl->replacements);
     
@@ -1708,8 +1733,16 @@ instrumentor_indirect_wf_impl_add_ops_data(
 
     INIT_LIST_HEAD(&ops_data->foreign_ops_data_list);
 
-    memcpy(ops_data->ops_repl, ops_orig,
-        instrumentor_impl->operations_struct_size);
+    if(ops_orig)
+    {
+        memcpy(ops_data->ops_repl, ops_orig,
+            instrumentor_impl->operations_struct_size);
+    }
+    else
+    {
+        memset(ops_data->ops_repl, 0,
+            instrumentor_impl->operations_struct_size);
+    }
     replace_operations(ops_data->ops_repl,
         instrumentor_impl->replacements);
     
@@ -1853,7 +1886,7 @@ instrumentor_indirect_f_impl_add_ops_data(
     
     list_add_tail(&foreign_ops_data->list,
         &foreign_ops_data->binded_ops_data->foreign_ops_data_list);
-    
+    /* 'ops_repl' cannot be NULL, so do not check them. */
     memcpy(foreign_ops_data->ops_repl,
         foreign_ops_data->binded_ops_data->ops_repl,
         binded_instrumentor_impl->operations_struct_size);
@@ -3172,8 +3205,11 @@ hash_table_ops_orig_err:
 /************Advanced instrumentor for indirect operation**************/
 /**********************************************************************/
 /*
- *  Implementation of indirect instrumentor with replacing operations
- *  inside structure instead of replacing whole operations structure.
+ * Implementation of indirect instrumentor with replacing operations
+ * inside structure instead of replacing whole operations structure.
+ * 
+ * NULL pointer to operations is processed specially: it is replaced
+ * with interceptor-global pointer to zeroed operations, and then replaced.
  */
 
 /*
@@ -3256,7 +3292,21 @@ struct instrumentor_indirect1_impl
     size_t operations_struct_size;
     
     const struct kedr_coi_replacement* replacements;
+    /* 
+     * Operations which are used when original pointer is NULL.
+     * 
+     * NOTE: Field is used only in interface functions. All other
+     * functions should never see NULL pointer to operations.
+     */
+    void* null_ops;
 };
+
+static void* instrumentor_indirect1_impl_get_null_ops(
+    struct instrumentor_indirect1_impl* instrumentor_impl)
+{
+    /* TODO: lazy initialization. */
+    return instrumentor_impl->null_ops;
+}
 
 /*
  * Initialize instance of implementation of
@@ -3272,6 +3322,15 @@ static int instrumentor_indirect1_impl_init(
     {
         pr_err("Failed to initialize hash table for operations");
         return result;
+    }
+    
+    instrumentor_impl->null_ops = kzalloc(
+        operations_struct_size, GFP_KERNEL);
+    if(instrumentor_impl->null_ops == NULL)
+    {
+        pr_err("Failed to allocate null-operations structure.");
+        kedr_coi_hash_table_destroy(&instrumentor_impl->hash_table_ops, NULL);
+        return -ENOMEM;
     }
     
     instrumentor_impl->operations_struct_size = operations_struct_size;
@@ -3290,6 +3349,7 @@ static int instrumentor_indirect1_impl_init(
 static void instrumentor_indirect1_impl_finalize(
     struct instrumentor_indirect1_impl* instrumentor_impl)
 {
+    kfree(instrumentor_impl->null_ops);
     kedr_coi_hash_table_destroy(&instrumentor_impl->hash_table_ops, NULL);
 }
 
@@ -3373,8 +3433,20 @@ instrumentor_indirect1_impl_add_ops_data(
     
     ops_data->ops = ops;
     
-    memcpy(ops_data->ops_orig, ops,
-        instrumentor_impl->operations_struct_size);
+    if(ops)
+    {
+        memcpy(ops_data->ops_orig, ops,
+            instrumentor_impl->operations_struct_size);
+    }
+    else
+    {
+        /* 
+         * NULL pointer to operations structure is equvalent to 
+         * zeroes in all operations.
+         */
+        memset(ops_data->ops_orig, 0,
+            instrumentor_impl->operations_struct_size);
+    }
     
     replace_operations(ops, instrumentor_impl->replacements);
     
@@ -3623,10 +3695,31 @@ static int instrumentor_indirect1_impl_iface_replace_operations(
     struct instrumentor_indirect1_watch_data* watch_data_new_real =
         container_of(watch_data_new, typeof(*watch_data_new_real), base);
     
-    return instrumentor_indirect1_impl_replace_operations(
-        instrumentor_impl,
-        watch_data_new_real,
-        ops_p);
+    if(*ops_p == NULL)
+    {
+        /* NULL pointer to operations requires special processing */
+        int result;
+        /* Replace pointer to operations to predefined one */
+        *ops_p = instrumentor_indirect1_impl_get_null_ops(instrumentor_impl);
+        result = instrumentor_indirect1_impl_replace_operations(
+            instrumentor_impl,
+            watch_data_new_real,
+            ops_p);
+        if(result)
+        {
+            /* Rollback in case of error */
+            *ops_p = NULL;
+            return result;
+        }
+        return 0;
+    }
+    else
+    {
+        return instrumentor_indirect1_impl_replace_operations(
+            instrumentor_impl,
+            watch_data_new_real,
+            ops_p);
+    }
 }
 
 static int instrumentor_indirect1_impl_iface_update_operations(
@@ -3640,10 +3733,31 @@ static int instrumentor_indirect1_impl_iface_update_operations(
     struct instrumentor_indirect1_watch_data* watch_data_real =
         container_of(watch_data, typeof(*watch_data_real), base);
     
-    return instrumentor_indirect1_impl_update_operations(
-        instrumentor_impl,
-        watch_data_real,
-        ops_p);
+    if(*ops_p == NULL)
+    {
+        /* NULL pointer to operations requires special processing */
+        int result;
+        *ops_p = instrumentor_indirect1_impl_get_null_ops(instrumentor_impl);
+        result = instrumentor_indirect1_impl_update_operations(
+            instrumentor_impl,
+            watch_data_real,
+            ops_p);
+        
+        if(result)
+        {
+            /* Rollback in case of error */
+            *ops_p = NULL;
+            return result;
+        }
+        return 0;
+    }
+    else
+    {
+        return instrumentor_indirect1_impl_update_operations(
+            instrumentor_impl,
+            watch_data_real,
+            ops_p);
+    }
 }
 
 static void instrumentor_indirect1_impl_iface_clean_replacement(
@@ -3661,6 +3775,9 @@ static void instrumentor_indirect1_impl_iface_clean_replacement(
         instrumentor_impl,
         watch_data_real,
         ops_p);
+    
+    if(ops_p && (*ops_p == instrumentor_indirect1_impl_get_null_ops(instrumentor_impl)))
+        *ops_p = NULL;
 }
 
 
@@ -3899,7 +4016,20 @@ struct instrumentor_indirect1_wf_impl
     size_t operations_struct_size;
     
     const struct kedr_coi_replacement* replacements;
+    /* 
+     * Operations which are used when original pointer is NULL.
+     * 
+     * NOTE: Field is used only in interface functions. All other
+     * functions should never see NULL pointer to operations.
+     */
+    void* null_ops;
 };
+
+static void* instrumentor_indirect1_wf_impl_get_null_ops(
+    struct instrumentor_indirect1_wf_impl* instrumentor_impl)
+{
+    return instrumentor_impl->null_ops;
+}
 
 // Initialize instance of the instrumentor.
 static int instrumentor_indirect1_wf_impl_init(
@@ -3919,14 +4049,25 @@ static int instrumentor_indirect1_wf_impl_init(
         &instrumentor_impl->hash_table_ops_p_foreign);
     if(result) goto hash_table_ops_p_foreign_err;
 
-
+    instrumentor_impl->null_ops = kzalloc(operations_struct_size,
+        GFP_KERNEL);
+    if(instrumentor_impl->null_ops == NULL)
+    {
+        pr_err("Failed to allocate zeroed operations for replace null-pointer.");
+        result = -ENOMEM;
+        goto null_ops_err;
+    }
+    
     instrumentor_impl->operations_struct_size = operations_struct_size;
+
     instrumentor_impl->replacements = replacements;
     
     spin_lock_init(&instrumentor_impl->ops_lock);
     
     return 0;
 
+null_ops_err:
+    kedr_coi_hash_table_destroy(&instrumentor_impl->hash_table_ops, NULL);
 hash_table_ops_p_foreign_err:
     kedr_coi_hash_table_destroy(
         &instrumentor_impl->hash_table_ops_p_foreign, NULL);
@@ -3942,6 +4083,7 @@ hash_table_ops_err:
 static void instrumentor_indirect1_wf_impl_finalize(
     struct instrumentor_indirect1_wf_impl* instrumentor_impl)
 {
+    kfree(instrumentor_impl->null_ops);
     kedr_coi_hash_table_destroy(&instrumentor_impl->hash_table_ops, NULL);
     kedr_coi_hash_table_destroy(&instrumentor_impl->hash_table_ops_p, NULL);
     kedr_coi_hash_table_destroy(&instrumentor_impl->hash_table_ops_p_foreign, NULL);
@@ -5114,10 +5256,33 @@ instrumentor_indirect1_f_impl_iface_replace_operations(
     struct instrumentor_indirect1_f_watch_data* watch_data_new_real =
         container_of(watch_data_new, typeof(*watch_data_new_real), base);
     
-    return instrumentor_indirect1_f_impl_replace_operations(
-        instrumentor_impl,
-        watch_data_new_real,
-        ops_p);
+    if(*ops_p == NULL)
+    {
+        /* Special replacement of NULL-pointer as operations. */
+        int result;
+        *ops_p = instrumentor_indirect1_wf_impl_get_null_ops(
+            instrumentor_impl->binded_instrumentor_impl);
+        result = instrumentor_indirect1_f_impl_replace_operations(
+            instrumentor_impl,
+            watch_data_new_real,
+            ops_p);
+        
+        if(result)
+        {
+            /* Rollback */
+            *ops_p = NULL;
+            return result;
+        }
+        
+        return 0;
+    }
+    else
+    {
+        return instrumentor_indirect1_f_impl_replace_operations(
+            instrumentor_impl,
+            watch_data_new_real,
+            ops_p);
+    }
 }
 
 static int
@@ -5132,6 +5297,27 @@ instrumentor_indirect1_f_impl_iface_update_operations(
     struct instrumentor_indirect1_f_watch_data* watch_data_real =
         container_of(watch_data, typeof(*watch_data_real), base);
     
+    if(*ops_p == NULL)
+    {
+        /* Special replacement of NULL-pointer as operations. */
+        int result;
+        *ops_p = instrumentor_indirect1_wf_impl_get_null_ops(
+            instrumentor_impl->binded_instrumentor_impl);
+        
+        result = instrumentor_indirect1_f_impl_update_operations(
+            instrumentor_impl,
+            watch_data_real,
+            ops_p);
+        
+        if(result)
+        {
+            /* Rollback */
+            *ops_p = NULL;
+            return result;
+        }
+        
+        return 0;
+    }
     return instrumentor_indirect1_f_impl_update_operations(
         instrumentor_impl,
         watch_data_real,
@@ -5150,10 +5336,22 @@ instrumentor_indirect1_f_impl_iface_clean_replacement(
     struct instrumentor_indirect1_f_watch_data* watch_data_real =
         container_of(watch_data, typeof(*watch_data_real), base);
     
+    if(ops_p && (*ops_p == NULL))
+    {
+        *ops_p = instrumentor_indirect1_wf_impl_get_null_ops(
+            instrumentor_impl->binded_instrumentor_impl);
+    }
+
     instrumentor_indirect1_f_impl_clean_replacement(
         instrumentor_impl,
         watch_data_real,
         ops_p);
+
+    if(ops_p && (*ops_p == instrumentor_indirect1_wf_impl_get_null_ops(
+        instrumentor_impl->binded_instrumentor_impl)))
+    {
+        *ops_p = NULL;
+    }
 }
 
 static void instrumentor_indirect1_f_impl_iface_destroy_impl(
@@ -5175,19 +5373,31 @@ instrumentor_indirect1_f_impl_iface_restore_foreign_operations(
     size_t operation_offset,
     void** op_orig)
 {
+    int result;
     struct instrumentor_indirect1_f_impl* instrumentor_impl =
         container_of(iface_f_impl, typeof(*instrumentor_impl), base);
     
     struct instrumentor_indirect1_f_watch_data* foreign_data_real =
         container_of(foreign_data, typeof(*foreign_data_real), base);
 
+    if(*ops_p == NULL)
+        *ops_p = instrumentor_indirect1_wf_impl_get_null_ops(
+            instrumentor_impl->binded_instrumentor_impl);
 
-    return instrumentor_indirect1_restore_foreign_operations(
+    result = instrumentor_indirect1_restore_foreign_operations(
         instrumentor_impl,
         foreign_data_real,
         ops_p,
         operation_offset,
         op_orig);
+
+    if(*ops_p == instrumentor_indirect1_wf_impl_get_null_ops(
+            instrumentor_impl->binded_instrumentor_impl))
+    {
+        *ops_p = NULL;
+    }
+    
+    return result;
 }
 
 static int
@@ -5197,14 +5407,28 @@ instrumentor_indirect1_f_impl_iface_restore_foreign_operations_nodata(
     size_t operation_offset,
     void** op_orig)
 {
+    int result;
+
     struct instrumentor_indirect1_f_impl* instrumentor_impl =
         container_of(iface_f_impl, typeof(*instrumentor_impl), base);
     
-    return instrumentor_indirect1_restore_foreign_operations_nodata(
+    if(*ops_p == NULL)
+        *ops_p = instrumentor_indirect1_wf_impl_get_null_ops(
+            instrumentor_impl->binded_instrumentor_impl);
+
+    result = instrumentor_indirect1_restore_foreign_operations_nodata(
         instrumentor_impl,
         ops_p,
         operation_offset,
         op_orig);
+
+    if(*ops_p == instrumentor_indirect1_wf_impl_get_null_ops(
+            instrumentor_impl->binded_instrumentor_impl))
+    {
+        *ops_p = NULL;
+    }
+
+    return result;
 }
 
 static struct kedr_coi_foreign_instrumentor_impl_iface
@@ -5296,12 +5520,28 @@ instrumentor_indirect1_wf_impl_iface_replace_operations(
     
     spin_lock_irqsave(&instrumentor_impl->ops_lock, flags);
     
+    if(*ops_p == NULL)
+    {
+        *ops_p = instrumentor_indirect1_wf_impl_get_null_ops(
+            instrumentor_impl);
+    }
+
     result = instrumentor_indirect1_wf_impl_replace_operations_internal(
         instrumentor_impl,
         watch_data_new_real,
         ops_p,
         NULL);
     
+    if(result)
+    {
+        /* Rolback if needed */
+        if(*ops_p == instrumentor_indirect1_wf_impl_get_null_ops(
+            instrumentor_impl))
+        {
+            *ops_p = NULL;
+        }
+    }
+
     spin_unlock_irqrestore(&instrumentor_impl->ops_lock, flags);
     return result;
 }
@@ -5322,12 +5562,28 @@ instrumentor_indirect1_wf_impl_iface_update_operations(
         container_of(watch_data, typeof(*watch_data_real), base);
     
     spin_lock_irqsave(&instrumentor_impl->ops_lock, flags);
+
+    if(*ops_p == NULL)
+    {
+        *ops_p = instrumentor_indirect1_wf_impl_get_null_ops(
+            instrumentor_impl);
+    }
     
     result = instrumentor_indirect1_wf_impl_update_operations_internal(
         instrumentor_impl,
         watch_data_real,
         ops_p,
         NULL);
+    
+    if(result)
+    {
+        /* Rolback if needed */
+        if(*ops_p == instrumentor_indirect1_wf_impl_get_null_ops(
+            instrumentor_impl))
+        {
+            *ops_p = NULL;
+        }
+    }
     
     spin_unlock_irqrestore(&instrumentor_impl->ops_lock, flags);
     return result;
@@ -5349,7 +5605,14 @@ instrumentor_indirect1_wf_impl_iface_clean_replacement(
         instrumentor_impl,
         watch_data_real,
         ops_p);
+
+    if(ops_p && (*ops_p == instrumentor_indirect1_wf_impl_get_null_ops(
+        instrumentor_impl)))
+    {
+        *ops_p = NULL;
+    }
 }
+
 
 static void instrumentor_indirect1_wf_impl_iface_destroy_impl(
     struct kedr_coi_instrumentor_impl* iface_impl)
@@ -5391,6 +5654,9 @@ static void* instrumentor_indirect1_wf_impl_iface_get_orig_operation_nodata(
 
     spin_lock_irqsave(&instrumentor_impl->ops_lock, flags);
     
+    if(ops == NULL)
+        ops = instrumentor_indirect1_wf_impl_get_null_ops(instrumentor_impl);
+
     op_orig = instrumentor_indirect1_wf_impl_get_orig_operation_nodata_internal(
         instrumentor_impl,
         ops,
@@ -5430,6 +5696,8 @@ instrumentor_indirect1_wf_impl_iface_replace_operations_from_foreign(
     size_t operation_offset,
     void** op_repl)
 {
+    int result;
+    
     struct instrumentor_indirect1_wf_impl* instrumentor_impl =
         container_of(iface_wf_impl, typeof(*instrumentor_impl), base);
     
@@ -5442,7 +5710,10 @@ instrumentor_indirect1_wf_impl_iface_replace_operations_from_foreign(
     struct instrumentor_indirect1_f_watch_data* foreign_data_real =
         container_of(foreign_data, typeof(*foreign_data_real), base);
 
-    return instrumentor_indirect1_replace_operations_from_foreign(
+    if(*ops_p == NULL)
+        *ops_p = instrumentor_indirect1_wf_impl_get_null_ops(instrumentor_impl);
+    
+    result = instrumentor_indirect1_replace_operations_from_foreign(
         instrumentor_impl,
         foreign_instrumentor_impl,
         watch_data_new_real,
@@ -5450,6 +5721,14 @@ instrumentor_indirect1_wf_impl_iface_replace_operations_from_foreign(
         foreign_data_real,
         operation_offset,
         op_repl);
+    
+    if(result)
+    {
+        if(*ops_p == instrumentor_indirect1_wf_impl_get_null_ops(instrumentor_impl))
+            *ops_p = NULL;
+    }
+
+    return result;
 }
 
 static int
@@ -5462,6 +5741,8 @@ instrumentor_indirect1_wf_impl_iface_update_operations_from_foreign(
     size_t operation_offset,
     void** op_repl)
 {
+    int result;
+    
     struct instrumentor_indirect1_wf_impl* instrumentor_impl =
         container_of(iface_wf_impl, typeof(*instrumentor_impl), base);
     
@@ -5474,7 +5755,10 @@ instrumentor_indirect1_wf_impl_iface_update_operations_from_foreign(
     struct instrumentor_indirect1_f_watch_data* foreign_data_real =
         container_of(foreign_data, typeof(*foreign_data_real), base);
 
-    return instrumentor_indirect1_update_operations_from_foreign(
+    if(*ops_p == NULL)
+        *ops_p = instrumentor_indirect1_wf_impl_get_null_ops(instrumentor_impl);
+
+    result = instrumentor_indirect1_update_operations_from_foreign(
         instrumentor_impl,
         foreign_instrumentor_impl,
         watch_data_real,
@@ -5482,6 +5766,14 @@ instrumentor_indirect1_wf_impl_iface_update_operations_from_foreign(
         foreign_data_real,
         operation_offset,
         op_repl);
+
+    if(result)
+    {
+        if(*ops_p == instrumentor_indirect1_wf_impl_get_null_ops(instrumentor_impl))
+            *ops_p = NULL;
+    }
+
+    return result;
 }
 
 static int

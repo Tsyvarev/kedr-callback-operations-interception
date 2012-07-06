@@ -31,3 +31,8 @@ add_subdirectory(copy_operations)
 add_subdirectory(internal_interception)
 add_subdirectory(external_interception)
 add_subdirectory(external_interception_forbidden)
+
+# TODO: should work for interceptor which not use copy operations.
+#if(DEFINED indirect_use_copy)
+    add_subdirectory(external_interception_null)
+#endif(DEFINED indirect_use_copy)

@@ -82,8 +82,19 @@ function(kbuild_add_module name)
 				is_path_inside_dir(is_in_binary ${CMAKE_BINARY_DIR} ${source_abs})
 				if(is_in_source AND NOT is_in_binary)
 					#special process c-sources in source tree
-					file(RELATIVE_PATH c_source_rel ${CMAKE_SOURCE_DIR} ${source_abs})
-					set(c_source_abs_real ${CMAKE_BINARY_DIR}/${c_source_rel})
+					is_path_inside_dir(is_in_current_source
+						${CMAKE_CURRENT_SOURCE_DIR} ${source_abs}
+					)
+					if(is_in_current_source)
+						# Relative current source and binary directories may differ.
+						# Process that case if possible.
+						file(RELATIVE_PATH c_source_rel ${CMAKE_CURRENT_SOURCE_DIR} ${source_abs})
+						set(c_source_abs_real ${CMAKE_CURRENT_BINARY_DIR}/${c_source_rel})
+					else(is_in_current_source)
+						file(RELATIVE_PATH c_source_rel ${CMAKE_SOURCE_DIR} ${source_abs})
+						set(c_source_abs_real ${CMAKE_BINARY_DIR}/${c_source_rel})
+					endif(is_in_current_source)
+					
 					#add rule for create duplicate..
 					rule_copy_file(${c_source_abs_real} ${source_abs})
 					#..and forgot initial file

@@ -5,7 +5,7 @@ operation.returnType = int
 operation.arg.type = struct inode *
 operation.arg.name = inode
 
-operation.object = inode
+operation.object = inode->i_sb
 operation.default = return generic_drop_inode(inode);
 
 header=>>

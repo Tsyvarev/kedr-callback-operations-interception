@@ -108,7 +108,7 @@ endfunction (kedr_coi_test_add_script)
 # (e.g. kbuild_include_directory).
 #
 # If test code use definitions from other modules, these modules
-# should be enumerated after DEPENDS keyword.
+# should be enumerated after DEPENDS keyword(NOT implemented).
 
 function(kedr_coi_test_add_kernel test_name module_name source)
 	if (NOT CMAKE_CROSSCOMPILING)
@@ -120,7 +120,7 @@ function(kedr_coi_test_add_kernel test_name module_name source)
         )
         
         kbuild_add_module(${module_name} "test_kernel_code.c"
-             ${source} ${ARGN}
+            ${source} ${ARGN}
         )
 		rule_copy_file("test_kernel_code.c" "${test_kernel_code_source}")
         
