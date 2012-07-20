@@ -178,6 +178,22 @@ operation.object = dir
 # Called vfs_mknod
 operation.default = return -EPERM;
 
+[group]
+operation.name = permission
+operation.returnType = int
+
+operation.arg.type = struct inode *
+operation.arg.name = inode
+
+operation.arg.type = int
+operation.arg.name = mask
+
+operation.object = inode
+
+# Called from inode_permission (indirectly).
+# Default is generic_permission().
+# But in some cases flag is checked, so it is better to not use external
+# interception.
 
 [group]
 operation.name = rename
