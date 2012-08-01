@@ -18,11 +18,8 @@
 
     <$endif$><$if operation.returnType$><$operation.returnType$><$else$>void<$endif$> (*orig)(<$argumentSpec$>);
             
-    kedr_coi_interceptor_get_intermediate_info(
-        interceptor,
-        <$operation.object$>,
-        OPERATION_OFFSET(<$operation.name$>),
-        &intermediate_info);
+    get_intermediate_info(<$operation.object$>,
+        OPERATION_OFFSET(<$operation.name$>), &intermediate_info);
     
     call_info.return_address = __builtin_return_address(0);
     call_info.op_orig = intermediate_info.op_orig;

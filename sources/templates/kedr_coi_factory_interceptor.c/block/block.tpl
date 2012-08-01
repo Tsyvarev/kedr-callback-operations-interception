@@ -7,7 +7,7 @@
 {
     <$if operation.returnType$><$operation.returnType$><$else$>void<$endif$> (*op_chained)(<$argumentSpec$>);
 
-    kedr_coi_bind_object_with_factory(interceptor,
+    bind_object_with_factory(
         <$operation.object$>,
         <$operation.factory$>,
         OPERATION_OFFSET(<$operation.name$>),

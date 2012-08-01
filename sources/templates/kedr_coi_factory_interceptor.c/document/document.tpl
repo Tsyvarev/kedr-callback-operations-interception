@@ -15,7 +15,20 @@
 #define OPERATION_CHECKED_TYPE(op, operation_name) \
 (BUILD_BUG_ON_ZERO(!__builtin_types_compatible_p(typeof(op), OPERATION_TYPE(operation_name))) + op)
 
+/* Helper for use in intermediate functions, also check object type. */
+static inline int bind_object_with_factory(
+        <$object.type$>* object,
+        <$factory.type$>* factory,
+        size_t operation_offset,
+        void** op_chained_p)
+{
+    return kedr_coi_bind_object_with_factory(interceptor,
+        object, factory, operation_offset, op_chained_p);
+}
+
+
 <$block: join(\n)$>
+
 
 
 static struct kedr_coi_factory_intermediate intermediate_operations[] =

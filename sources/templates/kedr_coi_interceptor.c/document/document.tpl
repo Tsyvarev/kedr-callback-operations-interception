@@ -15,6 +15,19 @@
 #define OPERATION_CHECKED_TYPE(op, operation_name) \
 (BUILD_BUG_ON_ZERO(!__builtin_types_compatible_p(typeof(op), OPERATION_TYPE(operation_name))) + op)
 
+/* Helper for use in intermediate functions, also check object type. */
+static inline void get_intermediate_info(
+    <$object.type$>* object,
+    size_t operation_offset,
+    struct kedr_coi_intermediate_info* intermediate_info)
+{
+    kedr_coi_interceptor_get_intermediate_info(
+        interceptor,
+        object,
+        operation_offset,
+        intermediate_info);
+}
+
 <$block: join(\n)$>
 
 

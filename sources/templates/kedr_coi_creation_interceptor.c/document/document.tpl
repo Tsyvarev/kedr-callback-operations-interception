@@ -15,6 +15,16 @@
 #define OPERATION_CHECKED_TYPE(op, operation_name) \
 (BUILD_BUG_ON_ZERO(!__builtin_types_compatible_p(typeof(op), OPERATION_TYPE(operation_name))) + op)
 
+static inline int bind_object(
+    <$object.type$>* object,
+    <$tie.type$* tie>,
+    size_t operation_offset,
+    void** op_chained_p)
+{
+    return kedr_coi_bind_object(interceptor, object, tie,
+        operation_offset, op_chained_p);
+}
+
 <$block: join(\n)$>
 
 

@@ -345,10 +345,7 @@ static void fops_release_post_file_lifetime(struct inode* inode,
     struct file* filp, int returnValue,
     struct kedr_coi_operation_call_info* call_info)
 {
-    if(returnValue == 0)
-    {
-        file_operations_interceptor_forget(filp);
-    }
+    file_operations_interceptor_forget(filp);
 }
 
 /* Update interception information about inode(from file) */
@@ -356,10 +353,11 @@ static void fops_release_post_inode_update(struct inode* inode,
     struct file* filp, int returnValue,
     struct kedr_coi_operation_call_info* call_info)
 {
-    if(returnValue == 0)
-    {
-        inode_operations_all_interceptor_watch(inode);
-    }
+    // Temporary removed for do not conflict with file which created from character device
+    //if(returnValue == 0)
+    //{
+    //   inode_operations_all_interceptor_watch(inode);
+    //}
 }
 
 

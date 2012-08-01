@@ -211,7 +211,7 @@ operation.arg.name = new_dir
 operation.arg.type = struct dentry *
 operation.arg.name = new_dentry
 
-operation.object = old_dentry
+operation.object = old_dir
 
 # Called by vfs_rename
 operation.default = return -EPERM;
