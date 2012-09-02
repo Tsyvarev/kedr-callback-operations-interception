@@ -103,15 +103,6 @@ int test_run(void)
         goto err_test;
     }
 
-    if(result != 1)
-    {
-        pr_err("kedr_coi_interceptor_watch() should return 1 "
-                "if watching was updated, but it returns %d.",
-                result);
-        result = -EINVAL;
-        goto err_test;
-    }
-
     op_call_counter = 0;
     op_pre_call_counter = 0;
     

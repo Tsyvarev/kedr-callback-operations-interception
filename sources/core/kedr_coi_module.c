@@ -48,7 +48,7 @@ module_exit(kedr_coi_module_exit);
 
 // The only functions exported from the KEDR COI module.
 
-// 'Normal' instrumentors
+// 'Normal' interceptors
 EXPORT_SYMBOL(kedr_coi_payload_register);
 EXPORT_SYMBOL(kedr_coi_payload_unregister);
 
@@ -67,7 +67,7 @@ EXPORT_SYMBOL(kedr_coi_interceptor_get_intermediate_info);
 
 EXPORT_SYMBOL(kedr_coi_interceptor_destroy);
 
-// Factory instrumentor
+// Factory interceptor
 EXPORT_SYMBOL(kedr_coi_factory_interceptor_watch);
 EXPORT_SYMBOL(kedr_coi_factory_interceptor_forget);
 EXPORT_SYMBOL(kedr_coi_factory_interceptor_forget_norestore);
@@ -78,7 +78,7 @@ EXPORT_SYMBOL(kedr_coi_bind_object_with_factory);
 
 EXPORT_SYMBOL(kedr_coi_factory_interceptor_destroy);
 
-// Creation instrumentor
+// Creation interceptor
 EXPORT_SYMBOL(kedr_coi_creation_interceptor_watch);
 EXPORT_SYMBOL(kedr_coi_creation_interceptor_forget);
 

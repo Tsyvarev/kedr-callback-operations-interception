@@ -13,16 +13,23 @@ static inline void factory_intermediate_func_common(void* object,
     struct kedr_coi_factory_interceptor* interceptor,
     size_t operation_offset)
 {
-    void (*op_chained)(void* object, void* data);
+    struct kedr_coi_factory_intermediate_info info;
     
     kedr_coi_bind_object_with_factory(interceptor,
         object,
         get_factory(data),
         operation_offset,
-        (void**)&op_chained); 
+        &info); 
 
+    //TODO: call handlers
+    
     //pr_info("In factory intermediate operation 'op_chained' is %pF.", op_chained);
-    if(op_chained != NULL) op_chained(object, data);
+    if(info.op_chained != NULL)
+    {
+        void (*op_chained)(void* object, void* data) =
+            (typeof(op_chained))info.op_chained;
+        op_chained(object, data);
+    }
 }
 
 #define KEDR_COI_TEST_DEFINE_FACTORY_INTERMEDIATE_FUNC(func_name, get_factory, operation_offset, interceptor)  \

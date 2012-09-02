@@ -19,10 +19,10 @@ static inline int bind_object(
     <$object.type$>* object,
     <$tie.type$* tie>,
     size_t operation_offset,
-    void** op_chained_p)
+    struct kedr_coi_creation_intermediate_info* info)
 {
     return kedr_coi_bind_object(interceptor, object, tie,
-        operation_offset, op_chained_p);
+        operation_offset, info);
 }
 
 <$block: join(\n)$>

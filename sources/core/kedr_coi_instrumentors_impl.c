@@ -291,7 +291,7 @@ static void instrumentor_empty_impl_iface_destroy_impl(
     kfree(iface_impl);
 }
 
-struct kedr_coi_instrumentor_impl_iface instrumentor_empty_iface =
+struct kedr_coi_instrumentor_impl_iface instrumentor_empty_impl_iface =
 {
     .alloc_watch_data = instrumentor_empty_impl_iface_alloc_watch_data,
     .free_watch_data = instrumentor_empty_impl_iface_free_watch_data,
@@ -299,7 +299,6 @@ struct kedr_coi_instrumentor_impl_iface instrumentor_empty_iface =
     .replace_operations = instrumentor_empty_impl_iface_replace_operations,
     .clean_replacement = instrumentor_empty_impl_iface_clean_replacement,
     .update_operations = instrumentor_empty_impl_iface_update_operations,
-    .destroy_impl = instrumentor_empty_impl_iface_destroy_impl
 };
 
 // Constructor for empty instrumentor(for internal use)
@@ -316,7 +315,8 @@ instrumentor_empty_create(void)
         return NULL;
     }
     
-    instrumentor_empty_impl->interface = &instrumentor_empty_iface;
+    instrumentor_empty_impl->destroy_impl = instrumentor_empty_impl_iface_destroy_impl;
+    instrumentor_empty_impl->interface = &instrumentor_empty_impl_iface;
 
     instrumentor = kedr_coi_instrumentor_create(instrumentor_empty_impl);
     if(instrumentor == NULL)
@@ -384,61 +384,17 @@ instrumentor_empty_f_impl_iface =
     .replace_operations = instrumentor_empty_f_impl_iface_replace_operations,
     .clean_replacement = instrumentor_empty_f_impl_iface_clean_replacement,
     .update_operations = instrumentor_empty_f_impl_iface_update_operations,
-    
-    .destroy_impl = instrumentor_empty_f_impl_iface_destroy_impl
 };
-
-static struct kedr_coi_instrumentor_watch_data*
-instrumentor_empty_wf_impl_iface_alloc_watch_data(
-    struct kedr_coi_instrumentor_impl* iface_impl)
-{
-    return kmalloc(sizeof(struct kedr_coi_instrumentor_watch_data), GFP_KERNEL);
-}
-
-static void instrumentor_empty_wf_impl_iface_free_watch_data(
-    struct kedr_coi_instrumentor_impl* iface_impl,
-    struct kedr_coi_instrumentor_watch_data* watch_data)
-{
-    kfree(watch_data);
-}
-
-static int instrumentor_empty_wf_impl_iface_replace_operations(
-    struct kedr_coi_instrumentor_impl* iface_impl,
-    struct kedr_coi_instrumentor_watch_data* watch_data_new,
-    const void** ops_p)
-{
-    return 0;// nothing to replace
-}
-
-static void instrumentor_empty_wf_impl_iface_clean_replacement(
-    struct kedr_coi_instrumentor_impl* iface_impl,
-    struct kedr_coi_instrumentor_watch_data* watch_data,
-    const void** ops_p)
-{
-}
-
-
-static int instrumentor_empty_wf_impl_iface_update_operations(
-    struct kedr_coi_instrumentor_impl* iface_impl,
-    struct kedr_coi_instrumentor_watch_data* watch_data,
-    const void** ops_p)
-{
-    return 0;// always up-to-date
-}
-
-static void instrumentor_empty_wf_impl_iface_destroy_impl(
-    struct kedr_coi_instrumentor_impl* iface_impl)
-{
-    kfree(iface_impl);
-}
 
 static struct kedr_coi_foreign_instrumentor_impl*
 instrumentor_empty_wf_impl_iface_foreign_instrumentor_impl_create(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl,
+    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
     const struct kedr_coi_replacement* replacements)
 {
     struct kedr_coi_foreign_instrumentor_impl* foreign_instrumentor_empty_impl =
         kmalloc(sizeof(*foreign_instrumentor_empty_impl), GFP_KERNEL);
+    
+    (void)iface_wf_impl;
     
     if(foreign_instrumentor_empty_impl == NULL)
     {
@@ -446,6 +402,8 @@ instrumentor_empty_wf_impl_iface_foreign_instrumentor_impl_create(
         return NULL;
     }
     
+    foreign_instrumentor_empty_impl->destroy_impl =
+        &instrumentor_empty_f_impl_iface_destroy_impl;
     foreign_instrumentor_empty_impl->interface =
         &instrumentor_empty_f_impl_iface;
     
@@ -453,21 +411,19 @@ instrumentor_empty_wf_impl_iface_foreign_instrumentor_impl_create(
 }
 
 
+static void instrumentor_empty_wf_impl_iface_destroy_impl(
+    struct kedr_coi_instrumentor_impl* iface_impl)
+{
+    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl =
+        container_of(iface_impl, typeof(*iface_wf_impl), base);
+    
+    kfree(iface_wf_impl);
+}
+
+
 static struct kedr_coi_instrumentor_with_foreign_impl_iface
 instrumentor_empty_wf_impl_iface =
 {
-    .base =
-    {
-        .alloc_watch_data = instrumentor_empty_wf_impl_iface_alloc_watch_data,
-        .free_watch_data = instrumentor_empty_wf_impl_iface_free_watch_data,
-        
-        .replace_operations = instrumentor_empty_wf_impl_iface_replace_operations,
-        .clean_replacement = instrumentor_empty_wf_impl_iface_clean_replacement,
-        .update_operations = instrumentor_empty_wf_impl_iface_update_operations,
-        
-        .destroy_impl = instrumentor_empty_wf_impl_iface_destroy_impl
-        // Other fields should not be accesssed
-    },
     .foreign_instrumentor_impl_create =
         instrumentor_empty_wf_impl_iface_foreign_instrumentor_impl_create,
     // Other fields should not be accesssed
@@ -477,7 +433,7 @@ static struct kedr_coi_instrumentor_with_foreign*
 instrumentor_with_foreign_empty_create(void)
 {
     struct kedr_coi_instrumentor_with_foreign* instrumentor;
-    struct kedr_coi_instrumentor_impl* instrumentor_empty_wf_impl = 
+    struct kedr_coi_instrumentor_with_foreign_impl* instrumentor_empty_wf_impl = 
         kmalloc(sizeof(*instrumentor_empty_wf_impl), GFP_KERNEL);
     
     if(instrumentor_empty_wf_impl == NULL)
@@ -486,8 +442,12 @@ instrumentor_with_foreign_empty_create(void)
         return NULL;
     }
     
+    instrumentor_empty_wf_impl->base.destroy_impl =
+        &instrumentor_empty_wf_impl_iface_destroy_impl;
+    instrumentor_empty_wf_impl->base.interface = 
+        &instrumentor_empty_impl_iface;
     instrumentor_empty_wf_impl->interface =
-        &instrumentor_empty_wf_impl_iface.base;
+        &instrumentor_empty_wf_impl_iface;
 
     instrumentor = kedr_coi_instrumentor_with_foreign_create(instrumentor_empty_wf_impl);
     if(instrumentor == NULL)
@@ -781,8 +741,6 @@ instrumentor_direct_impl_iface =
     .replace_operations = instrumentor_direct_impl_iface_replace_operations,
     .clean_replacement = instrumentor_direct_impl_iface_clean_replacement,
     .update_operations = instrumentor_direct_impl_iface_update_operations,
-    
-    .destroy_impl = instrumentor_direct_impl_iface_destroy_impl,
 
     .get_orig_operation = instrumentor_direct_impl_iface_get_orig_operation,
     .get_orig_operation_nodata = instrumentor_direct_impl_iface_get_orig_operation_nodata
@@ -815,6 +773,8 @@ instrumentor_direct_create(
     instrumentor_impl->operations_struct_size = operations_struct_size;
     instrumentor_impl->replacements = replacements;
 
+    instrumentor_impl->base.destroy_impl =
+        &instrumentor_direct_impl_iface_destroy_impl;
     instrumentor_impl->base.interface = &instrumentor_direct_impl_iface;
     
     instrumentor = kedr_coi_instrumentor_create(&instrumentor_impl->base);
@@ -1416,8 +1376,6 @@ static struct kedr_coi_instrumentor_impl_iface instrumentor_indirect_impl_iface 
     .replace_operations = instrumentor_indirect_impl_iface_replace_operations,
     .clean_replacement = instrumentor_indirect_impl_iface_clean_replacement,
     .update_operations = instrumentor_indirect_impl_iface_update_operations,
-
-    .destroy_impl = instrumentor_indirect_impl_iface_destroy_impl,
     
     .get_orig_operation = instrumentor_indirect_impl_iface_get_orig_operation,
     .get_orig_operation_nodata = instrumentor_indirect_impl_iface_get_orig_operation_nodata
@@ -1462,6 +1420,8 @@ instrumentor_indirect_create(
     
     spin_lock_init(&instrumentor_impl->ops_lock);
     
+    instrumentor_impl->base.destroy_impl =
+        &instrumentor_indirect_impl_iface_destroy_impl;
     instrumentor_impl->base.interface = &instrumentor_indirect_impl_iface;
     
     instrumentor = kedr_coi_instrumentor_create(&instrumentor_impl->base);
@@ -1568,7 +1528,7 @@ struct instrumentor_indirect_f_watch_data
 
 struct instrumentor_indirect_wf_impl
 {
-    struct kedr_coi_instrumentor_impl base;
+    struct kedr_coi_instrumentor_with_foreign_impl base;
     
     size_t operations_struct_size;
     const struct kedr_coi_replacement* replacements;
@@ -2405,8 +2365,6 @@ instrumentor_indirect_f_impl_iface =
     .clean_replacement = instrumentor_indirect_f_impl_iface_clean_replacement,
     .update_operations = instrumentor_indirect_f_impl_iface_update_operations,
     
-    .destroy_impl = instrumentor_indirect_f_impl_iface_destroy_impl,
-    
     .restore_foreign_operations =
         instrumentor_indirect_f_impl_iface_restore_foreign_operations,
     .restore_foreign_operations_nodata =
@@ -2431,6 +2389,8 @@ instrumentor_indirect_f_impl_create_disconnected(
     instrumentor_impl->binded_instrumentor_impl = NULL;
     instrumentor_impl->replacements = replacements;
 
+    instrumentor_impl->base.destroy_impl =
+        &instrumentor_indirect_f_impl_iface_destroy_impl;
     instrumentor_impl->base.interface = &instrumentor_indirect_f_impl_iface;
     
     return instrumentor_impl;
@@ -2795,7 +2755,7 @@ static int instrumentor_indirect_impl_chain_operation(
 //****Interface of the indirect instrumentor with foreign support****//
 static struct kedr_coi_instrumentor_watch_data*
 instrumentor_indirect_wf_impl_iface_alloc_watch_data(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl)
+    struct kedr_coi_instrumentor_impl* iface_impl)
 {
     struct instrumentor_indirect_wf_watch_data* watch_data =
         kmalloc(sizeof(*watch_data), GFP_KERNEL);
@@ -2805,7 +2765,7 @@ instrumentor_indirect_wf_impl_iface_alloc_watch_data(
 
 static void
 instrumentor_indirect_wf_impl_iface_free_watch_data(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl,
+    struct kedr_coi_instrumentor_impl* iface_impl,
     struct kedr_coi_instrumentor_watch_data* watch_data)
 {
     struct instrumentor_indirect_wf_watch_data* watch_data_real =
@@ -2816,7 +2776,7 @@ instrumentor_indirect_wf_impl_iface_free_watch_data(
 
 static int
 instrumentor_indirect_wf_impl_iface_replace_operations(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl,
+    struct kedr_coi_instrumentor_impl* iface_impl,
     struct kedr_coi_instrumentor_watch_data* watch_data_new,
     const void** ops_p)
 {
@@ -2824,7 +2784,7 @@ instrumentor_indirect_wf_impl_iface_replace_operations(
     int result;
     
     struct instrumentor_indirect_wf_impl* instrumentor_impl =
-        container_of(iface_wf_impl, typeof(*instrumentor_impl), base);
+        container_of(iface_impl, typeof(*instrumentor_impl), base.base);
     
     struct instrumentor_indirect_wf_watch_data* watch_data_new_real =
         container_of(watch_data_new, typeof(*watch_data_new_real), base);
@@ -2844,7 +2804,7 @@ instrumentor_indirect_wf_impl_iface_replace_operations(
 
 static int
 instrumentor_indirect_wf_impl_iface_update_operations(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl,
+    struct kedr_coi_instrumentor_impl* iface_impl,
     struct kedr_coi_instrumentor_watch_data* watch_data,
     const void** ops_p)
 {
@@ -2852,7 +2812,7 @@ instrumentor_indirect_wf_impl_iface_update_operations(
     int result;
 
     struct instrumentor_indirect_wf_impl* instrumentor_impl =
-        container_of(iface_wf_impl, typeof(*instrumentor_impl), base);
+        container_of(iface_impl, typeof(*instrumentor_impl), base.base);
     
     struct instrumentor_indirect_wf_watch_data* watch_data_real =
         container_of(watch_data, typeof(*watch_data_real), base);
@@ -2872,12 +2832,12 @@ instrumentor_indirect_wf_impl_iface_update_operations(
 
 static void
 instrumentor_indirect_wf_impl_iface_clean_replacement(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl,
+    struct kedr_coi_instrumentor_impl* iface_impl,
     struct kedr_coi_instrumentor_watch_data* watch_data,
     const void** ops_p)
 {
     struct instrumentor_indirect_wf_impl* instrumentor_impl =
-        container_of(iface_wf_impl, typeof(*instrumentor_impl), base);
+        container_of(iface_impl, typeof(*instrumentor_impl), base.base);
     
     struct instrumentor_indirect_wf_watch_data* watch_data_real =
         container_of(watch_data, typeof(*watch_data_real), base);
@@ -2890,7 +2850,7 @@ instrumentor_indirect_wf_impl_iface_clean_replacement(
 
 static void*
 instrumentor_indirect_wf_impl_iface_get_orig_operation(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl,
+    struct kedr_coi_instrumentor_impl* iface_impl,
     struct kedr_coi_instrumentor_watch_data* watch_data,
     const void* ops,
     size_t operation_offset)
@@ -2900,7 +2860,7 @@ instrumentor_indirect_wf_impl_iface_get_orig_operation(
     const void* ops_orig;
     
     struct instrumentor_indirect_wf_impl* instrumentor_impl =
-        container_of(iface_wf_impl, typeof(*instrumentor_impl), base);
+        container_of(iface_impl, typeof(*instrumentor_impl), base.base);
     
     struct instrumentor_indirect_wf_watch_data* watch_data_real =
         container_of(watch_data, typeof(*watch_data_real), base);
@@ -2951,7 +2911,7 @@ out:
 
 static void*
 instrumentor_indirect_wf_impl_iface_get_orig_operation_nodata(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl,
+    struct kedr_coi_instrumentor_impl* iface_impl,
     const void* ops,
     size_t operation_offset)
 {
@@ -2960,7 +2920,7 @@ instrumentor_indirect_wf_impl_iface_get_orig_operation_nodata(
     const void* ops_orig;
     
     struct instrumentor_indirect_wf_impl* instrumentor_impl =
-        container_of(iface_wf_impl, typeof(*instrumentor_impl), base);
+        container_of(iface_impl, typeof(*instrumentor_impl), base.base);
     
     spin_lock_irqsave(&instrumentor_impl->ops_lock, flags);
 
@@ -2984,7 +2944,7 @@ instrumentor_indirect_wf_impl_iface_get_orig_operation_nodata(
 
 static struct kedr_coi_foreign_instrumentor_impl*
 instrumentor_indirect_wf_impl_iface_foreign_instrumentor_impl_create(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl,
+    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
     const struct kedr_coi_replacement* replacements)
 {
     struct instrumentor_indirect_f_impl* foreign_instrumentor_impl;
@@ -3002,7 +2962,7 @@ instrumentor_indirect_wf_impl_iface_foreign_instrumentor_impl_create(
 }
 
 static int instrumentor_indirect_wf_impl_iface_replace_operations_from_foreign(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl,
+    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
     struct kedr_coi_foreign_instrumentor_impl* iface_f_impl,
     struct kedr_coi_instrumentor_watch_data* watch_data_new,
     const void** ops_p,
@@ -3032,7 +2992,7 @@ static int instrumentor_indirect_wf_impl_iface_replace_operations_from_foreign(
 }
 
 static int instrumentor_indirect_wf_impl_iface_update_operations_from_foreign(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl,
+    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
     struct kedr_coi_foreign_instrumentor_impl* iface_f_impl,
     struct kedr_coi_instrumentor_watch_data* watch_data,
     const void** ops_p,
@@ -3062,7 +3022,7 @@ static int instrumentor_indirect_wf_impl_iface_update_operations_from_foreign(
 }
 
 static int instrumentor_indirect_wf_impl_iface_chain_operation(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl,
+    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
     struct kedr_coi_foreign_instrumentor_impl* iface_f_impl,
     struct kedr_coi_instrumentor_watch_data* watch_data,
     const void** ops_p,
@@ -3089,34 +3049,32 @@ static int instrumentor_indirect_wf_impl_iface_chain_operation(
 
 
 static void instrumentor_indirect_wf_impl_iface_destroy_impl(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl)
+    struct kedr_coi_instrumentor_impl* iface_impl)
 {
     struct instrumentor_indirect_wf_impl* impl_real =
-        container_of(iface_wf_impl, typeof(*impl_real), base);
+        container_of(iface_impl, typeof(*impl_real), base.base);
     
     instrumentor_indirect_wf_impl_destroy(impl_real);
 }
 
+static struct kedr_coi_instrumentor_impl_iface
+instrumentor_indirect_wf_impl_iface_base =
+{
+    .alloc_watch_data = instrumentor_indirect_wf_impl_iface_alloc_watch_data,
+    .free_watch_data = instrumentor_indirect_wf_impl_iface_free_watch_data,
+
+    .replace_operations = instrumentor_indirect_wf_impl_iface_replace_operations,
+    .clean_replacement = instrumentor_indirect_wf_impl_iface_clean_replacement,
+    .update_operations = instrumentor_indirect_wf_impl_iface_update_operations,
+    
+    .get_orig_operation =
+        instrumentor_indirect_wf_impl_iface_get_orig_operation,
+    .get_orig_operation_nodata =
+        instrumentor_indirect_wf_impl_iface_get_orig_operation_nodata
+};
 static struct kedr_coi_instrumentor_with_foreign_impl_iface
 instrumentor_indirect_wf_impl_iface =
 {
-    .base =
-    {
-        .alloc_watch_data = instrumentor_indirect_wf_impl_iface_alloc_watch_data,
-        .free_watch_data = instrumentor_indirect_wf_impl_iface_free_watch_data,
-
-        .replace_operations = instrumentor_indirect_wf_impl_iface_replace_operations,
-        .clean_replacement = instrumentor_indirect_wf_impl_iface_clean_replacement,
-        .update_operations = instrumentor_indirect_wf_impl_iface_update_operations,
-        
-        .destroy_impl = instrumentor_indirect_wf_impl_iface_destroy_impl,
-        
-        .get_orig_operation =
-            instrumentor_indirect_wf_impl_iface_get_orig_operation,
-        .get_orig_operation_nodata =
-            instrumentor_indirect_wf_impl_iface_get_orig_operation_nodata
-    },
-    
     .foreign_instrumentor_impl_create =
         instrumentor_indirect_wf_impl_iface_foreign_instrumentor_impl_create,
     .replace_operations_from_foreign =
@@ -3172,7 +3130,12 @@ instrumentor_indirect_wf_create(
     spin_lock_init(&instrumentor_impl->ops_lock);
     INIT_LIST_HEAD(&instrumentor_impl->foreign_instrumentor_impls);
     
-    instrumentor_impl->base.interface = &instrumentor_indirect_wf_impl_iface.base;
+    instrumentor_impl->base.base.destroy_impl =
+        &instrumentor_indirect_wf_impl_iface_destroy_impl;
+    instrumentor_impl->base.base.interface =
+        &instrumentor_indirect_wf_impl_iface_base;
+    instrumentor_impl->base.interface =
+        &instrumentor_indirect_wf_impl_iface;
     
     instrumentor = kedr_coi_instrumentor_with_foreign_create(&instrumentor_impl->base);
     
@@ -3832,8 +3795,6 @@ instrumentor_indirect1_impl_iface =
     .clean_replacement = instrumentor_indirect1_impl_iface_clean_replacement,
     .update_operations = instrumentor_indirect1_impl_iface_update_operations,
     
-    .destroy_impl = instrumentor_indirect1_impl_iface_destroy_impl,
-    
     .get_orig_operation = instrumentor_indirect1_impl_iface_get_orig_operation,
     .get_orig_operation_nodata = instrumentor_indirect1_impl_iface_get_orig_operation_nodata
 };
@@ -3871,7 +3832,9 @@ instrumentor_indirect1_create(
         kfree(instrumentor_impl);
         return NULL;
     }
-
+    
+    instrumentor_impl->base.destroy_impl =
+        &instrumentor_indirect1_impl_iface_destroy_impl;
     instrumentor_impl->base.interface = &instrumentor_indirect1_impl_iface;
     
     instrumentor = kedr_coi_instrumentor_create(&instrumentor_impl->base);
@@ -3997,7 +3960,7 @@ struct instrumentor_indirect1_f_watch_data
  */
 struct instrumentor_indirect1_wf_impl
 {
-    struct kedr_coi_instrumentor_impl base;
+    struct kedr_coi_instrumentor_with_foreign_impl base;
     
     struct kedr_coi_hash_table hash_table_ops;
     
@@ -5440,8 +5403,6 @@ instrumentor_indirect1_f_impl_iface =
     .replace_operations = instrumentor_indirect1_f_impl_iface_replace_operations,
     .update_operations = instrumentor_indirect1_f_impl_iface_update_operations,
     .clean_replacement = instrumentor_indirect1_f_impl_iface_clean_replacement,
-    
-    .destroy_impl = instrumentor_indirect1_f_impl_iface_destroy_impl,
 
     .restore_foreign_operations =
         instrumentor_indirect1_f_impl_iface_restore_foreign_operations,
@@ -5475,7 +5436,10 @@ instrumentor_indirect1_f_impl_create(
         return NULL;
     }
     
-    instrumentor_impl->base.interface = &instrumentor_indirect1_f_impl_iface;
+    instrumentor_impl->base.destroy_impl =
+        &instrumentor_indirect1_f_impl_iface_destroy_impl;
+    instrumentor_impl->base.interface =
+        &instrumentor_indirect1_f_impl_iface;
     
     return instrumentor_impl;
 }
@@ -5513,7 +5477,7 @@ instrumentor_indirect1_wf_impl_iface_replace_operations(
     unsigned long flags;
     
     struct instrumentor_indirect1_wf_impl* instrumentor_impl =
-        container_of(iface_impl, typeof(*instrumentor_impl), base);
+        container_of(iface_impl, typeof(*instrumentor_impl), base.base);
     
     struct instrumentor_indirect1_wf_watch_data* watch_data_new_real =
         container_of(watch_data_new, typeof(*watch_data_new_real), base);
@@ -5556,7 +5520,7 @@ instrumentor_indirect1_wf_impl_iface_update_operations(
     unsigned long flags;
     
     struct instrumentor_indirect1_wf_impl* instrumentor_impl =
-        container_of(iface_impl, typeof(*instrumentor_impl), base);
+        container_of(iface_impl, typeof(*instrumentor_impl), base.base);
     
     struct instrumentor_indirect1_wf_watch_data* watch_data_real =
         container_of(watch_data, typeof(*watch_data_real), base);
@@ -5596,7 +5560,7 @@ instrumentor_indirect1_wf_impl_iface_clean_replacement(
     const void** ops_p)
 {
     struct instrumentor_indirect1_wf_impl* instrumentor_impl =
-        container_of(iface_impl, typeof(*instrumentor_impl), base);
+        container_of(iface_impl, typeof(*instrumentor_impl), base.base);
     
     struct instrumentor_indirect1_wf_watch_data* watch_data_real =
         container_of(watch_data, typeof(*watch_data_real), base);
@@ -5618,7 +5582,7 @@ static void instrumentor_indirect1_wf_impl_iface_destroy_impl(
     struct kedr_coi_instrumentor_impl* iface_impl)
 {
     struct instrumentor_indirect1_wf_impl* instrumentor_impl =
-        container_of(iface_impl, typeof(*instrumentor_impl), base);
+        container_of(iface_impl, typeof(*instrumentor_impl), base.base);
 
     instrumentor_indirect1_wf_impl_finalize(instrumentor_impl);
     
@@ -5632,7 +5596,7 @@ static void* instrumentor_indirect1_wf_impl_iface_get_orig_operation(
     size_t operation_offset)
 {
     struct instrumentor_indirect1_wf_impl* instrumentor_impl =
-        container_of(in_iface_impl, typeof(*instrumentor_impl), base);
+        container_of(in_iface_impl, typeof(*instrumentor_impl), base.base);
     
     struct instrumentor_indirect1_wf_watch_data* watch_data_real =
         container_of(watch_data, typeof(*watch_data_real), base);
@@ -5650,7 +5614,7 @@ static void* instrumentor_indirect1_wf_impl_iface_get_orig_operation_nodata(
     unsigned long flags;
     
     struct instrumentor_indirect1_wf_impl* instrumentor_impl =
-        container_of(in_iface_impl, typeof(*instrumentor_impl), base);
+        container_of(in_iface_impl, typeof(*instrumentor_impl), base.base);
 
     spin_lock_irqsave(&instrumentor_impl->ops_lock, flags);
     
@@ -5670,7 +5634,7 @@ static void* instrumentor_indirect1_wf_impl_iface_get_orig_operation_nodata(
 
 static struct kedr_coi_foreign_instrumentor_impl*
 instrumentor_indirect1_wf_impl_iface_foreign_instrumentor_impl_create(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl,
+    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
     const struct kedr_coi_replacement* replacements)
 {
     struct instrumentor_indirect1_wf_impl* instrumentor_impl =
@@ -5688,7 +5652,7 @@ instrumentor_indirect1_wf_impl_iface_foreign_instrumentor_impl_create(
 
 static int
 instrumentor_indirect1_wf_impl_iface_replace_operations_from_foreign(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl,
+    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
     struct kedr_coi_foreign_instrumentor_impl* iface_f_impl,
     struct kedr_coi_instrumentor_watch_data* watch_data_new,
     const void** ops_p,
@@ -5733,7 +5697,7 @@ instrumentor_indirect1_wf_impl_iface_replace_operations_from_foreign(
 
 static int
 instrumentor_indirect1_wf_impl_iface_update_operations_from_foreign(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl,
+    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
     struct kedr_coi_foreign_instrumentor_impl* iface_f_impl,
     struct kedr_coi_instrumentor_watch_data* watch_data,
     const void** ops_p,
@@ -5778,7 +5742,7 @@ instrumentor_indirect1_wf_impl_iface_update_operations_from_foreign(
 
 static int
 instrumentor_indirect1_wf_impl_iface_chain_operation(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl,
+    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
     struct kedr_coi_foreign_instrumentor_impl* iface_f_impl,
     struct kedr_coi_instrumentor_watch_data* watch_data,
     const void** ops_p,
@@ -5800,24 +5764,24 @@ instrumentor_indirect1_wf_impl_iface_chain_operation(
     return IS_ERR(*op_chained)? PTR_ERR(*op_chained) : 0;
 }
 
+static struct kedr_coi_instrumentor_impl_iface
+instrumentor_indirect1_wf_impl_iface_base =
+{
+    .alloc_watch_data = instrumentor_indirect1_wf_impl_iface_alloc_watch_data,
+    .free_watch_data = instrumentor_indirect1_wf_impl_iface_free_watch_data,
+    
+    .replace_operations = instrumentor_indirect1_wf_impl_iface_replace_operations,
+    .update_operations = instrumentor_indirect1_wf_impl_iface_update_operations,
+    .clean_replacement = instrumentor_indirect1_wf_impl_iface_clean_replacement,
+
+    .get_orig_operation = instrumentor_indirect1_wf_impl_iface_get_orig_operation,
+    .get_orig_operation_nodata =
+        instrumentor_indirect1_wf_impl_iface_get_orig_operation_nodata,
+};
+
 static struct kedr_coi_instrumentor_with_foreign_impl_iface
 instrumentor_indirect1_wf_impl_iface =
 {
-    .base =
-    {
-        .alloc_watch_data = instrumentor_indirect1_wf_impl_iface_alloc_watch_data,
-        .free_watch_data = instrumentor_indirect1_wf_impl_iface_free_watch_data,
-        
-        .replace_operations = instrumentor_indirect1_wf_impl_iface_replace_operations,
-        .update_operations = instrumentor_indirect1_wf_impl_iface_update_operations,
-        .clean_replacement = instrumentor_indirect1_wf_impl_iface_clean_replacement,
-        
-        .destroy_impl = instrumentor_indirect1_wf_impl_iface_destroy_impl,
-
-        .get_orig_operation = instrumentor_indirect1_wf_impl_iface_get_orig_operation,
-        .get_orig_operation_nodata =
-            instrumentor_indirect1_wf_impl_iface_get_orig_operation_nodata,
-    },
     .foreign_instrumentor_impl_create = instrumentor_indirect1_wf_impl_iface_foreign_instrumentor_impl_create,
     .replace_operations_from_foreign =
         instrumentor_indirect1_wf_impl_iface_replace_operations_from_foreign,
@@ -5861,8 +5825,12 @@ instrumentor_indirect1_wf_create(
         return NULL;
     }
     
+    instrumentor_impl->base.base.destroy_impl =
+        &instrumentor_indirect1_wf_impl_iface_destroy_impl;
+    instrumentor_impl->base.base.interface =
+        &instrumentor_indirect1_wf_impl_iface_base;
     instrumentor_impl->base.interface =
-        &instrumentor_indirect1_wf_impl_iface.base;
+        &instrumentor_indirect1_wf_impl_iface;
     
     instrumentor = kedr_coi_instrumentor_with_foreign_create(
         &instrumentor_impl->base);

@@ -26,6 +26,8 @@
 
 #include <linux/slab.h>
 
+#include "payloads.h"
+
 // Return pointer to the operations struct in the object
 static const void* indirect_operations(const void* object,
     size_t operations_field_offset)
@@ -52,226 +54,6 @@ enum interceptor_state
 };
 
 //********** Interceptor for objects with its own operations **********
-
-/*
- * Element of the payload registration.
- */
-struct payload_elem
-{
-    // Payload itself
-    struct kedr_coi_payload* payload;
-    // Element in the List of registered payload elements.
-    struct list_head list;
-    // Whether this payload element is fixed
-    int is_fixed;
-    /*
-     *  Element in the list of used payload elements.
-     * 
-     * NOTE: This list is constant after fix payloads.
-     */
-    struct list_head list_used;
-};
-
-// Initialize payload element structure
-static void payload_elem_init(
-    struct payload_elem* elem,
-    struct kedr_coi_payload* payload)
-{
-    elem->payload = payload;
-    INIT_LIST_HEAD(&elem->list);
-    elem->is_fixed = 0;
-    INIT_LIST_HEAD(&elem->list_used);
-}
-
-/*
- * Array of pointers, which is allowed to grow.
- * 
- * Its 'elems' field is a NULL-terminated C-array of pointers.
- */
-struct parray
-{
-    void** elems;
-    int n_elems;
-};
-
-/* Initialize array structure. Array contains no elements. */
-static void parray_init(struct parray* array)
-{
-    array->elems = NULL;
-    array->n_elems = 0;
-}
-
-/* Reset array. Array contains no elemens.*/
-static void parray_reset(struct parray* array)
-{
-    if(array->n_elems)
-    {
-        kfree(array->elems);
-        array->elems = NULL;
-        array->n_elems = 0;
-    }
-}
-
-/*
- * Add element to array.
- *
- * Return 0 on success, negative error code otherwise.
- */
-static int parray_add_elem(struct parray* array, void* elem)
-{
-    int n_elems_new = array->n_elems + 1;
-    void** elems_new = krealloc(array->elems,
-        sizeof(*elems_new) * (n_elems_new + 1), GFP_KERNEL);
-    if(elems_new == NULL)
-    {
-        return -ENOMEM;
-    }
-    
-    elems_new[n_elems_new - 1] = elem;
-    elems_new[n_elems_new] = NULL;
-    
-    array->elems = elems_new;
-    array->n_elems = n_elems_new;
-
-    return 0;
-}
-
-/*
- *  Information about operation, which may be intercepted.
- */
-struct operation_info
-{
-    // Element in the list of all operations which may be intercepted
-    struct list_head list;
-    
-    size_t operation_offset;
-    
-    void* repl;
-    int group_id;
-    bool internal_only;
-    // Whether operation should be intercepted
-    bool is_intercepted;
-    // Arrays of pre- and post- handlers
-    struct parray pre_handlers;
-    struct parray post_handlers;
-
-    // Same for the case when original operation pointer is NULL
-    bool default_is_intercepted;
-    struct parray default_pre_handlers;
-    struct parray default_post_handlers;
-};
-
-// Initialize operation information structure
-void operation_info_init(struct operation_info* operation,
-    const struct kedr_coi_intermediate* intermediate)
-{
-    INIT_LIST_HEAD(&operation->list);
-
-    operation->operation_offset = intermediate->operation_offset;
-
-    operation->repl = intermediate->repl;
-    operation->group_id = intermediate->group_id;
-    operation->internal_only = intermediate->internal_only;
-
-    operation->is_intercepted = false;
-    parray_init(&operation->pre_handlers);
-    parray_init(&operation->post_handlers);
-
-    operation->default_is_intercepted = false;
-    parray_init(&operation->default_pre_handlers);
-    parray_init(&operation->default_post_handlers);
-}
-
-/* 
- * Clear all interception info, including default interception.
- * Also release any resources concerned with interception.
- */
-static void
-operation_info_clear_interception(struct operation_info* operation)
-{
-    if(operation->is_intercepted)
-    {
-        operation->is_intercepted = false;
-
-        parray_reset(&operation->pre_handlers);
-        parray_reset(&operation->post_handlers);
-    }
-
-    if(operation->default_is_intercepted)
-    {
-        operation->default_is_intercepted = false;
-
-        parray_reset(&operation->default_pre_handlers);
-        parray_reset(&operation->default_post_handlers);
-    }
-}
-
-/*
- * Add pre-handler to the array of pre-handlers of operation.
- * 
- * Return 0 on success and negative error code otherwise.
- */
-static int
-operation_info_add_pre(struct operation_info* operation,
-    void* pre, bool external)
-{
-    int result = parray_add_elem(&operation->pre_handlers, pre);
-    if(result)
-    {
-        pr_err("Failed to add pre handler for operation.");
-        return result;
-    }
-
-    operation->is_intercepted = true;
-    
-    if(external)
-    {
-        result = parray_add_elem(&operation->default_pre_handlers, pre);
-        if(result)
-        {
-            pr_err("Failed to add default pre handler for operation.");
-            return result;
-        }
-        
-        operation->default_is_intercepted = true;
-    }
-
-    return 0;
-}
-
-/*
- * Add post-handler to the array of post-handlers of operation.
- * 
- * Return 0 on success and negative error code otherwise.
- */
-static int
-operation_info_add_post(struct operation_info* operation,
-    void* post, bool external)
-{
-    int result = parray_add_elem(&operation->post_handlers, post);
-    
-    if(result)
-    {
-        pr_err("Failed to add post handler for operation.");
-        return result;
-    }
-
-    operation->is_intercepted = true;
-
-    if(external)
-    {
-        result = parray_add_elem(&operation->default_post_handlers, post);
-        
-        if(result)
-        {
-            pr_err("Failed to add default post handler for operation.");
-            return result;
-        }
-        operation->default_is_intercepted = true;
-    }
-
-    return 0;
-}
 
 // Forward declarations
 struct kedr_coi_interceptor;
@@ -314,7 +96,7 @@ struct interceptor_operations
 };
 
 /*
- * Basic instrumentor structure.
+ * Base interceptor structure.
  */
 struct kedr_coi_interceptor
 {
@@ -327,25 +109,17 @@ struct kedr_coi_interceptor
     void (*trace_unforgotten_object)(void* object);
     // Current state of the interceptor
     int state;
-    // List of the registered payload elements.
-    struct list_head payload_elems;
+
+    struct operation_payloads payloads;
     // List of foreign cores created by this one
     struct list_head foreign_cores;
     /*
-     *  Protect list of registered payload elements from concurrent
-     * access.
      *  Protect list of foreign interceptors from concurrent access.
      */
     struct mutex m;
     
-    // List of all operations available for interception
-    struct list_head operations;
     // Next fields are used only when start to intercept.
     
-    // List of used payload elements
-    struct list_head payload_elems_used;
-    // Replacements collected from all used payloads
-    struct kedr_coi_replacement* replacements;
     // Instrumentor used for instrument objects' operations.
     struct kedr_coi_instrumentor* instrumentor;
 };
@@ -388,25 +162,6 @@ static const void* interceptor_get_ops(
     : indirect_operations_p(object, interceptor->operations_field_offset))
 
 
-/*
- * Return information about operation with given offset.
- * 
- * If not found, return NULL.
- */
-static struct operation_info*
-interceptor_find_operation(
-    struct kedr_coi_interceptor* interceptor,
-    size_t operation_offset)
-{
-    struct operation_info* operation;
-    list_for_each_entry(operation, &interceptor->operations, list)
-    {
-        if(operation->operation_offset == operation_offset)
-            return operation;
-    }
-    
-    return NULL;
-}
 
 /*
  * Initialize fields of the base interceptor structure.
@@ -434,339 +189,17 @@ interceptor_init_common(
     interceptor->trace_unforgotten_object = trace_unforgotten_object;
     
     mutex_init(&interceptor->m);
-    INIT_LIST_HEAD(&interceptor->payload_elems);
+
     INIT_LIST_HEAD(&interceptor->foreign_cores);
+
+    result = operation_payloads_init(&interceptor->payloads,
+        intermediate_operations, name);
     
-    INIT_LIST_HEAD(&interceptor->operations);
-    // Fill operations list from intermediate operations array
-    if(intermediate_operations)
-    {
-        const struct kedr_coi_intermediate* intermediate;
-        
-        for(intermediate = intermediate_operations;
-            intermediate->operation_offset != -1;
-            intermediate++)
-        {
-            struct operation_info* operation =
-                kmalloc(sizeof(*operation), GFP_KERNEL);
-            if(operation == NULL)
-            {
-                pr_err("Failed to allocate information about operation.");
-                result = -ENOMEM;
-                goto err_operation;
-            }
-            operation_info_init(operation, intermediate);
-            list_add_tail(&operation->list, &interceptor->operations);
-        }
-    }
-
-    interceptor->replacements = NULL;
-    
-    return 0;
-
-err_operation:
-    while(!list_empty(&interceptor->operations))
-    {
-        struct operation_info* operation =
-            list_first_entry(&interceptor->operations, struct operation_info, list);
-        list_del(&operation->list);
-        kfree(operation);
-    }
-    return result;
-}
-
-/*
- * Actions which should be performed before fixing payload element.
- * 
- * If return not 0, payload element shouldn't be fixed.
- */
-static int interceptor_fix_payload_elem(
-    struct kedr_coi_interceptor* interceptor,
-    struct payload_elem* elem)
-{
-    if(elem->payload->mod != NULL)
-        if(try_module_get(elem->payload->mod) == 0)
-            return -EBUSY;
-    
-    list_add_tail(&elem->list_used, &interceptor->payload_elems_used);
-
-    return 0;
-}
-
-/*
- * Actions which should be performed after releasing payload element.
- */
-static void interceptor_release_payload_elem(
-    struct kedr_coi_interceptor* interceptor,
-    struct payload_elem* elem)
-{
-    if(elem->payload->mod != NULL)
-        module_put(elem->payload->mod);
-    
-    list_del(&elem->list_used);
-}
-
-
-/*
- * Fix all payload elements.
- * 
- * Return 0 on success and negative error code otherwise.
- */
-static int interceptor_fix_payloads(
-    struct kedr_coi_interceptor* interceptor)
-{
-    struct payload_elem* elem;
-    list_for_each_entry(elem, &interceptor->payload_elems, list)
-    {
-        if(!interceptor_fix_payload_elem(interceptor, elem))
-        {
-            elem->is_fixed = 1;
-        }
-        // error in fixing one payload is non-fatal
-    }
-    return 0;
-}
-
-/*
- * Release all payloads which was fixed.
- */
-static void interceptor_release_payloads(
-    struct kedr_coi_interceptor* interceptor)
-{
-    struct payload_elem* elem;
-    list_for_each_entry(elem, &interceptor->payload_elems, list)
-    {
-        if(!elem->is_fixed) continue;
-
-        interceptor_release_payload_elem(interceptor, elem);
-        elem->is_fixed = 0;
-    }
-}
-
-/*
- * Check payload before registration.
- * 
- * Return 0 if payload allowed to register and negative error code
- * otherwise.
- */
-static int interceptor_check_payload(
-    struct kedr_coi_interceptor* interceptor,
-    struct kedr_coi_payload* payload)
-{
-    /*
-     *  Verify that payload requires to intercept only known operations
-     * and in available variant(external or internal).
-     */
-    if(payload->pre_handlers)
-    {
-        struct kedr_coi_pre_handler* pre_handler;
-        for(pre_handler = payload->pre_handlers;
-            pre_handler->operation_offset != -1;
-            pre_handler++)
-        {
-            struct operation_info* operation =
-                interceptor_find_operation(interceptor,
-                    pre_handler->operation_offset);
-            
-            if(operation == NULL)
-            {
-                pr_err("Cannot register payload %p because it requires "
-                    "to intercept unknown operation with offset %zu.",
-                        payload, pre_handler->operation_offset);
-                return -EINVAL;
-            }
-            if(pre_handler->external && operation->internal_only)
-            {
-                pr_err("Cannot register payload %p for interceptor '%s' because it requires "
-                    "to externally intercept operation at offset %zu, "
-                    "but only internal interception is supported for it.",
-                        payload, interceptor->name, pre_handler->operation_offset);
-                return -EINVAL;
-            }
-        }
-    }
-    
-    if(payload->post_handlers)
-    {
-        struct kedr_coi_post_handler* post_handler;
-        for(post_handler = payload->post_handlers;
-            post_handler->operation_offset != -1;
-            post_handler++)
-        {
-            struct operation_info* operation =
-                interceptor_find_operation(interceptor,
-                    post_handler->operation_offset);
-            if(operation == NULL)
-            {
-                pr_err("Cannot register payload %p for interceptor '%s' because it requires "
-                    "to intercept unknown operation with offset %zu.",
-                        payload, interceptor->name, post_handler->operation_offset);
-                return -EINVAL;
-            }
-            if(post_handler->external && operation->internal_only)
-            {
-                pr_err("Cannot register payload %p because it requires "
-                    "to externally intercept operation at offset %zu, "
-                    "but only internal interception is supported for it.",
-                        payload, post_handler->operation_offset);
-                return -EINVAL;
-            }
-        }
-    }
-
-    return 0;
-}
-
-/*
- * Close operations set according to the sence of group_id.
- */
-static void close_operations(struct kedr_coi_interceptor* interceptor)
-{
-    struct operation_info* operation;
-
-    list_for_each_entry(operation, &interceptor->operations, list)
-    {
-        struct operation_info* operation1;
-
-        if(operation->group_id == 0) continue;
-        if(!operation->default_is_intercepted) continue;
-        list_for_each_entry(operation1, &interceptor->operations, list)
-        {
-            if(operation1->group_id != operation->group_id) continue;
-            operation1->default_is_intercepted = true;
-        }
-    }
-}
-
-/*
- * Use payload for interception.
- * 
- * May be called only for payload which is fixed.
- * 
- * Return 0 on success and negative error code on fail.
- * 
- * NOTE: On error does not rollback changes.
- */
-static int interceptor_use_payload_elem(
-    struct kedr_coi_interceptor* interceptor,
-    struct payload_elem* elem)
-{
-    struct kedr_coi_payload* payload = elem->payload;
-    
-    BUG_ON(!elem->is_fixed);
-    
-    if(payload->pre_handlers)
-    {
-        struct kedr_coi_pre_handler* pre_handler;
-        for(pre_handler = payload->pre_handlers;
-            pre_handler->operation_offset != -1;
-            pre_handler++)
-        {
-            int result;
-            struct operation_info* operation = interceptor_find_operation(
-                interceptor, pre_handler->operation_offset);
-
-            BUG_ON(operation == NULL);//payloads should be checked when registered
-            
-            result = operation_info_add_pre(operation,
-                pre_handler->func, pre_handler->external);
-            if(result) return result;
-        }
-    }
-    
-    if(payload->post_handlers)
-    {
-        struct kedr_coi_post_handler* post_handler;
-        for(post_handler = payload->post_handlers;
-            post_handler->operation_offset != -1;
-            post_handler++)
-        {
-            int result;
-            struct operation_info* operation = interceptor_find_operation(
-                interceptor, post_handler->operation_offset);
-
-            BUG_ON(operation == NULL);//payloads should be checked when registered
-
-            result = operation_info_add_post(operation,
-                post_handler->func, post_handler->external);
-            if(result) return result;
-        }
-    }
-
-    return 0;
-}
-
-/*
- * Cancel using of all payloads in interception.
- */
-static void interceptor_unuse_payloads(
-    struct kedr_coi_interceptor* interceptor)
-{
-    struct operation_info* operation;
-    list_for_each_entry(operation, &interceptor->operations, list)
-    {
-        operation_info_clear_interception(operation);
-    }
-}
-
-/*
- * Create replacements array according to fixed payloads content.
- */
-static int
-interceptor_create_replacements(
-    struct kedr_coi_interceptor* interceptor)
-{
-    struct operation_info* operation;
-    int replacements_n = 0;
-    int i;
-    
-    // Count
-    list_for_each_entry(operation, &interceptor->operations, list)
-    {
-        if(operation->is_intercepted || operation->default_is_intercepted)
-            replacements_n++;
-    }
-    
-    if(replacements_n == 0)
-    {
-        interceptor->replacements = NULL;//nothing to replace
-        return 0;
-    }
-    // Allocate array
-    interceptor->replacements =
-        kmalloc(sizeof(*interceptor->replacements) * (replacements_n + 1),
-        GFP_KERNEL);
-    
-    if(interceptor->replacements == NULL)
-    {
-        pr_err("Failed to allocate replacements array");
-        return -ENOMEM;
-    }
-    
-    // Filling
-    i = 0;
-    list_for_each_entry(operation, &interceptor->operations, list)
-    {
-        if(operation->is_intercepted || operation->default_is_intercepted)
-        {
-            struct kedr_coi_replacement* replacement =
-                &interceptor->replacements[i];
-        
-            replacement->operation_offset = operation->operation_offset;
-            replacement->repl = operation->repl;
-            replacement->mode = operation->default_is_intercepted
-                ? operation->is_intercepted ? replace_all : replace_null
-                : replace_not_null;
-            
-            i++;
-        }
-    }
-    BUG_ON(i != replacements_n);
-    
-    interceptor->replacements[replacements_n].operation_offset = -1;
+    if(result) return result;
     
     return 0;
 }
+
 
 //***************Interceptor for foreign operations*******************//
 
@@ -870,31 +303,17 @@ static void kedr_coi_foreign_core_finalize(
 int kedr_coi_interceptor_start(struct kedr_coi_interceptor* interceptor)
 {
 	int result;
-	
     struct kedr_coi_foreign_core* foreign_core;
-    struct payload_elem* elem;
+    const struct kedr_coi_replacement* replacements;
     
 	BUG_ON(interceptor->state != interceptor_state_initialized);
 
-    INIT_LIST_HEAD(&interceptor->payload_elems_used);
-    // Fix payloads for allow its using in interception.
-    result = interceptor_fix_payloads(interceptor);
-    
+    result = operation_payloads_use(&interceptor->payloads, 0);
     if(result) return result;
-    // Use all fixed payloads for interception.
-    list_for_each_entry(elem, &interceptor->payload_elems_used, list_used)
-    {
-        result = interceptor_use_payload_elem(interceptor, elem);
-        
-        if(result) goto err_use_payloads;
-    }
-    
-    close_operations(interceptor);
 
-    result = interceptor_create_replacements(interceptor);
-    
-    if(result) goto err_create_replacements;
-    
+    replacements = operation_payloads_get_replacements(
+        &interceptor->payloads);
+
     if(list_empty(&interceptor->foreign_cores)
         && (interceptor->ops->create_instrumentor != NULL))
     {
@@ -906,7 +325,7 @@ int kedr_coi_interceptor_start(struct kedr_coi_interceptor* interceptor)
             interceptor->ops->create_instrumentor(
                 interceptor,
                 interceptor->operations_struct_size,
-                interceptor->replacements);
+                replacements);
         
         if(interceptor->instrumentor == NULL)
         {
@@ -925,7 +344,7 @@ int kedr_coi_interceptor_start(struct kedr_coi_interceptor* interceptor)
             interceptor->ops->create_instrumentor_with_foreign(
                 interceptor,
                 interceptor->operations_struct_size,
-                interceptor->replacements);
+                replacements);
         
         if(instrumentor_with_foreign == NULL)
         {
@@ -963,14 +382,9 @@ err_foreign_start:
     interceptor->instrumentor = NULL;
 
 err_create_instrumentor:
-    kfree(interceptor->replacements);
-err_create_replacements:
     
-err_use_payloads:
-    interceptor_unuse_payloads(interceptor);
+    operation_payloads_unuse(&interceptor->payloads);
     
-    interceptor_release_payloads(interceptor);
-
     return result;
 }
 
@@ -1005,9 +419,7 @@ void kedr_coi_interceptor_stop(struct kedr_coi_interceptor* interceptor)
     }
     interceptor->instrumentor = NULL;
     
-    interceptor_unuse_payloads(interceptor);
-    
-    interceptor_release_payloads(interceptor);
+    operation_payloads_unuse(&interceptor->payloads);
 }
 
 int kedr_coi_interceptor_watch(
@@ -1053,9 +465,6 @@ int kedr_coi_payload_register(
 	struct kedr_coi_interceptor* interceptor,
 	struct kedr_coi_payload* payload)
 {
-    int result;
-    struct payload_elem* elem;
-    
     BUG_ON((interceptor->state != interceptor_state_initialized)
         && (interceptor->state != interceptor_state_started));
     
@@ -1066,93 +475,17 @@ int kedr_coi_payload_register(
         return -EBUSY;
     }
 
-    result = interceptor_check_payload(interceptor, payload);
-    if(result) return result;
-
-    elem = kmalloc(sizeof(*elem), GFP_KERNEL);
-    if(elem == NULL)
-    {
-        pr_err("Failed to allocate registered payload element.");
-        return -ENOMEM;
-    }
-
-    payload_elem_init(elem, payload);
-    
-    result = mutex_lock_killable(&interceptor->m);
-    if(result)
-    {
-        kfree(elem);
-        return result;
-    }
-
-    // Check that item wasn't added before.
-    {
-        struct payload_elem* elem_tmp;
-        list_for_each_entry(elem_tmp, &interceptor->payload_elems, list)
-        {
-            if(elem_tmp->payload == payload)
-            {
-                pr_err("Payload %p already registered. It is an error "
-                    "to register payload twice.", payload);
-                result = -EEXIST;
-                goto err;
-            }
-        }
-    }
-    
-    list_add_tail(&elem->list, &interceptor->payload_elems);
-
-    mutex_unlock(&interceptor->m);
-    
-    return 0;
-
-err:
-    mutex_unlock(&interceptor->m);
-    kfree(elem);
-    return result;
+    return operation_payloads_add(&interceptor->payloads, payload);
 }
 
 int kedr_coi_payload_unregister(
 	struct kedr_coi_interceptor* interceptor,
 	struct kedr_coi_payload* payload)
 {
-    int result;
-    struct payload_elem* elem;
-    
 	BUG_ON((interceptor->state != interceptor_state_initialized)
 		&& (interceptor->state != interceptor_state_started));
 
-    result = mutex_lock_killable(&interceptor->m);
-    if(result) return result;
-   
-    list_for_each_entry(elem, &interceptor->payload_elems, list)
-    {
-        if(elem->payload != payload) continue;
-
-        if(elem->is_fixed)
-        {
-            pr_err("Cannot unregister payload %p because it is used "
-                "by interceptor now. Please, stop interceptor.",
-                payload);
-            result = -EBUSY;
-            goto out;
-        };
-        
-        list_del(&elem->list);
-        
-        kfree(elem);
-        
-        goto out;
-    }
-
-    pr_err("Payload %p cannot be unregister because it wasn't registered.",
-        payload);
-    result = -ENOENT;
-
-out:    
-    mutex_unlock(&interceptor->m);
-    
-    return result;
+    return operation_payloads_remove(&interceptor->payloads, payload);
 }
 
 
@@ -1181,21 +514,14 @@ int kedr_coi_interceptor_get_intermediate_info(
     
     if(result == 0)
     {
-        struct operation_info* operation = interceptor_find_operation(
-            interceptor, operation_offset);
-
-        BUG_ON(operation == NULL);
-
-        info->pre = info->op_orig
-            ? operation->pre_handlers.elems
-            : operation->default_pre_handlers.elems;
-        info->post = info->op_orig
-            ? operation->post_handlers.elems
-            : operation->default_post_handlers.elems;
+        operation_payloads_get_interception_info(&interceptor->payloads,
+            operation_offset, info->op_orig? 0 : 1,
+            &info->pre, &info->post);
 
         return 0;
     }
-    else if(result == 1)
+    else if((result == 1)
+        || ((result < 0) && !IS_ERR(info->op_orig)))
     {
         // without handlers - as if no interception at all.
         info->pre = NULL;
@@ -1223,20 +549,9 @@ void kedr_coi_interceptor_destroy(
         
         list_del(&foreign_core->list);
     }
-    /*
-     * Unregister all payloads which wasn't unregistered before this
-     * moment.
-     */
-    while(!list_empty(&interceptor->payload_elems))
-    {
-        struct payload_elem* elem = 
-            list_first_entry(&interceptor->payload_elems, typeof(*elem), list);
-        
-        pr_err("Payload %p wasn't unregistered. Unregister it now.",
-            elem->payload);
-        list_del(&elem->list);
-        kfree(elem);
-    }
+
+    operation_payloads_destroy(&interceptor->payloads);
+
     /*
      *  For control that nobody will access interceptor
      * when it has destroyed.
@@ -1350,7 +665,8 @@ int kedr_coi_foreign_core_bind_object(
     void* object,
     void* tie,
     size_t operation_offset,
-    void** op_orig)
+    void** op_chained,
+    void** op_orig/* for info only */)
 {
     struct kedr_coi_interceptor* interceptor_binded =
         foreign_core->interceptor_binded;
@@ -1358,7 +674,7 @@ int kedr_coi_foreign_core_bind_object(
     const void** ops_p = indirect_operations_p(object,
         interceptor_binded->operations_field_offset);
     /*
-     *  Similar to  kedr_coi_get_intermediate_info, this function
+     * Similar to  kedr_coi_get_intermediate_info, this function
      * cannot be called if interceptor is not started.
      */
     BUG_ON(foreign_core->state != interceptor_state_started);
@@ -1369,6 +685,7 @@ int kedr_coi_foreign_core_bind_object(
         tie,
         ops_p,
         operation_offset,
+        op_chained,
         op_orig);
 }
 
@@ -1521,14 +838,18 @@ int kedr_coi_bind_object_with_factory(
     void* object,
     void* factory,
     size_t operation_offset,
-    void** op_orig)
+    struct kedr_coi_factory_intermediate_info* info)
 {
+    //TODO: Fill handlers
+    info->pre = NULL;
+    info->post = NULL;
     return kedr_coi_foreign_core_bind_object(
         &interceptor->foreign_core,
         object,
         factory,
         operation_offset,
-        op_orig);
+        &info->op_chained,
+        &info->op_orig);
 }
 
 
@@ -1682,14 +1003,19 @@ int kedr_coi_bind_object(
     void* object,
     void* tie,
     size_t operation_offset,
-    void** op_orig)
+    struct kedr_coi_creation_intermediate_info* info)
 {
+    //TODO: Fill handlers
+    info->pre = NULL;
+    info->post = NULL;
+
     return kedr_coi_foreign_core_bind_object(
         &interceptor->foreign_core,
         object,
         tie,
         operation_offset,
-        op_orig);
+        &info->op_chained,
+        &info->op_orig);
 }
 
 

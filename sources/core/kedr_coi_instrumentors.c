@@ -3,7 +3,7 @@
  */
 
 /* ========================================================================
- * Copyright (C) 2011, Andrey V. Tsyvarev  <tsyvarev@ispras.ru>
+ * Copyright (C) 2011-2012, Andrey V. Tsyvarev  <tsyvarev@ispras.ru>
  *
  *
  * This program is free software: you can redistribute it and/or modify
@@ -80,7 +80,7 @@ instrumentor_impl_clean_replacement(
 static void
 instrumentor_impl_destroy(struct kedr_coi_instrumentor_impl* iface_impl)
 {
-    iface_impl->interface->destroy_impl(iface_impl);
+    iface_impl->destroy_impl(iface_impl);
 }
 
 static void*
@@ -162,6 +162,8 @@ static int kedr_coi_instrumentor_init(
     if(result) return result;
     
     spin_lock_init(&instrumentor->lock);
+    
+    instrumentor->iface_impl = NULL;
     
     return 0;
 }
@@ -256,7 +258,7 @@ kedr_coi_instrumentor_watch_internal(
         {
             instrumentor_impl_free_watch_data(iface_impl, watch_data_new);
             
-            return 1;// indicator of 'update'
+            return 0;// there is no indicator of 'update'
         }
         // Need to recreate object data, remove current one
         instrumentor_remove_watch_data(instrumentor, watch_data);
@@ -495,7 +497,7 @@ static void
 foreign_instrumentor_impl_destroy(
     struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl)
 {
-    foreign_iface_impl->interface->destroy_impl(foreign_iface_impl);
+    foreign_iface_impl->destroy_impl(foreign_iface_impl);
 }
 
 static int foreign_instrumentor_impl_restore_foreign_operations(
@@ -522,19 +524,16 @@ static int foreign_instrumentor_impl_restore_foreign_operations_nodata(
 
 static struct kedr_coi_foreign_instrumentor_impl*
 instrumentor_wf_impl_foreign_instrumentor_impl_create(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl,
+    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
     const struct kedr_coi_replacement* replacements)
 {
-    struct kedr_coi_instrumentor_with_foreign_impl_iface* interface_wf =
-        container_of(iface_wf_impl->interface, typeof(*interface_wf), base);
-    
-    return interface_wf->foreign_instrumentor_impl_create(iface_wf_impl,
-        replacements);
+    return iface_wf_impl->interface->foreign_instrumentor_impl_create(
+        iface_wf_impl, replacements);
 }
 
 static int
 instrumentor_wf_impl_replace_operations_from_foreign(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl,
+    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
     struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
     struct kedr_coi_instrumentor_watch_data* watch_data_new,
     const void** ops_p,
@@ -542,17 +541,14 @@ instrumentor_wf_impl_replace_operations_from_foreign(
     size_t operation_offset,
     void** op_repl)
 {
-    struct kedr_coi_instrumentor_with_foreign_impl_iface* interface_wf =
-        container_of(iface_wf_impl->interface, typeof(*interface_wf), base);
-    
-    return interface_wf->replace_operations_from_foreign(
+    return iface_wf_impl->interface->replace_operations_from_foreign(
         iface_wf_impl, foreign_iface_impl, watch_data_new, ops_p,
         foreign_watch_data, operation_offset, op_repl);
 }
 
 static int
 instrumentor_wf_impl_update_operations_from_foreign(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl,
+    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
     struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
     struct kedr_coi_instrumentor_watch_data* watch_data,
     const void** ops_p,
@@ -560,27 +556,21 @@ instrumentor_wf_impl_update_operations_from_foreign(
     size_t operation_offset,
     void** op_repl)
 {
-    struct kedr_coi_instrumentor_with_foreign_impl_iface* interface_wf =
-        container_of(iface_wf_impl->interface, typeof(*interface_wf), base);
-    
-    return interface_wf->update_operations_from_foreign(
+    return iface_wf_impl->interface->update_operations_from_foreign(
         iface_wf_impl, foreign_iface_impl, watch_data, ops_p,
         foreign_watch_data, operation_offset, op_repl);
 }
 
 static int
 instrumentor_wf_impl_chain_operation(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl,
+    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
     struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
     struct kedr_coi_instrumentor_watch_data* watch_data,
     const void** ops_p,
     size_t operation_offset,
     void** op_chained)
 {
-    struct kedr_coi_instrumentor_with_foreign_impl_iface* interface_wf =
-        container_of(iface_wf_impl->interface, typeof(*interface_wf), base);
-    
-    return interface_wf->chain_operation(
+    return iface_wf_impl->interface->chain_operation(
         iface_wf_impl, foreign_iface_impl, watch_data, ops_p,
         operation_offset, op_chained);
 }
@@ -643,24 +633,25 @@ static void kedr_coi_instrumentor_with_foreign_destroy_f(
 static int kedr_coi_instrumentor_with_foreign_init(
     struct kedr_coi_instrumentor_with_foreign* instrumentor)
 {
+    instrumentor->iface_wf_impl = NULL;
     return kedr_coi_instrumentor_init(&instrumentor->base);
 }
 
 // Protected method
 static void kedr_coi_instrumentor_with_foreign_set_impl(
     struct kedr_coi_instrumentor_with_foreign* instrumentor,
-    struct kedr_coi_instrumentor_impl* iface_wf_impl)
+    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl)
 {
     kedr_coi_instrumentor_set_impl(
         &instrumentor->base,
-        iface_wf_impl);
+        &iface_wf_impl->base);
     
     instrumentor->iface_wf_impl = iface_wf_impl;
 }
 
 struct kedr_coi_instrumentor_with_foreign*
 kedr_coi_instrumentor_with_foreign_create(
-    struct kedr_coi_instrumentor_impl* iface_wf_impl)
+    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl)
 {
     struct kedr_coi_instrumentor_with_foreign* instrumentor =
         kmalloc(sizeof(*instrumentor), GFP_KERNEL);
@@ -827,7 +818,7 @@ kedr_coi_foreign_instrumentor_watch_internal(
             foreign_instrumentor_impl_free_watch_data(
                 foreign_iface_impl, watch_data_new);
             
-            return 1;// indicator of 'update'
+            return 0;// there is no indicator of 'update'
         }
         // Need to recreate object data, remove current one
         foreign_instrumentor_remove_watch_data(instrumentor, watch_data);
@@ -947,8 +938,11 @@ kedr_coi_foreign_instrumentor_bind(
     const void* tie,
     const void** ops_p,
     size_t operation_offset,
-    void** op_chained)
+    void** op_chained,
+    void** op_orig)
 {
+    //TODO: set op_orig
+    
     int result = 0;
     
     struct kedr_coi_instrumentor_watch_data* watch_data;
@@ -962,12 +956,10 @@ kedr_coi_foreign_instrumentor_bind(
     
     struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl =
         instrumentor->foreign_iface_impl;
-    struct kedr_coi_instrumentor_impl* iface_wf_impl =
+    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl =
         instrumentor_binded->iface_wf_impl;
-    struct kedr_coi_instrumentor_with_foreign_impl_iface* interface_wf =
-        container_of(iface_wf_impl->interface, typeof(*interface_wf), base);
 
-    watch_data_new = instrumentor_impl_alloc_watch_data(iface_wf_impl);
+    watch_data_new = instrumentor_impl_alloc_watch_data(&iface_wf_impl->base);
     // NOTE: doesn't verify watch_data at this stage
     
     spin_lock_irqsave(&instrumentor_binded->base.lock, flags_wf);
@@ -978,49 +970,93 @@ kedr_coi_foreign_instrumentor_bind(
     foreign_watch_data = foreign_instrumentor_find_watch_data_by_tie(
         instrumentor, tie);
 
+    if(foreign_watch_data)
+    {
+        /* Foreign object is wacthed */
+        if(watch_data != NULL)
+        {
+            /* Current object is already watched */
+            result = instrumentor_wf_impl_update_operations_from_foreign(
+                iface_wf_impl, foreign_iface_impl, watch_data, ops_p,
+                foreign_watch_data, operation_offset, op_chained);
+            
+            if(result == 0)
+            {
+                if(watch_data_new)
+                    instrumentor_impl_free_watch_data(&iface_wf_impl->base,
+                    watch_data_new);
+                
+                *op_orig = instrumentor_impl_get_orig_operation(
+                    &iface_wf_impl->base, watch_data, *ops_p,
+                    operation_offset);
+                
+                goto out;
+            }
+            else if(result < 0)
+            {
+                if(watch_data_new)
+                    instrumentor_impl_free_watch_data(&iface_wf_impl->base,
+                    watch_data_new);
+                
+                goto out;
+            }
+            
+            /* result == 1. Need to recreate data. Fallback. */
+        }
+        /* Current object is not watched.*/
+        if(watch_data_new == NULL)
+        {
+            /* Failed to allocate watch data. Restore operations. */
+            result = -ENOMEM;
+            /* Error already set, ignore futhers error codes */
+            (void)foreign_instrumentor_impl_restore_foreign_operations(
+                foreign_iface_impl, foreign_watch_data, ops_p,
+                operation_offset, op_chained);
+            
+            goto out;
+        }
+        /* Main path */
+        kedr_coi_hash_elem_init(&watch_data_new->hash_elem_object, object);
+
+        result = instrumentor_wf_impl_replace_operations_from_foreign(
+            iface_wf_impl, foreign_iface_impl, watch_data_new, ops_p,
+            foreign_watch_data, operation_offset, op_chained);
+        
+        if(result == 0)
+        {
+            instrumentor_add_watch_data(&instrumentor_binded->base,
+                watch_data_new);
+            
+            *op_orig = instrumentor_impl_get_orig_operation(
+                &iface_wf_impl->base, watch_data_new, *ops_p,
+                operation_offset);
+        }
+        else
+        {
+            instrumentor_impl_free_watch_data(&iface_wf_impl->base,
+                watch_data_new);
+        }
+        
+        goto out;
+    }
+    /* Foreign object is not watched. Doesn't need new watch data. */
+    if(watch_data_new)
+        instrumentor_impl_free_watch_data(&iface_wf_impl->base,
+            watch_data_new);
+    
     if(watch_data != NULL)
     {
-        if(watch_data_new)
-            instrumentor_impl_free_watch_data(iface_wf_impl,
-                watch_data_new);
-
-        result = (foreign_watch_data != NULL)
-            ? instrumentor_wf_impl_update_operations_from_foreign(
-                iface_wf_impl, foreign_iface_impl, watch_data, ops_p,
-                foreign_watch_data, operation_offset, op_chained)
-            : instrumentor_wf_impl_chain_operation(
-                iface_wf_impl, foreign_iface_impl, watch_data, ops_p,
-                operation_offset, op_chained);
-        goto out;
+        /* Foreign object is not watched, but current object is. */
+        result = instrumentor_wf_impl_chain_operation(
+            iface_wf_impl, foreign_iface_impl, watch_data, ops_p,
+            operation_offset, op_chained);
     }
-    else if(foreign_watch_data == NULL)
+    else
     {
-        if(watch_data_new)
-            instrumentor_impl_free_watch_data(
-                iface_wf_impl, watch_data_new);
+        /* Neither foreign nor current object is not watched. */
         result = foreign_instrumentor_impl_restore_foreign_operations_nodata(
             foreign_iface_impl, ops_p, operation_offset, op_chained);
-        goto out;
     }
-    else if(watch_data_new == NULL)
-    {
-        result = foreign_instrumentor_impl_restore_foreign_operations(
-            foreign_iface_impl, foreign_watch_data, ops_p,
-            operation_offset, op_chained);
-        goto out;
-
-    }
-    // Main path    
-    
-    kedr_coi_hash_elem_init(&watch_data_new->hash_elem_object, object);
-
-    result = instrumentor_wf_impl_replace_operations_from_foreign(
-        iface_wf_impl, foreign_iface_impl, watch_data_new, ops_p,
-        foreign_watch_data, operation_offset, op_chained);
-    
-    if(!result)
-        instrumentor_add_watch_data(&instrumentor_binded->base,
-            watch_data_new);
 
 out:
     spin_unlock_irqrestore(&instrumentor->lock, flags_f);
@@ -1037,7 +1073,7 @@ kedr_coi_foreign_instrumentor_create(
     struct kedr_coi_foreign_instrumentor* foreign_instrumentor;
     struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl;
     
-    struct kedr_coi_instrumentor_impl* iface_wf_impl =
+    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl =
         instrumentor->iface_wf_impl;
 
     foreign_iface_impl = instrumentor_wf_impl_foreign_instrumentor_impl_create(
@@ -1077,6 +1113,8 @@ void kedr_coi_foreign_instrumentor_destroy(
     
     kedr_coi_hash_table_destroy(&instrumentor->hash_table_ids,
         free_foreign_watch_elem);
+    
+    kedr_coi_hash_table_destroy(&instrumentor->hash_table_ties, NULL);
 
     if(instrumentor->foreign_iface_impl)
         foreign_instrumentor_impl_destroy(instrumentor->foreign_iface_impl);

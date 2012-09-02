@@ -6,11 +6,14 @@ kbuild_add_module(${kmodule_name}
 	"kedr_coi_instrumentors_impl.c"
     "kedr_coi_instrumentors.c"
     "kedr_coi_interceptors.c"
+    "payloads.c"
 	"kedr_coi_module.c"
+    
 
     "kedr_coi_hash_table.c"
 
 	"kedr_coi_instrumentor_internal.h"
+    "payloads.h"
     "kedr_coi_hash_table.h"
     )
 

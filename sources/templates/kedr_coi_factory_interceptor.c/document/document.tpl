@@ -20,10 +20,10 @@ static inline int bind_object_with_factory(
         <$object.type$>* object,
         <$factory.type$>* factory,
         size_t operation_offset,
-        void** op_chained_p)
+        struct kedr_coi_factory_intermediate_info* info)
 {
     return kedr_coi_bind_object_with_factory(interceptor,
-        object, factory, operation_offset, op_chained_p);
+        object, factory, operation_offset, info);
 }
 
 
