@@ -17,7 +17,7 @@
 
 static inline int bind_object(
     <$object.type$>* object,
-    <$tie.type$* tie>,
+    <$tie.type$> tie,
     size_t operation_offset,
     struct kedr_coi_creation_intermediate_info* info)
 {

@@ -23,6 +23,13 @@ operation.arg.name = str1
 operation.arg.type = const struct qstr *
 operation.arg.name = qstr2
 
-operation.object = dentry1
+# dentry1 and inode1 are parent dentry and inodes,
+# dentry2 and inode2 are child ones.
+operation.object = dentry2
+
+header=>>
+/* Dentry's d_compare method accept inode and other parameters. */
+#define DENTRY_OPERATIONS_D_COMPARE_ACCEPT_INODE 1
+<<
 
 # Called from __d_lookup[_rcu]; checked in d_set_d_op

@@ -9,7 +9,7 @@
     struct kedr_coi_creation_intermediate_info intermediate_info;
     <$if operation.returnType$><$operation.returnType$> returnValue;
     
-    <$if operation.returnType$><$operation.returnType$><$else$>void<$endif$> (*op_chained)(<$argumentSpec$>);
+    <$endif$><$if operation.returnType$><$operation.returnType$><$else$>void<$endif$> (*op_chained)(<$argumentSpec$>);
 
     int result = bind_object(
         <$operation.object$>,
