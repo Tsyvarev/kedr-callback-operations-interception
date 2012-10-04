@@ -74,16 +74,12 @@ EXPORT_SYMBOL(kedr_coi_factory_interceptor_forget_norestore);
 
 EXPORT_SYMBOL(kedr_coi_factory_interceptor_create);
 
-EXPORT_SYMBOL(kedr_coi_bind_object_with_factory);
+EXPORT_SYMBOL(kedr_coi_factory_interceptor_bind_object);
 
 EXPORT_SYMBOL(kedr_coi_factory_interceptor_destroy);
 
-// Creation interceptor
-EXPORT_SYMBOL(kedr_coi_creation_interceptor_watch);
-EXPORT_SYMBOL(kedr_coi_creation_interceptor_forget);
+// Generic functions for factory interceptor
+EXPORT_SYMBOL(kedr_coi_factory_interceptor_watch_generic);
+EXPORT_SYMBOL(kedr_coi_factory_interceptor_forget_generic);
 
-EXPORT_SYMBOL(kedr_coi_creation_interceptor_create);
-
-EXPORT_SYMBOL(kedr_coi_bind_object);
-
-EXPORT_SYMBOL(kedr_coi_creation_interceptor_destroy);
+EXPORT_SYMBOL(kedr_coi_factory_interceptor_create_generic);

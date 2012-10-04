@@ -229,7 +229,7 @@ static struct operation_info* operation_payloads_find_operation(
 }
  
 int operation_payloads_init(struct operation_payloads* payloads,
-    struct kedr_coi_intermediate* intermediate_operations,
+    const struct kedr_coi_intermediate* intermediate_operations,
     const char* interceptor_name)
 {
     int result;

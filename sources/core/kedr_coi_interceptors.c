@@ -57,13 +57,15 @@ enum interceptor_state
 
 // Forward declarations
 struct kedr_coi_interceptor;
-struct kedr_coi_foreign_core;
+struct kedr_coi_factory_interceptor;
 
 // Internal API of operations interceptor(forward declaration)
-static int kedr_coi_foreign_core_start(struct kedr_coi_foreign_core* foreign_core,
+static int factory_interceptor_start(
+    struct kedr_coi_factory_interceptor* factory_interceptor,
     struct kedr_coi_interceptor* interceptor_binded);
 
-static void kedr_coi_foreign_core_stop(struct kedr_coi_foreign_core* foreign_core);
+static void factory_interceptor_stop(
+    struct kedr_coi_factory_interceptor* factory_interceptor);
 
 /* 
  * Operations which differs in interceptors of different types.
@@ -111,8 +113,8 @@ struct kedr_coi_interceptor
     int state;
 
     struct operation_payloads payloads;
-    // List of foreign cores created by this one
-    struct list_head foreign_cores;
+    // List of factory interceptors created by this one
+    struct list_head factory_interceptors;
     /*
      *  Protect list of foreign interceptors from concurrent access.
      */
@@ -154,8 +156,8 @@ static const void* interceptor_get_ops(
  * depending of interceptor type(direct or indirect).
  * 
  * NOTE: 'object' should be variable, because for direct interceptor
- * reference to this variable will be returned. This is reason why
- * interceptor_get_ops_p() is a macro function but a function.
+ * reference to this variable will be returned. This is the reason why
+ * interceptor_get_ops_p() is a not a function but a macro.
  */
 #define interceptor_get_ops_p(interceptor, object) ((interceptor->operations_field_offset == -1) \
     ? (const void**)&object \
@@ -177,6 +179,11 @@ interceptor_init_common(
     void (*trace_unforgotten_object)(void* object))
 {
     int result;
+
+    result = operation_payloads_init(&interceptor->payloads,
+        intermediate_operations, name);
+    
+    if(result) return result;
     
     interceptor->name = name;
     interceptor->ops = ops;
@@ -190,40 +197,50 @@ interceptor_init_common(
     
     mutex_init(&interceptor->m);
 
-    INIT_LIST_HEAD(&interceptor->foreign_cores);
-
-    result = operation_payloads_init(&interceptor->payloads,
-        intermediate_operations, name);
-    
-    if(result) return result;
+    INIT_LIST_HEAD(&interceptor->factory_interceptors);
     
     return 0;
 }
 
 
-//***************Interceptor for foreign operations*******************//
+//*************** Factory interceptor ********************************//
 
-/*
- * Common part for kedr_coi_creation_interceptor and
- * kedr_coi_factory_interceptor.
- * 
- * Used for communicating with binded interceptor.
+/* 
+ * Operations which differs in factory interceptors of different types.
  */
-struct kedr_coi_foreign_core
+struct factory_interceptor_operations
 {
+    // Free instance of the interceptor
+    void (*destroy)(
+        struct kedr_coi_factory_interceptor* factory_interceptor);
+
+    void (*trace_unforgotten_watch)(
+        struct kedr_coi_factory_interceptor* factory_interceptor,
+        void* id, void* tie);
+    
+    // Return operations pointer for given factory object.
+    // For generic interceptor should be NULL.
+    const void** (*get_ops_p)(
+        struct kedr_coi_factory_interceptor* factory_interceptor,
+        void* factory);
+
+};
+
+
+struct kedr_coi_factory_interceptor
+{
+    const char* name;
+    const struct factory_interceptor_operations* ops;
+
     struct kedr_coi_interceptor* interceptor_binded;
     // Current state of the interceptor
     int state;
+    
+
+    struct operation_payloads payloads;    
     // Element of the list of foreign interceptor binded with normal one.
     struct list_head list;
     
-    void (*trace_unforgotten_watch)(
-        struct kedr_coi_foreign_core* foreign_core, void* id, void* tie);
-    /*
-     *  Replacements taken immediately from intermediate operations.
-     * Used when interceptor is starting.
-     */
-    struct kedr_coi_replacement* replacements;
     /*
      * Instrumentor for this interceptor. 
      *  Used only when interceptor is started.
@@ -231,42 +248,85 @@ struct kedr_coi_foreign_core
     struct kedr_coi_foreign_instrumentor* instrumentor;
 };
 
-static void kedr_coi_foreign_core_trace_unforgotten_watch(void* id,
-    void* tie, void* user_data)
+static void kedr_coi_factory_interceptor_trace_unforgotten_watch(
+    void* id, void* tie, void* user_data)
 {
-    struct kedr_coi_foreign_core* foreign_core = user_data;
-    foreign_core->trace_unforgotten_watch(foreign_core,
-        (void*)id, (void*)tie);
+    struct kedr_coi_factory_interceptor* factory_interceptor = user_data;
+    factory_interceptor->ops->trace_unforgotten_watch(
+        factory_interceptor, id, tie);
 }
 
+/* 
+ * Non-generic functions for factory interceptor use this functions
+ * for deduce operations pointer from 'factory' pointer.
+ */
+static const void** factory_interceptor_get_ops_p(
+    struct kedr_coi_factory_interceptor* factory_interceptor,
+    void* factory)
+{
+    const struct factory_interceptor_operations* ops
+        = factory_interceptor->ops;
+    
+    /* Non-generic functions is forbidden for generic interceptor */
+    BUG_ON(ops->get_ops_p == NULL);
+    
+    return ops->get_ops_p(factory_interceptor, factory);
+}
 
 /*
- *  Initialize foreign core structure as not binded.
- * 
- * 'replacements' will be controlled by foreign foreign_core, and freed when
- * no needed.
+ *  Initialize factory interceptor structure as not binded.
  */
-static void kedr_coi_foreign_core_init(
-    struct kedr_coi_foreign_core* foreign_core,
-    struct kedr_coi_replacement* replacements,
-    void (*trace_unforgotten_watch)(
-        struct kedr_coi_foreign_core* foreign_core, void* id, void* tie))
+static int factory_interceptor_init_common(
+    struct kedr_coi_factory_interceptor* factory_interceptor,
+    const char* name,
+    const struct factory_interceptor_operations* ops,
+    const struct kedr_coi_intermediate* intermediate_operations)
 {
-    foreign_core->replacements = replacements;
+    int result;
     
-    foreign_core->interceptor_binded = NULL;
+    const struct kedr_coi_intermediate* intermediate;
+    /* 
+     * Check that no intermediate is declared as 'internal_only'.
+     */
+    if((intermediate_operations == NULL) ||
+        (intermediate_operations[0].operation_offset == -1))
+    {
+        pr_err("For factory interceptor at least one "
+            "intermediate should be defined.");
+        return -EINVAL;
+    }
+        
     
-    foreign_core->trace_unforgotten_watch = trace_unforgotten_watch;
+    for(intermediate = intermediate_operations;
+        intermediate->operation_offset != -1;
+        intermediate++)
+    {
+        if(intermediate->internal_only)
+        {
+            pr_err("For factory interceptor internal-only "
+                "intermediates are prohibited.");
+            return -EINVAL;
+        }
+    }
     
-    foreign_core->instrumentor = NULL;
+    result = operation_payloads_init(&factory_interceptor->payloads,
+        intermediate_operations, name);
+    
+    if(result) return result;
 
-    INIT_LIST_HEAD(&foreign_core->list);
+    factory_interceptor->interceptor_binded = NULL;
+    factory_interceptor->name = name;
+    factory_interceptor->instrumentor = NULL;
+
+    INIT_LIST_HEAD(&factory_interceptor->list);
     
-    foreign_core->state = interceptor_state_initialized;
+    factory_interceptor->state = interceptor_state_initialized;
+    
+    return 0;
 }
 
-static int kedr_coi_foreign_core_bind(
-    struct kedr_coi_foreign_core* foreign_core,
+static int factory_interceptor_bind(
+    struct kedr_coi_factory_interceptor* factory_interceptor,
     struct kedr_coi_interceptor* interceptor)
 {
     BUG_ON(interceptor->state != interceptor_state_initialized);
@@ -277,33 +337,18 @@ static int kedr_coi_foreign_core_bind(
         return -EINVAL;
     }
 
-    foreign_core->interceptor_binded = interceptor;
-    list_add_tail(&foreign_core->list, &interceptor->foreign_cores);
+    factory_interceptor->interceptor_binded = interceptor;
+    list_add_tail(&factory_interceptor->list, &interceptor->factory_interceptors);
     
     return 0;
 }
-
-static void kedr_coi_foreign_core_finalize(
-    struct kedr_coi_foreign_core* foreign_core)
-{
-    BUG_ON(foreign_core->state != interceptor_state_initialized);
-    foreign_core->state = interceptor_state_uninitialized;
-
-    if(!list_empty(&foreign_core->list))
-    {
-        list_del(&foreign_core->list);
-    }
-    
-    kfree(foreign_core->replacements);
-}
-
 
 //*********Interceptor API implementation*****************************//
 
 int kedr_coi_interceptor_start(struct kedr_coi_interceptor* interceptor)
 {
 	int result;
-    struct kedr_coi_foreign_core* foreign_core;
+    struct kedr_coi_factory_interceptor* factory_interceptor;
     const struct kedr_coi_replacement* replacements;
     
 	BUG_ON(interceptor->state != interceptor_state_initialized);
@@ -314,12 +359,12 @@ int kedr_coi_interceptor_start(struct kedr_coi_interceptor* interceptor)
     replacements = operation_payloads_get_replacements(
         &interceptor->payloads);
 
-    if(list_empty(&interceptor->foreign_cores)
+    if(list_empty(&interceptor->factory_interceptors)
         && (interceptor->ops->create_instrumentor != NULL))
     {
         /*
-         *  Create normal instrumentor, because no foreign interceptors
-         * was created for this one.
+         *  Create normal instrumentor, because no factory ones has been
+         * created for this one.
          */
         interceptor->instrumentor =
             interceptor->ops->create_instrumentor(
@@ -356,9 +401,9 @@ int kedr_coi_interceptor_start(struct kedr_coi_interceptor* interceptor)
     
     interceptor->state = interceptor_state_started;
     // Also start all foreign interceptors created for this one.
-    list_for_each_entry(foreign_core, &interceptor->foreign_cores, list)
+    list_for_each_entry(factory_interceptor, &interceptor->factory_interceptors, list)
     {
-        result = kedr_coi_foreign_core_start(foreign_core, interceptor);
+        result = factory_interceptor_start(factory_interceptor, interceptor);
         if(result)
         {
             goto err_foreign_start;
@@ -368,10 +413,10 @@ int kedr_coi_interceptor_start(struct kedr_coi_interceptor* interceptor)
     return 0;
 
 err_foreign_start:
-    list_for_each_entry_continue_reverse(foreign_core,
-        &interceptor->foreign_cores, list)
+    list_for_each_entry_continue_reverse(factory_interceptor,
+        &interceptor->factory_interceptors, list)
     {
-        kedr_coi_foreign_core_stop(foreign_core);
+        factory_interceptor_stop(factory_interceptor);
     }
     
     interceptor->state = interceptor_state_initialized;
@@ -391,7 +436,7 @@ err_create_instrumentor:
 
 void kedr_coi_interceptor_stop(struct kedr_coi_interceptor* interceptor)
 {
-    struct kedr_coi_foreign_core* foreign_core;
+    struct kedr_coi_factory_interceptor* factory_interceptor;
 
 	BUG_ON(interceptor->state == interceptor_state_uninitialized);
 	
@@ -399,9 +444,9 @@ void kedr_coi_interceptor_stop(struct kedr_coi_interceptor* interceptor)
 		return;// Assume that start() was called but failed
 
     // First - stop all foreign interceptors created for this one
-    list_for_each_entry(foreign_core, &interceptor->foreign_cores, list)
+    list_for_each_entry(factory_interceptor, &interceptor->factory_interceptors, list)
     {
-        kedr_coi_foreign_core_stop(foreign_core);
+        factory_interceptor_stop(factory_interceptor);
     }
 
     interceptor->state = interceptor_state_initialized;
@@ -498,7 +543,7 @@ int kedr_coi_interceptor_get_intermediate_info(
     int result;
     
     /*
-     * This function is allowed to call only by intermediate operation.
+     * This function is allowed to be called only by intermediate operation.
      * Intermediate operation may be called only after successfull 
      * 'watch' call, which in turn may be only in 'started' state of
      * the interceptor.
@@ -542,12 +587,12 @@ void kedr_coi_interceptor_destroy(
      * First - disconnect all foreign interceptor which are created
      * for this one.
      */
-	while(!list_empty(&interceptor->foreign_cores))
+	while(!list_empty(&interceptor->factory_interceptors))
     {
-        struct kedr_coi_foreign_core* foreign_core = list_first_entry(
-            &interceptor->foreign_cores, typeof(*foreign_core), list);
+        struct kedr_coi_factory_interceptor* factory_interceptor = list_first_entry(
+            &interceptor->factory_interceptors, typeof(*factory_interceptor), list);
         
-        list_del(&foreign_core->list);
+        list_del(&factory_interceptor->list);
     }
 
     operation_payloads_destroy(&interceptor->payloads);
@@ -562,114 +607,139 @@ void kedr_coi_interceptor_destroy(
 }
 
 
-// Internal API of foreign core
-int kedr_coi_foreign_core_start(
-    struct kedr_coi_foreign_core* foreign_core,
+//*********Internal factory interceptor API implementation************//
+int factory_interceptor_start(
+    struct kedr_coi_factory_interceptor* factory_interceptor,
     struct kedr_coi_interceptor* interceptor_binded)
 {
+	int result;
     struct kedr_coi_instrumentor_with_foreign* instrumentor_binded;
+    const struct kedr_coi_replacement* replacements;
     
-    BUG_ON(foreign_core->state != interceptor_state_initialized);
+    BUG_ON(factory_interceptor->state != interceptor_state_initialized);
     BUG_ON(interceptor_binded->state != interceptor_state_started);
+
+    result = operation_payloads_use(&factory_interceptor->payloads, 1);
+    if(result) return result;
+
+    replacements = operation_payloads_get_replacements(
+        &factory_interceptor->payloads);
     
     instrumentor_binded = container_of(interceptor_binded->instrumentor,
         typeof(*instrumentor_binded), base);
     
-    foreign_core->instrumentor = kedr_coi_foreign_instrumentor_create(
-        instrumentor_binded,
-        foreign_core->replacements);
+    factory_interceptor->instrumentor = kedr_coi_foreign_instrumentor_create(
+        instrumentor_binded, replacements);
     
-    if(foreign_core->instrumentor == NULL)
+    if(factory_interceptor->instrumentor == NULL)
     {
+        operation_payloads_unuse(&factory_interceptor->payloads);
         return -EINVAL;
     }
     
-    foreign_core->state = interceptor_state_started;
+    factory_interceptor->state = interceptor_state_started;
     
     return 0;
 }
 
-void kedr_coi_foreign_core_stop(
-    struct kedr_coi_foreign_core* foreign_core)
+void factory_interceptor_stop(
+    struct kedr_coi_factory_interceptor* factory_interceptor)
 {
-    if(foreign_core->state == interceptor_state_initialized) return;
+    if(factory_interceptor->state == interceptor_state_initialized) return;
     
-    BUG_ON(foreign_core->state != interceptor_state_started);
+    BUG_ON(factory_interceptor->state != interceptor_state_started);
 
-    foreign_core->state = interceptor_state_initialized;
+    factory_interceptor->state = interceptor_state_initialized;
     
-    if(foreign_core->trace_unforgotten_watch)
-    {
-        kedr_coi_foreign_instrumentor_destroy(
-            foreign_core->instrumentor,
-            kedr_coi_foreign_core_trace_unforgotten_watch,
-            foreign_core);
-    }
-    else
-    {
-        kedr_coi_foreign_instrumentor_destroy(
-            foreign_core->instrumentor,
-            NULL, NULL);
-    }
+    kedr_coi_foreign_instrumentor_destroy(
+        factory_interceptor->instrumentor,
+        kedr_coi_factory_interceptor_trace_unforgotten_watch,
+        factory_interceptor);
 
-    foreign_core->instrumentor = NULL;
+    factory_interceptor->instrumentor = NULL;
+    
+    operation_payloads_unuse(&factory_interceptor->payloads);
 }
 
-
-int kedr_coi_foreign_core_watch(
-    struct kedr_coi_foreign_core* foreign_core,
+//*********Factory interceptor API implementation*********************//
+int kedr_coi_factory_interceptor_watch_generic(
+    struct kedr_coi_factory_interceptor* factory_interceptor,
     void* id,
     void* tie,
     const void** ops_p)
 {
-    if(foreign_core->state == interceptor_state_initialized)
+    if(factory_interceptor->state == interceptor_state_initialized)
     {
         return -EPERM;
     }
     
-    BUG_ON(foreign_core->state != interceptor_state_started);
+    BUG_ON(factory_interceptor->state != interceptor_state_started);
     
-    return kedr_coi_foreign_instrumentor_watch(foreign_core->instrumentor,
+    return kedr_coi_foreign_instrumentor_watch(factory_interceptor->instrumentor,
         id, tie, ops_p);
 }
 
-int kedr_coi_foreign_core_forget(
-    struct kedr_coi_foreign_core* foreign_core,
+/* Normal variant*/
+int kedr_coi_factory_interceptor_watch(
+    struct kedr_coi_factory_interceptor* factory_interceptor,
+    void* factory)
+{
+    void* id = factory;
+    void* tie = factory;
+    const void** ops_p = factory_interceptor_get_ops_p(factory_interceptor,
+        factory);
+    
+    return kedr_coi_factory_interceptor_watch_generic(
+        factory_interceptor, id, tie, ops_p);
+}
+
+int kedr_coi_factory_interceptor_forget_generic(
+    struct kedr_coi_factory_interceptor* factory_interceptor,
     void* id,
     const void** ops_p)
 {
-    if(foreign_core->state == interceptor_state_initialized)
+    if(factory_interceptor->state == interceptor_state_initialized)
         return -EPERM;
     
-    BUG_ON(foreign_core->state != interceptor_state_started);
+    BUG_ON(factory_interceptor->state != interceptor_state_started);
     
-    return kedr_coi_foreign_instrumentor_forget(foreign_core->instrumentor,
+    return kedr_coi_foreign_instrumentor_forget(factory_interceptor->instrumentor,
         id, ops_p);
 }
 
-int kedr_coi_foreign_core_forget_norestore(
-    struct kedr_coi_foreign_core* foreign_core,
-    void* id)
+/* Normal variants */
+int kedr_coi_factory_interceptor_forget(
+    struct kedr_coi_factory_interceptor* factory_interceptor,
+    void* factory)
 {
-    if(foreign_core->state == interceptor_state_initialized)
-        return -EPERM;
+    void* id = factory;
+    const void** ops_p = factory_interceptor_get_ops_p(factory_interceptor,
+        factory);
     
-    BUG_ON(foreign_core->state != interceptor_state_started);
-    
-    return kedr_coi_foreign_instrumentor_forget(foreign_core->instrumentor,
-        id, NULL);
+    return kedr_coi_factory_interceptor_forget_generic(
+        factory_interceptor, id, ops_p);
 }
 
-int kedr_coi_foreign_core_bind_object(
-    struct kedr_coi_foreign_core* foreign_core,
+int kedr_coi_factory_interceptor_forget_norestore(
+    struct kedr_coi_factory_interceptor* factory_interceptor,
+    void* factory)
+{
+    void* id = factory;
+
+    return kedr_coi_factory_interceptor_forget_generic(
+        factory_interceptor, id, NULL);
+}
+
+
+int kedr_coi_factory_interceptor_bind_object(
+    struct kedr_coi_factory_interceptor* factory_interceptor,
     void* object,
-    void* tie,
+    void* factory,
     size_t operation_offset,
-    void** op_chained,
-    void** op_orig/* for info only */)
+    struct kedr_coi_intermediate_info* info)
 {
     struct kedr_coi_interceptor* interceptor_binded =
-        foreign_core->interceptor_binded;
+        factory_interceptor->interceptor_binded;
         
     const void** ops_p = indirect_operations_p(object,
         interceptor_binded->operations_field_offset);
@@ -677,355 +747,217 @@ int kedr_coi_foreign_core_bind_object(
      * Similar to  kedr_coi_get_intermediate_info, this function
      * cannot be called if interceptor is not started.
      */
-    BUG_ON(foreign_core->state != interceptor_state_started);
+    BUG_ON(factory_interceptor->state != interceptor_state_started);
     
+    //TODO: Fill handlers
     return kedr_coi_foreign_instrumentor_bind(
-        foreign_core->instrumentor,
+        factory_interceptor->instrumentor,
         object,
-        tie,
+        factory,
         ops_p,
         operation_offset,
-        op_chained,
-        op_orig);
+        info->op_chained,
+        info->op_orig);
 }
 
-/**********************************************************************/
-/***********************Factory interceptor****************************/
-/**********************************************************************/
-struct kedr_coi_factory_interceptor
+void kedr_coi_factory_interceptor_destroy(
+    struct kedr_coi_factory_interceptor* factory_interceptor)
 {
-    struct kedr_coi_foreign_core foreign_core;
+    BUG_ON(factory_interceptor->state != interceptor_state_initialized);
+    factory_interceptor->state = interceptor_state_uninitialized;
+
+    if(!list_empty(&factory_interceptor->list))
+    {
+        list_del(&factory_interceptor->list);
+    }
     
-    const char* name;
+    operation_payloads_destroy(&factory_interceptor->payloads);
+    
+    factory_interceptor->ops->destroy(factory_interceptor);
+}
+/************** 'Normal' factory interceptor***************************/
+struct kedr_coi_factory_interceptor_normal
+{
+    struct kedr_coi_factory_interceptor base;
     
     size_t operations_field_offset;
-    
     void (*trace_unforgotten_object)(void* object);
 };
 
-void factory_interceptor_trace_unforgotten_watch(
-    struct kedr_coi_foreign_core* foreign_core,
-    void* id,
-    void* tie)
+void factory_interceptor_normal_ops_destroy(
+    struct kedr_coi_factory_interceptor* factory_interceptor)
 {
-    struct kedr_coi_factory_interceptor* interceptor = container_of(
-        foreign_core, typeof(*interceptor), foreign_core);
+    struct kedr_coi_factory_interceptor_normal* interceptor_real =
+        container_of(factory_interceptor, typeof(*interceptor_real), base);
     
-    if(interceptor->trace_unforgotten_object)
-        interceptor->trace_unforgotten_object(id);
-#ifdef KEDR_COI_DEBUG
+    kfree(interceptor_real);
+}
+
+void factory_interceptor_normal_ops_trace_unforgotten_watch(
+    struct kedr_coi_factory_interceptor* factory_interceptor,
+    void* id, void* tie)
+{
+    struct kedr_coi_factory_interceptor_normal* interceptor_real =
+        container_of(factory_interceptor, typeof(*interceptor_real), base);
+
+    if(interceptor_real->trace_unforgotten_object)
+    {
+        interceptor_real->trace_unforgotten_object(id);
+    }
+#if KEDR_COI_DEBUG
     else
-        pr_info("Object %p wasn't forgotten for interceptor %s.",
-            id, interceptor->name);
+    {
+        pr_info("Object %p wasn't forgotten by factory interceptor %s.",
+            id, factory_interceptor->name);
+    }
 #endif
 }
 
-//*********Factory interceptor API implementation******************//
+const void** factory_interceptor_normal_ops_get_ops_p(
+    struct kedr_coi_factory_interceptor* factory_interceptor,
+    void* factory)
+{
+    struct kedr_coi_factory_interceptor_normal* interceptor_real =
+        container_of(factory_interceptor, typeof(*interceptor_real), base);
+
+    return indirect_operations_p(factory,
+        interceptor_real->operations_field_offset);
+}
+
+const struct factory_interceptor_operations normal_ops =
+{
+    .destroy = factory_interceptor_normal_ops_destroy,
+    .trace_unforgotten_watch = factory_interceptor_normal_ops_trace_unforgotten_watch,
+    .get_ops_p = factory_interceptor_normal_ops_get_ops_p,
+};
+
 struct kedr_coi_factory_interceptor*
 kedr_coi_factory_interceptor_create(
     struct kedr_coi_interceptor* interceptor_indirect,
     const char* name,
     size_t factory_operations_field_offset,
-    const struct kedr_coi_factory_intermediate* intermediate_operations,
+    const struct kedr_coi_intermediate* intermediate_operations,
     void (*trace_unforgotten_object)(void* object))
 {
-    struct kedr_coi_replacement* replacements;
-    const struct kedr_coi_factory_intermediate* intermediate_operation;
-    int n_intermediates;
-    int i;
-
-    struct kedr_coi_factory_interceptor* factory_interceptor =
-        kmalloc(sizeof(*factory_interceptor), GFP_KERNEL);
-    if(factory_interceptor == NULL)
+    int result;
+    
+    struct kedr_coi_factory_interceptor_normal* interceptor_normal =
+        kmalloc(sizeof(interceptor_normal), GFP_KERNEL);
+    if(interceptor_normal == NULL)
     {
-        pr_err("Failed to allocate foreign interceptor structure.");
         return NULL;
     }
-
-
-    if((intermediate_operations == NULL)
-        || (intermediate_operations[0].operation_offset == -1))
+    
+    result = factory_interceptor_init_common(
+        &interceptor_normal->base,
+        name,
+        &normal_ops,
+        intermediate_operations);
+    
+    if(result)
     {
-        pr_err("Factory instrumentor cannot be created without intermediate operations.");
-        goto intermediate_operations_err;
-    }
-
-    n_intermediates = 0;
-    for(intermediate_operation = intermediate_operations;
-        intermediate_operation->operation_offset != -1;
-        intermediate_operation++)
-    {
-        n_intermediates ++;
+        kfree(interceptor_normal);
+        return NULL;
     }
     
-    replacements = kmalloc(sizeof(*replacements) * (n_intermediates + 1), GFP_KERNEL);
-    if(replacements == NULL)
+    interceptor_normal->operations_field_offset = factory_operations_field_offset;
+    interceptor_normal->trace_unforgotten_object = trace_unforgotten_object;
+
+    result = factory_interceptor_bind(&interceptor_normal->base,
+        interceptor_indirect);
+    if(result)
     {
-        pr_err("Failed to allocate replacements for factory interceptor.");
-        goto intermediate_operations_err;
+        kedr_coi_factory_interceptor_destroy(&interceptor_normal->base);
+        return NULL;
     }
     
-    i = 0;
-    for(intermediate_operation = intermediate_operations;
-        intermediate_operation->operation_offset != -1;
-        intermediate_operation++)
-    {
-        replacements[i].operation_offset = intermediate_operation->operation_offset;
-        replacements[i].repl = intermediate_operation->repl;
-        replacements[i].mode = replace_all;
-        i++;
-    }
-    BUG_ON(i != n_intermediates);
-    replacements[n_intermediates].operation_offset = -1;
-
-    factory_interceptor->name = name;
-    factory_interceptor->operations_field_offset = factory_operations_field_offset;
-    factory_interceptor->trace_unforgotten_object = trace_unforgotten_object;
-
-    // Initialize foreign core structure
-    kedr_coi_foreign_core_init(&factory_interceptor->foreign_core,
-        replacements, factory_interceptor_trace_unforgotten_watch);
-    
-    // Bind interceptors
-    if(kedr_coi_foreign_core_bind(&factory_interceptor->foreign_core,
-        interceptor_indirect))
-    {
-        goto bind_err;
-    }
-    
-    return factory_interceptor;
-
-bind_err:
-    kedr_coi_foreign_core_finalize(&factory_interceptor->foreign_core);
-intermediate_operations_err:
-    kfree(factory_interceptor);
-    
-    return NULL;
+    return &interceptor_normal->base;
 }
 
-int kedr_coi_factory_interceptor_watch(
-    struct kedr_coi_factory_interceptor* interceptor,
-    void* factory)
+/************** 'Generic' factory interceptor**************************/
+struct kedr_coi_factory_interceptor_generic
 {
-    const void** ops_p = indirect_operations_p(factory,
-        interceptor->operations_field_offset);
+    struct kedr_coi_factory_interceptor base;
     
-    return kedr_coi_foreign_core_watch(&interceptor->foreign_core,
-        factory, factory, ops_p);
-}
-
-int kedr_coi_factory_interceptor_forget(
-    struct kedr_coi_factory_interceptor* interceptor,
-    void* factory)
-{
-    const void** ops_p = indirect_operations_p(factory,
-        interceptor->operations_field_offset);
-
-    return kedr_coi_foreign_core_forget(&interceptor->foreign_core,
-        factory, ops_p);
-}
-
-int kedr_coi_factory_interceptor_forget_norestore(
-    struct kedr_coi_factory_interceptor* interceptor,
-    void* factory)
-{
-    return kedr_coi_foreign_core_forget_norestore(
-        &interceptor->foreign_core, factory);
-}
-
-int kedr_coi_bind_object_with_factory(
-    struct kedr_coi_factory_interceptor* interceptor,
-    void* object,
-    void* factory,
-    size_t operation_offset,
-    struct kedr_coi_factory_intermediate_info* info)
-{
-    //TODO: Fill handlers
-    info->pre = NULL;
-    info->post = NULL;
-    return kedr_coi_foreign_core_bind_object(
-        &interceptor->foreign_core,
-        object,
-        factory,
-        operation_offset,
-        &info->op_chained,
-        &info->op_orig);
-}
-
-
-void kedr_coi_factory_interceptor_destroy(
-    struct kedr_coi_factory_interceptor* interceptor)
-{
-    kedr_coi_foreign_core_finalize(&interceptor->foreign_core);
-    kfree(interceptor);
-}
-
-/**********************************************************************/
-/*******************Creation interceptor*********************/
-/**********************************************************************/
-
-struct kedr_coi_creation_interceptor
-{
-    struct kedr_coi_foreign_core foreign_core;
-    
-    const char* name;
-    
-    void (*trace_unforgotten_watch)(void* id, void* tie);
+    void (*trace_unforgotten_ops)(void* id, void* tie);
 };
 
-void creation_interceptor_trace_unforgotten_watch(
-    struct kedr_coi_foreign_core* foreign_core,
-    void* id,
-    void* tie)
+void factory_interceptor_generic_ops_destroy(
+    struct kedr_coi_factory_interceptor* factory_interceptor)
 {
-    struct kedr_coi_creation_interceptor* interceptor = container_of(
-        foreign_core, typeof(*interceptor), foreign_core);
+    struct kedr_coi_factory_interceptor_generic* interceptor_real =
+        container_of(factory_interceptor, typeof(*interceptor_real), base);
     
-    if(interceptor->trace_unforgotten_watch)
-        interceptor->trace_unforgotten_watch(id, tie);
-#ifdef KEDR_COI_DEBUG
+    kfree(interceptor_real);
+}
+
+void factory_interceptor_generic_ops_trace_unforgotten_watch(
+    struct kedr_coi_factory_interceptor* factory_interceptor,
+    void* id, void* tie)
+{
+    struct kedr_coi_factory_interceptor_generic* interceptor_real =
+        container_of(factory_interceptor, typeof(*interceptor_real), base);
+
+    if(interceptor_real->trace_unforgotten_ops)
+    {
+        interceptor_real->trace_unforgotten_ops(id, tie);
+    }
+#if KEDR_COI_DEBUG
     else
-        pr_info("Watch (%p, %p) wasn't forgotten for interceptor %s.",
-            id, tie, interceptor->name);
+    {
+        pr_info("Object %p (with tie %p) wasn't forgotten by factory interceptor %s.",
+            id, tie, factory_interceptor->name);
+    }
 #endif
 }
 
-//*********Creation interceptor API implementation******************//
-struct kedr_coi_creation_interceptor*
-kedr_coi_creation_interceptor_create(
+
+const struct factory_interceptor_operations generic_ops =
+{
+    .destroy = factory_interceptor_generic_ops_destroy,
+    .trace_unforgotten_watch = factory_interceptor_generic_ops_trace_unforgotten_watch,
+};
+
+struct kedr_coi_factory_interceptor*
+kedr_coi_factory_interceptor_create_generic(
     struct kedr_coi_interceptor* interceptor_indirect,
     const char* name,
-    const struct kedr_coi_creation_intermediate* intermediate_operations,
-    void (*trace_unforgotten_watch)(void* id, void* tie))
+    const struct kedr_coi_intermediate* intermediate_operations,
+    void (*trace_unforgotten_ops)(void* id, void* tie))
 {
-    struct kedr_coi_replacement* replacements;
-    const struct kedr_coi_creation_intermediate* intermediate_operation;
-    int n_intermediates;
-    int i;
-
-    struct kedr_coi_creation_interceptor* creation_interceptor =
-        kmalloc(sizeof(*creation_interceptor), GFP_KERNEL);
-    if(creation_interceptor == NULL)
+    int result;
+    
+    struct kedr_coi_factory_interceptor_generic* interceptor_generic =
+        kmalloc(sizeof(interceptor_generic), GFP_KERNEL);
+    if(interceptor_generic == NULL)
     {
-        pr_err("Failed to allocate creation interceptor structure.");
         return NULL;
     }
-
-
-    if((intermediate_operations == NULL)
-        || (intermediate_operations[0].operation_offset == -1))
+    
+    result = factory_interceptor_init_common(
+        &interceptor_generic->base,
+        name,
+        &generic_ops,
+        intermediate_operations);
+    
+    if(result)
     {
-        pr_err("Creation instrumentor cannot be created without intermediate operations.");
-        goto intermediate_operations_err;
-    }
-
-    n_intermediates = 0;
-    for(intermediate_operation = intermediate_operations;
-        intermediate_operation->operation_offset != -1;
-        intermediate_operation++)
-    {
-        n_intermediates ++;
+        kfree(interceptor_generic);
+        return NULL;
     }
     
-    replacements = kmalloc(sizeof(*replacements) * (n_intermediates + 1), GFP_KERNEL);
-    if(replacements == NULL)
+    interceptor_generic->trace_unforgotten_ops = trace_unforgotten_ops;
+
+    result = factory_interceptor_bind(&interceptor_generic->base,
+        interceptor_indirect);
+    if(result)
     {
-        pr_err("Failed to allocate replacements for creation interceptor.");
-        goto intermediate_operations_err;
+        kedr_coi_factory_interceptor_destroy(&interceptor_generic->base);
+        return NULL;
     }
-    
-    i = 0;
-    for(intermediate_operation = intermediate_operations;
-        intermediate_operation->operation_offset != -1;
-        intermediate_operation++)
-    {
-        replacements[i].operation_offset = intermediate_operation->operation_offset;
-        replacements[i].repl = intermediate_operation->repl;
-        replacements[i].mode = replace_all;
-        i++;
-    }
-    BUG_ON(i != n_intermediates);
-    replacements[n_intermediates].operation_offset = -1;
-
-    creation_interceptor->name = name;
-    creation_interceptor->trace_unforgotten_watch = trace_unforgotten_watch;
-
-    // Initialize foreign core structure
-    kedr_coi_foreign_core_init(&creation_interceptor->foreign_core,
-        replacements, creation_interceptor_trace_unforgotten_watch);
-    
-    // Bind interceptors
-    if(kedr_coi_foreign_core_bind(&creation_interceptor->foreign_core,
-        interceptor_indirect))
-    {
-        goto bind_err;
-    }
-    
-    return creation_interceptor;
-
-bind_err:
-    kedr_coi_foreign_core_finalize(&creation_interceptor->foreign_core);
-intermediate_operations_err:
-    kfree(creation_interceptor);
-    
-    return NULL;
+   
+    return &interceptor_generic->base;
 }
-
-int kedr_coi_creation_interceptor_watch(
-    struct kedr_coi_creation_interceptor* interceptor,
-    void* id,
-    void* tie,
-    const void** ops_p)
-{
-    return kedr_coi_foreign_core_watch(&interceptor->foreign_core,
-        id, tie, ops_p);
-}
-
-int kedr_coi_creation_interceptor_forget(
-    struct kedr_coi_creation_interceptor* interceptor,
-    void* id,
-    const void** ops_p)
-{
-    return kedr_coi_foreign_core_forget(&interceptor->foreign_core,
-        id, ops_p);
-}
-
-int kedr_coi_creation_interceptor_forget_norestore(
-    struct kedr_coi_creation_interceptor* interceptor,
-    void* id)
-{
-    return kedr_coi_foreign_core_forget_norestore(
-        &interceptor->foreign_core, id);
-}
-
-int kedr_coi_bind_object(
-    struct kedr_coi_creation_interceptor* interceptor,
-    void* object,
-    void* tie,
-    size_t operation_offset,
-    struct kedr_coi_creation_intermediate_info* info)
-{
-    //TODO: Fill handlers
-    info->pre = NULL;
-    info->post = NULL;
-
-    return kedr_coi_foreign_core_bind_object(
-        &interceptor->foreign_core,
-        object,
-        tie,
-        operation_offset,
-        &info->op_chained,
-        &info->op_orig);
-}
-
-
-void kedr_coi_creation_interceptor_destroy(
-    struct kedr_coi_creation_interceptor* interceptor)
-{
-    kedr_coi_foreign_core_finalize(&interceptor->foreign_core);
-    kfree(interceptor);
-}
-
 
 /**********************************************************************/
 /*******************Interceptors of concrete types*********************/
@@ -1251,6 +1183,3 @@ kedr_coi_interceptor_create_direct(const char* name,
 
     return &interceptor->base;
 }
-
-
-

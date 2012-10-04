@@ -62,7 +62,7 @@ struct operation_payloads
 
 /* Initialize object with operations payloads.*/
 int operation_payloads_init(struct operation_payloads* payloads,
-    struct kedr_coi_intermediate* intermediate_operations,
+    const struct kedr_coi_intermediate* intermediate_operations,
     const char* interceptor_name);
 
 void operation_payloads_destroy(struct operation_payloads* payloads);
