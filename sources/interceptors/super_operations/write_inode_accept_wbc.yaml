@@ -1,0 +1,20 @@
+operations:
+
+  - name:  write_inode
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+      - type:  struct writeback_control*
+        name:  wbc
+
+    object:  inode->i_sb
+
+# Called from write_inode
+    default:  return 0;
+
+    header: |
+            /* 'write_inode' method of 'super_operations' accept 'wbc' parameter */
+            #define SUPER_OPERATIONS_WRITE_INODE_ACCEPT_WBC 1

@@ -1,0 +1,265 @@
+operations:
+
+
+  - name:  rmdir
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  dir
+
+      - type:  struct dentry *
+        name:  dentry
+
+    object:  dir
+
+# Called by vfs_rmdir
+    default:  return -EPERM;
+
+
+  - name:  mknod
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  dir
+
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  int
+        name:  mode
+
+      - type:  dev_t
+        name:  dev
+
+    object:  dir
+
+# Called vfs_mknod
+    default:  return -EPERM;
+
+  - name:  permission
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+      - type:  int
+        name:  mask
+
+    object:  inode
+
+# Called from inode_permission (indirectly).
+# Default is generic_permission().
+# But in some cases flag is checked, so it is better to not use external
+# interception.
+
+  - name:  rename
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  old_dir
+
+      - type:  struct dentry *
+        name:  old_dentry
+
+      - type:  struct inode *
+        name:  new_dir
+
+      - type:  struct dentry *
+        name:  new_dentry
+
+    object:  old_dir
+
+# Called by vfs_rename
+    default:  return -EPERM;
+
+
+  - name:  readlink
+    returnType:  int
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  char __user *
+        name:  buffer
+
+      - type:  int
+        name:  buflen
+
+    object:  dentry->d_inode
+
+## Called by SYSCALL readlinkat
+    default:  return -EINVAL;
+
+
+  - name:  follow_link
+    returnType:  void*
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  struct nameidata *
+        name:  nd
+
+    object:  dentry->d_inode
+# Called unconditionally from __do_follow_link and other places.
+
+# It seems, that indicator of operation's existing(pointer is not NULL)
+# is inode mode instead of pointer itself.
+
+  - name:  put_link
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  struct nameidata *
+        name:  nd
+
+      - type:  void *
+        name:  cookie
+
+    object:  dentry->d_inode
+
+# Called from put_link
+    default:  return;
+
+  - name:  setattr
+    returnType:  int
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  struct iattr *
+        name:  attr
+
+    object:  dentry->d_inode
+
+# Called from notify_change
+# Default implementation is system-depended and not easy.
+
+  - name:  getattr
+    returnType:  int
+
+    args:
+      - type:  struct vfsmount *
+        name:  mnt
+
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  struct kstat *
+        name:  stat
+
+    object:  dentry->d_inode
+
+# Called from vfs_getattr
+    default: |
+                generic_fillattr(dentry->d_inode, stat);
+                return 0;
+
+  - name:  setxattr
+    returnType:  int
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  const char *
+        name:  name
+
+      - type:  const void *
+        name:  value
+
+      - type:  size_t
+        name:  size
+
+      - type:  int
+        name:  flags
+
+    object:  dentry->d_inode
+
+# Called by __vfs_setxattr_noperm
+# Default implementation is very kernel-depended and subtle.
+
+  - name:  getxattr
+    returnType:  ssize_t
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  const char *
+        name:  name
+
+      - type:  void *
+        name:  value
+
+      - type:  size_t
+        name:  size
+
+    object:  dentry->d_inode
+
+# Called by vfs_getxattr
+    default:  return -EOPNOTSUPP;
+
+  - name:  listxattr
+    returnType:  ssize_t
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  char *
+        name:  list
+
+      - type:  size_t
+        name:  size
+
+    object:  dentry->d_inode
+
+# Called by vfs_listxattr
+# Default implementation should call security_inode_listsecurity(),
+# but this function is not exported for modules.
+
+  - name:  removexattr
+    returnType:  int
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  const char *
+        name:  name
+
+    object:  dentry->d_inode
+
+# Called by vfs_removexattr
+    default:  return -EOPNOTSUPP;
+
+  - name:  fiemap
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+      - type:  struct fiemap_extent_info*
+        name:  fieinfo
+
+      - type:  u64
+        name:  start
+
+      - type:  u64
+        name:  len
+
+    object:  inode
+
+# Called by ioctl_fiemap
+    default:  return -EOPNOTSUPP;

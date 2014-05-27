@@ -1,0 +1,24 @@
+operations:
+  - name:  splice_read
+    returnType:  ssize_t
+
+    args:
+      - type:  struct file *
+        name:  in
+
+      - type:  loff_t *
+        name:  ppos
+
+      - type:  struct pipe_inode_info *
+        name:  pipe
+
+      - type:  size_t
+        name:  len
+
+      - type:  unsigned int
+        name:  flags
+
+    object:  in
+
+    default:  return default_file_splice_read(in, ppos, pipe, len, flags);
+

@@ -78,12 +78,12 @@ static void* get_tie(void* data)
     return data;
 }
 
-struct kedr_coi_creation_interceptor* creation_interceptor;
+struct kedr_coi_factory_interceptor* creation_interceptor;
 
 KEDR_COI_TEST_DEFINE_CREATION_INTERMEDIATE_FUNC(clone_creation_repl,
     get_tie, OPERATION_OFFSET(clone), creation_interceptor);
 
-static struct kedr_coi_creation_intermediate creation_intermediate_operations[] =
+static struct kedr_coi_intermediate creation_intermediate_operations[] =
 {
     INTERMEDIATE(clone, clone_creation_repl),
     INTERMEDIATE_FINAL
@@ -96,8 +96,7 @@ int test_init(void)
     interceptor = INDIRECT_CONSTRUCTOR("Indirect interceptor with self-creation support",
         offsetof(struct test_object, ops),
         sizeof(struct test_operations),
-        intermediate_operations,
-        NULL);
+        intermediate_operations);
     
     if(interceptor == NULL)
     {
@@ -105,11 +104,10 @@ int test_init(void)
         return -EINVAL;
     }
     
-    creation_interceptor = kedr_coi_creation_interceptor_create(
+    creation_interceptor = kedr_coi_factory_interceptor_create_generic(
         interceptor,
         "Creation interceptor with self-creation support",
-        creation_intermediate_operations,
-        NULL);
+        creation_intermediate_operations);
     
     if(creation_interceptor == NULL)
     {
@@ -122,7 +120,7 @@ int test_init(void)
 }
 void test_cleanup(void)
 {
-    kedr_coi_creation_interceptor_destroy(creation_interceptor);
+    kedr_coi_factory_interceptor_destroy(creation_interceptor);
     kedr_coi_interceptor_destroy(interceptor);
 }
 
@@ -158,7 +156,7 @@ int test_run(void)
         goto err_watch;
     }
     
-    result = kedr_coi_creation_interceptor_watch(creation_interceptor,
+    result = kedr_coi_factory_interceptor_watch_generic(creation_interceptor,
         &object_creator, tie, (const void**)&object_creator.ops);
     if(result < 0)
     {
@@ -243,7 +241,7 @@ int test_run(void)
         goto err_forget;
     }
 
-    kedr_coi_creation_interceptor_forget(creation_interceptor,
+    kedr_coi_factory_interceptor_forget_generic(creation_interceptor,
         &object_creator, (const void**)&object_creator.ops);
     kedr_coi_interceptor_forget(interceptor, &object_creator);
     kedr_coi_interceptor_stop(interceptor);
@@ -254,7 +252,7 @@ int test_run(void)
 err_test:
     kedr_coi_interceptor_forget(interceptor, &object);
 err_forget:
-    kedr_coi_creation_interceptor_forget(creation_interceptor,
+    kedr_coi_factory_interceptor_forget_generic(creation_interceptor,
         &object_creator, (const void**)&object_creator.ops);
 err_creation_watch:
     kedr_coi_interceptor_forget(interceptor, &object_creator);

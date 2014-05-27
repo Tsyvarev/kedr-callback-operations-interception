@@ -1,0 +1,17 @@
+operations:
+  - name:  follow_link
+    returnType:  void*
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  struct nameidata *
+        name:  nd
+
+    object:  dentry->d_inode
+# Called unconditionally from __do_follow_link and other places.
+
+# It seems, that indicator of operation's existing(pointer is not NULL)
+# is inode mode instead of pointer itself.
+

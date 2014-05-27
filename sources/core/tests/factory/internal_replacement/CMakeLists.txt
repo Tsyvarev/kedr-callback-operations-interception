@@ -1,6 +1,3 @@
-set(module_name "test_instrumentor_factory${indirect_suffix}_internal_replacement")
-
-kedr_coi_test_add_kernel("internal_replacement"
-    ${module_name}
+add_test_interceptor_factory("internal_replacement"
     "test.c"
 )

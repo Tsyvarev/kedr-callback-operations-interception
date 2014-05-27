@@ -1,0 +1,18 @@
+operations:
+  - name:  permission
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+      - type:  int
+        name:  mask
+
+    object:  inode
+
+# Called from inode_permission (indirectly).
+# Default is generic_permission().
+# But in some cases flag is checked, so it is better to not use external
+# interception.
+

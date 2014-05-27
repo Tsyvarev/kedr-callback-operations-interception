@@ -1,0 +1,15 @@
+operations:
+  - name:  d_iput
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  struct inode *
+        name:  inode
+
+    object:  dentry
+
+# Called from dentry_iput
+    default:  iput(inode);
+

@@ -1,0 +1,18 @@
+operations:
+  - name:  d_dname
+    returnType:  char *
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  char *
+        name:  buf
+
+      - type:  int
+        name:  buflen
+
+    object:  dentry
+
+# Called by d_path[_with_unreachable]
+# Default implementation is difficult and subtle

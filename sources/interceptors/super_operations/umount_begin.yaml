@@ -1,0 +1,10 @@
+operations:
+  - name:  umount_begin
+
+    args:
+      - type:  struct super_block *
+        name:  sb
+
+    object:  sb
+
+    default:  return;

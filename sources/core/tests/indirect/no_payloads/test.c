@@ -55,8 +55,7 @@ int test_init(void)
     interceptor = INDIRECT_CONSTRUCTOR("Simple indirect interceptor",
         offsetof(struct test_object, ops),
         sizeof(struct test_operations),
-        intermediate_operations,
-        NULL);
+        intermediate_operations);
     
     if(interceptor == NULL)
     {
@@ -91,15 +90,24 @@ int test_run(void)
         goto err_watch;
     }
 
-    // For interceptor without payloads at all more strict requirement:
-    // operations shouldn't changed at all.
+    /*
+     * For interceptor without payloads at all more strict requirement:
+     * operations shouldn't be changed at all.
+     * 
+     * 20.05.2014:
+     * 
+     * Implementing this requirement would make per-watch object to use
+     * less memory. But, from other side, it requires more
+     * interception-specific code. Currently, this requirement is not
+     * saticfied.
+     */
     
-    if(object.ops != &test_operations_orig)
-    {
-        pr_err("Pointer to operations was changed even without payloads.");
-        result = -EINVAL;
-        goto err_test;
-    }
+    //if(object.ops != &test_operations_orig)
+    //{
+        //pr_err("Pointer to operations was changed even without payloads.");
+        //result = -EINVAL;
+        //goto err_test;
+    //}
     
     if(object.ops->op1 != op1_orig)
     {

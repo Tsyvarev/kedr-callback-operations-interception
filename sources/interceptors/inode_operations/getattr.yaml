@@ -1,0 +1,21 @@
+operations:
+  - name:  getattr
+    returnType:  int
+
+    args:
+      - type:  struct vfsmount *
+        name:  mnt
+
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  struct kstat *
+        name:  stat
+
+    object:  dentry->d_inode
+
+# Called from vfs_getattr
+    default: |
+                generic_fillattr(dentry->d_inode, stat);
+                return 0;
+

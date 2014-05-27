@@ -1,6 +1,3 @@
-set(module_name "test_instrumentor_indirect${indirect_suffix}_base")
-
-kedr_coi_test_add_kernel("base"
-    ${module_name}
+add_test_interceptor_indirect("base"
     "test.c"
 )

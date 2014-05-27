@@ -27,6 +27,8 @@
 #include <linux/slab.h> /* kmalloc */
 #include <linux/spinlock.h> /* spinlock */
 
+#include "config.h"
+
 // Initial value of bits in the table
 #define BITS_DEFAULT 4
 
@@ -110,11 +112,10 @@ kedr_coi_hash_table_find_elem(struct kedr_coi_hash_table* table,
 {
     struct kedr_coi_hash_elem* elem;
     struct hlist_head* head;
-    struct hlist_node* node_tmp;
     
     head = &table->heads[hash_function(key, table->bits)];
     
-    hlist_for_each_entry(elem, node_tmp, head, node)
+    compat_hlist_for_each_entry(elem, head, node)
     {
         if(elem->key == key) return elem;
     }
@@ -132,8 +133,8 @@ void kedr_coi_hash_table_remove_elem(struct kedr_coi_hash_table* table,
 }
 
 void kedr_coi_hash_table_destroy(struct kedr_coi_hash_table* table,
-    void (*free_elem)(struct kedr_coi_hash_elem* elem,
-                        struct kedr_coi_hash_table* table))
+    void (*free_elem)(struct kedr_coi_hash_elem* elem, void* data),
+    void* data)
 {
     struct hlist_head* head_end = table->heads + (1 << table->bits);
     struct hlist_head* head;
@@ -164,7 +165,7 @@ void kedr_coi_hash_table_destroy(struct kedr_coi_hash_table* table,
             struct kedr_coi_hash_elem* elem =
                 hlist_entry(head->first, struct kedr_coi_hash_elem, node);
             hlist_del(&elem->node);
-            free_elem(elem, table);
+            free_elem(elem, data);
         }
     }    
     kfree(table->heads);

@@ -1,0 +1,11 @@
+operations:
+  - name:  freeze_fs
+    returnType:  int
+
+    args:
+      - type:  struct super_block *
+        name:  sb
+
+    object:  sb
+
+    default:  return 0;

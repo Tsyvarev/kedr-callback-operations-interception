@@ -1,0 +1,18 @@
+operations:
+  - name:  remount_fs
+    returnType:  int
+
+    args:
+      - type:  struct super_block *
+        name:  sb
+
+      - type:  int *
+        name:  flags
+
+      - type:  char*
+        name:  data
+
+    object:  sb
+
+    default:  return 0;
+

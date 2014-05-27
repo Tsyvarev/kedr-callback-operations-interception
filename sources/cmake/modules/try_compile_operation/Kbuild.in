@@ -1,0 +1,3 @@
+ccflags-y := -I@include_dir@
+
+obj-m := try_compile_operation.o

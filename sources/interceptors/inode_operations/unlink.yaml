@@ -1,0 +1,16 @@
+operations:
+  - name:  unlink
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  dir
+
+      - type:  struct dentry *
+        name:  dentry
+
+    object:  dir
+
+# Called by
+    default:  return -EPERM;
+

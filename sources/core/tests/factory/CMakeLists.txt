@@ -17,10 +17,24 @@ if(DEFINED indirect_use_copy)
 else(DEFINED indirect_use_copy)
     kedr_coi_test_add_prefix("factory")
     set(indirect_suffix)
-    kbuild_add_definitions("-DINDIRECT_CONSTRUCTOR=kedr_coi_interceptor_create")
+    kbuild_add_definitions("-DINDIRECT_CONSTRUCTOR=kedr_coi_interceptor_create_at_place")
 endif(DEFINED indirect_use_copy)
 
+# For include 'test_harness_factory.h'
 kbuild_include_directories("${CMAKE_CURRENT_SOURCE_DIR}")
+set(__test_harness_factory_header "${CMAKE_CURRENT_SOURCE_DIR}/test_harness_factory.h")
+# Common way for add test in that category.
+# Automatically assign target name for module built and dependence
+# on 'test_harness_factory.h'
+function(add_test_interceptor_factory test_name source)
+    add_test_interceptor(${test_name}
+        "test_interceptor_factory${indirect_suffix}_${test_name}"
+        ${source}
+        ${ARGN}
+        ${__test_harness_factory_header}
+    )
+endfunction(add_test_interceptor_factory test_name source)
+
 
 add_subdirectory(base)
 add_subdirectory(no_payloads)

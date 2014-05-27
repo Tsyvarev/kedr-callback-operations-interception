@@ -1,0 +1,14 @@
+operations:
+  - name:  sync_fs
+    returnType:  int
+
+    args:
+      - type:  struct super_block *
+        name:  sb
+
+      - type:  int
+        name:  wait
+
+    object:  sb
+
+    default:  return 0;

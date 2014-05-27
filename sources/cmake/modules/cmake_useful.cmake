@@ -73,3 +73,62 @@ macro(is_path_inside_dir output_var dir path)
         set(${output_var} "TRUE")
     endif(_is_not_inside_dir)
 endmacro(is_path_inside_dir output_var dir path)
+
+
+# Write given content to the file.
+#
+# If file is already exists and its content is same as written one, file
+# is not rewritten, so its write timestamp remains unchanged.
+function(write_or_update_file filename content)
+    if(EXISTS "${filename}")
+    file(READ "${filename}" old_content)
+        if(old_content STREQUAL "${content}")
+            return()
+        endif(old_content STREQUAL "${content}")
+    endif(EXISTS "${filename}")
+    # File doesn't exists or its content differ.
+    file(WRITE "${filename}" "${content}")
+endfunction(write_or_update_file filename content)
+
+
+# Common mechanism for output status message
+# when checking different aspects.
+#
+#
+
+# Should be called (unconditionally) when new cheking is issued.
+# Note, that given @status_msg is not printed at that step.
+function(check_begin status_msg)
+    set(_check_status_msg ${status_msg} PARENT_SCOPE)
+    set(_check_has_tries PARENT_SCOPE)
+endfunction(check_begin status_msg)
+
+# Should be called before every real checking, that is which is not come
+# from cache variables comparision.
+#
+# First call of that function is trigger printing of @status_msg,
+# passed to check_begin().
+function(check_try)
+    if(NOT _check_has_tries)
+	message(STATUS "${_check_status_msg}")
+	set(_check_has_tries "1" PARENT_SCOPE)
+    endif(NOT _check_has_tries)
+endfunction(check_try)
+
+# Should be called when cheking is end, and @result_msg should be short
+# description of check result.
+# If any check_try() has been issued before,
+#   "@status_msg - @result_msg"
+# will be printed.
+# Otherwise,
+#   "@status_msg - [cached] @result_msg"
+# will be printed, at it will be the only message for that check.
+function(check_end result_msg)
+    if(NOT _check_has_tries)
+	message(STATUS "${_check_status_msg} - [cached] ${result_msg}")
+    else(NOT _check_has_tries)
+	message(STATUS "${_check_status_msg} - ${result_msg}")
+    endif(NOT _check_has_tries)
+    set(_check_status_msg PARENT_SCOPE)
+    set(_check_has_tries PARENT_SCOPE)
+endfunction(check_end result_msg)

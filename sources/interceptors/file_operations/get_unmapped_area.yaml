@@ -1,0 +1,27 @@
+operations:
+  - name:  get_unmapped_area
+    returnType:  unsigned long
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  unsigned long
+        name:  addr
+
+      - type:  unsigned long
+        name:  len
+
+      - type:  unsigned long
+        name:  pgoff
+
+      - type:  unsigned long
+        name:  flags
+
+    object:  filp
+
+    default:  return current->mm->get_unmapped_area(filp, addr, len, pgoff, flags);
+
+# check_flags() operation has no affected object,
+# so it cannot be intercepted using KEDR COI.
+

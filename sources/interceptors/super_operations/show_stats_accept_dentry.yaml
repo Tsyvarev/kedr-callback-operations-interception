@@ -1,0 +1,20 @@
+operations:
+
+  - name:  show_stats
+    returnType:  int
+
+    args:
+      - type:  struct seq_file *
+        name:  m
+
+      - type:  struct dentry *
+        name:  dentry
+
+    object:  dentry->d_sb
+
+# Called from show_vfsstat
+    default:  return 0;
+
+    header: |
+            /* 'super_operations' has method 'show_stats' which accepts struct dentry* as second argument. */
+            #define SUPER_OPERATIONS_SHOW_STATS_ACCEPT_DENTRY

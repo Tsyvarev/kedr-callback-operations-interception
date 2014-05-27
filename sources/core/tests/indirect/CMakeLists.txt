@@ -17,8 +17,18 @@ if(DEFINED indirect_use_copy)
 else(DEFINED indirect_use_copy)
     kedr_coi_test_add_prefix("indirect")
     set(indirect_suffix)
-    kbuild_add_definitions("-DINDIRECT_CONSTRUCTOR=kedr_coi_interceptor_create")
+    kbuild_add_definitions("-DINDIRECT_CONSTRUCTOR=kedr_coi_interceptor_create_at_place")
 endif(DEFINED indirect_use_copy)
+
+# Common way for add test in that category.
+# Automatically assign target name for module built.
+function(add_test_interceptor_indirect test_name source)
+    add_test_interceptor(${test_name}
+        "test_interceptor_indirect${indirect_suffix}_${test_name}"
+        ${source}
+        ${ARGN}
+    )
+endfunction(add_test_interceptor_indirect test_name source)
 
 add_subdirectory(base)
 add_subdirectory(several_payloads)
@@ -31,8 +41,5 @@ add_subdirectory(copy_operations)
 add_subdirectory(internal_interception)
 add_subdirectory(external_interception)
 add_subdirectory(external_interception_forbidden)
+add_subdirectory(external_interception_null)
 
-# TODO: should work for interceptor which not use copy operations.
-#if(DEFINED indirect_use_copy)
-    add_subdirectory(external_interception_null)
-#endif(DEFINED indirect_use_copy)

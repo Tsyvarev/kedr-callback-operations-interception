@@ -78,7 +78,7 @@ static inline void intermediate_func_common(void* object,
         }
     }
 
-    //pr_info("In intermediate original operation is %pF.", op_orig);
+    //pr_info("In intermediate original operation is %pf.", op_orig);
     if(op_orig != NULL) op_orig(object, data);
     
     if(info.post)
@@ -116,6 +116,53 @@ void func_name(void* object, void* data, struct kedr_coi_operation_call_info* in
 void func_name(void* object, void* data)\
 {\
     counter++;\
+}
+
+   
+static inline bool replace_at_place_never(const void* ops)
+{
+    (void)ops;
+    return 0;
+}
+static inline struct kedr_coi_interceptor* kedr_coi_interceptor_create_use_copy(
+    const char* name,
+    size_t operations_field_offset,
+    size_t operations_struct_size,
+    const struct kedr_coi_intermediate* intermediate_operations)
+{
+    struct kedr_coi_interceptor* interceptor = kedr_coi_interceptor_create(
+        name, operations_field_offset, operations_struct_size,
+        intermediate_operations);
+    
+    if(interceptor)
+    {
+        kedr_coi_interceptor_mechanism_selector(interceptor, &replace_at_place_never);
+    }
+    
+    return interceptor;
+}
+
+static inline bool replace_at_place_always(const void* ops)
+{
+    (void)ops;
+    return 1;
+}
+static inline struct kedr_coi_interceptor* kedr_coi_interceptor_create_at_place(
+    const char* name,
+    size_t operations_field_offset,
+    size_t operations_struct_size,
+    struct kedr_coi_intermediate* intermediate_operations)
+{
+    struct kedr_coi_interceptor* interceptor = kedr_coi_interceptor_create(
+        name, operations_field_offset, operations_struct_size,
+        intermediate_operations);
+    
+    if(interceptor)
+    {
+        kedr_coi_interceptor_mechanism_selector(interceptor, &replace_at_place_always);
+    }
+    
+    return interceptor;
 }
 
 

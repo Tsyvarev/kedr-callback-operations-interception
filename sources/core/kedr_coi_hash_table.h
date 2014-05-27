@@ -54,8 +54,8 @@ int kedr_coi_hash_table_init(struct kedr_coi_hash_table* table);
  * If 'free_elem' is NULL but table is not empty, warning will be printed.
  */
 void kedr_coi_hash_table_destroy(struct kedr_coi_hash_table* table,
-    void (*free_elem)(  struct kedr_coi_hash_elem* elem,
-                        struct kedr_coi_hash_table* table));
+    void (*free_elem)(struct kedr_coi_hash_elem* elem, void* data),
+    void* data);
 
 /* Add element into table. Table will be extended if needed.
  * 

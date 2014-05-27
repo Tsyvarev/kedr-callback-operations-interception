@@ -27,311 +27,360 @@ struct kedr_coi_replacement
     enum replacement_mode mode;
 };
 
-//*************Structure of normal instrumentor*************************
-struct kedr_coi_instrumentor_watch_data;
-
-struct kedr_coi_instrumentor_impl;
-struct kedr_coi_instrumentor_impl_iface;
-
-struct kedr_coi_instrumentor_type;
-/* Instrumentor as abstract object */
-struct kedr_coi_instrumentor
-{
-    // All fields - protected
-    
-    // Hash table of watches, identificators are objects
-    struct kedr_coi_hash_table hash_table_objects;
-    // Protect hash table of watches
-    spinlock_t lock;
-    
-    // Virtual destructor
-    void (*destroy)(struct kedr_coi_instrumentor* instrumentor);
-    
-    /* Backend which implements replacement mechanism. */
-    struct kedr_coi_instrumentor_impl* iface_impl;
-
-    // used only while instrumentor is being deleted
-    void (*trace_unforgotten_watch)(void* object, void* user_data);
-    void* user_data;
-};
-
-// Data corresponded to one replacement(one watch() call)
-struct kedr_coi_instrumentor_watch_data
-{
-    // All fields - protected
-    struct kedr_coi_hash_elem hash_elem_object;
-};
-
-
-//************* Instrumentor API ********************//
 /* 
- * Watch for given object.
+ * Array of replacements ends with element, which @operation_offset field is -1.
  * 
- * All needed operations of that object are replaced corresponded to
- * backend.
- * 
- * If object is already watched, update operations replacement.
- * Return 0 on success, negative error code on fail.
+ * This is common way for iterate over such array.
  */
-int kedr_coi_instrumentor_watch(
-    struct kedr_coi_instrumentor* instrumentor,
-    const void* object,
-    const void** ops_p);
-
-/* 
- * Cancel watching for given object.
- * 
- * If ops_p is not NULL, operations replacement should be rollbacked.
- * 
- * Return 0 on success, 1 if object wasn't watched.
- */
-int kedr_coi_instrumentor_forget(
-    struct kedr_coi_instrumentor* instrumentor,
-    const void* object,
-    const void** ops_p);
+#define for_each_replacement(__it, __arr) for(__it = __arr; __it->operation_offset != -1; ++__it)
 
 /*
- * Destroy instrumentor and its backend.
+ * Type of callback to be called for every object, which is watched
+ * at time instrumentor is destroyed.
  */
-void kedr_coi_instrumentor_destroy(
+typedef void (*trace_unforgotten_watch_t)(const void* object, void* user_data);
+//*************Structure of normal instrumentor*************************
+struct instrument_data_operations;
+
+/* Abstract data described instrumentation of one operations object. */
+struct instrument_data
+{
+    int refs;
+    
+    const struct instrument_data_operations* i_ops;
+};
+
+/* 
+ * Way for search instrument_data by operations pointer.
+ * 
+ * Same instrument_data objects may embed elements from several hash tables.
+ */
+struct instrument_data_search
+{
+    struct kedr_coi_hash_elem ops_elem;
+    /* Pointer to the object. */
+    struct instrument_data* idata;
+    /* 
+     * Element in global hash table. Used for detect attempts for
+     * use another instrumentor for already instrumented operations.
+     */
+    struct kedr_coi_hash_elem ops_elem_global;
+};
+
+/* Data described one watch for the interceptor. */
+struct kedr_coi_instrumentor_watch_data
+{
+    /* Element of the hash table of objects. */
+    struct kedr_coi_hash_elem object_elem;
+    /* Referenced instrument_data object */
+    struct instrument_data* idata;
+};
+
+struct kedr_coi_instrumentor
+{
+    /* Elements of that table are instrument_data_search. */
+    struct kedr_coi_hash_table idata_table;
+    
+    // Hash table of watches, identificators are objects
+    struct kedr_coi_hash_table objects_table;
+
+    size_t operations_struct_size;
+    
+    const struct kedr_coi_replacement* replacements;
+    
+    bool (*replace_at_place)(const void* ops);
+    
+    /* 
+     * There is no reason for two foreign instrumentors to watch for
+     * the same object with operations.
+     * 
+     * In any case, when 'bind' will be called, only one of that watch
+     * (the latest one) will have effect.
+     * 
+     * We store ops_p pointers for all foreign watches.
+     * 
+     * Note, that normal and foreign watching for same object is not
+     * prohibited. Moreover, it is used for 'vm_ops' operations field
+     * (type 'vm_operations_struct') in vm_area_struct.
+     */
+    struct kedr_coi_hash_table foreign_ops_p_table;
+    
+    /* Protect all hash tables, own and ones for foreign instrumentors. */
+    spinlock_t lock;
+};
+
+/* 
+ * Return operations, which should be used for instrumentation has an
+ * effect.
+ */
+void* instrument_data_get_repl_operations(struct instrument_data* idata);
+
+/* 
+ * Return operations, which should be used for instrumentation has no
+ * effect.
+ */
+void* instrument_data_get_orig_operations(struct instrument_data* idata);
+
+/*
+ * Return original operation at given offset.
+ */
+void* instrument_data_get_orig_operation(struct instrument_data* idata,
+    size_t operation_offset);
+
+/* Return 1 if operations are processed by given @idata object. */
+bool instrument_data_my_operations(struct instrument_data* idata,
+    const void* ops);
+
+/*
+ * Increment reference counter on idata.
+ */
+void instrument_data_ref(
+    struct instrument_data* idata);
+
+/*
+ * Decrement reference counter on idata.
+ * 
+ * If it drops to 0, idata will be deleted. In that case operations
+ * in the originial operations structure will be restored if needed.
+ */
+void instrument_data_unref(
     struct kedr_coi_instrumentor* instrumentor,
-    void (*trace_unforgotten_watch)(void* object, void* user_data),
+    struct instrument_data* idata);
+
+/*
+ * Decrement reference counter on idata.
+ * 
+ * If it drops to 0, idata will be deleted. Operations structure will not
+ * be restored.
+ */
+void instrument_data_unref_norestore(
+    struct kedr_coi_instrumentor* instrumentor,
+    struct instrument_data* idata);
+
+/* 
+ * Return referenced 'instrument_data' object for given ops.
+ * 
+ * 'instrument_data' object will be created if needed.
+ * 
+ * On error, return ERR_PTR().
+ */
+struct instrument_data* instrumentor_get_data(
+    struct kedr_coi_instrumentor* instrumentor,
+    const void* ops);
+
+/* 
+ * Return idata object for given operations.
+ * If such object is not exists, return NULL.
+ */
+struct instrument_data* instrumentor_find_data(
+    struct kedr_coi_instrumentor* instrumentor,
+    const void* ops);
+
+
+//*************API for normal instrumentor*************************
+/* Create instrumentor. */
+struct kedr_coi_instrumentor* kedr_coi_instrumentor_create(
+    size_t operations_struct_size,
+    const struct kedr_coi_replacement* replacements,
+    bool (*replace_at_place)(const void* ops));
+
+/* 
+ * Destroy instrumentor.
+ */
+void kedr_coi_instrumentor_destroy(struct kedr_coi_instrumentor* instrumentor,
+    trace_unforgotten_watch_t trace_unforgotten_watch,
     void* user_data);
 
 
 /* 
- * Determine original operation for watched object(tie).
+ * Watch for given object with given (indirect) operations.
  * 
- * On success set 'op_orig' to original operation and return 0.
- * If object isn't watched, set 'op_orig' to original operation
- * and return 1.
- * This is normal situation for backends which use agressive replacement
- * mechanism, which may replace operations not only for watched object,
- * but also for other objects.
+ * Return 0 on success, 1 if already watched, negative error on fail.
+ */
+int kedr_coi_instrumentor_watch(
+    struct kedr_coi_instrumentor* instrumentor,
+    void* object,
+    const void** ops_p);
+
+
+/* 
+ * Forget about given object.
  * 
- * If object isn't watched and original operation may not be restored,
- * return negative error code. Usually, this means unrecoverable error.
+ * If ops_p is not NULL, this will be set to the original operations
+ * (and that operations will be restored if needed).
+ * 
+ * Return 0 on success, 1 if not watched, negative error on fail.
+ */
+int kedr_coi_instrumentor_forget(
+    struct kedr_coi_instrumentor* instrumentor,
+    void* object,
+    const void** ops_p);
+
+/* 
+ * Return original operation at given offset for given object.
+ * Return true on success and set @op_orig.
+ * 
+ * 'ops' is used if no watch for given object is found.
+ * In that case 1 is returned and @op_orig is also set.
+ * 
+ * On error return negative error code, @op_orig is not set in that case.
  */
 int kedr_coi_instrumentor_get_orig_operation(
     struct kedr_coi_instrumentor* instrumentor,
-    const void* tie,
+    const void* object,
     const void* ops,
     size_t operation_offset,
     void** op_orig);
 
-
-/****************** Backend for instrumentor **************************/
-/* Implements replacement mechanism. */
-struct kedr_coi_instrumentor_impl
-{
-    /*
-     * Destroy backend.
-     */
-    void (*destroy_impl)(struct kedr_coi_instrumentor_impl* iface_impl);
-
-    struct kedr_coi_instrumentor_impl_iface* interface;
-};
-
-/* Interface of the instrumentor backend */
-struct kedr_coi_instrumentor_impl_iface
-{
-    /*
-     * Allocate new watch data object.
-     * 
-     * Return object allocated or NULL on error. Can sleep.
-     */
-    struct kedr_coi_instrumentor_watch_data* (*alloc_watch_data)(
-        struct kedr_coi_instrumentor_impl* iface_impl);
-
-    /*
-     * Called when 'watch' is called for a new object.
-     * 
-     * 'watch_data_new' are data allocated with 'alloc_watch_data'.
-     * 
-     * Replace operations and fill 'watch_data_new' with data
-     * described this replacement.
-     * 
-     * No other callback function which works with the same object may
-     * be called concurrently with this. 'watch_data_new' becomes
-     * available for other functions only when this callback returns
-     * successfully.
-     *
-     * Executed in atomic context.
-     */
-    int (*replace_operations)(
-        struct kedr_coi_instrumentor_impl* iface_impl,
-        struct kedr_coi_instrumentor_watch_data* watch_data_new,
-        const void** ops_p);
-    
-    /*
-     * Called when 'forget' is called for watched object.
-     * 
-     * 'watch_data' are data concerned with that object.
-     * 
-     * Remove information about replacement from 'watch_data' and,
-     * if 'ops_p' is not NULL, adjust 'ops_p' to initial operations.
-     *
-     * No other callback function which works with the same object may
-     * be called concurrently with this. 'watch_data' become unavailable
-     * for other functions after this callback returns.
-     * 
-     * Executed in atomic context.
-     */
-    void (*clean_replacement)(
-        struct kedr_coi_instrumentor_impl* iface_impl,
-        struct kedr_coi_instrumentor_watch_data* watch_data,
-        const void** ops_p);
-    
-    /*
-     * Free data previously allocated with alloc_watch_data().
-     * 
-     * 'watch_data' has no replacement information at this stage.
-     */
-    void (*free_watch_data)(
-        struct kedr_coi_instrumentor_impl* iface_impl,
-        struct kedr_coi_instrumentor_watch_data* watch_data);
-
-
-    /*
-     *  Called when 'watch' is called for id already used for watch.
-     * 
-     *  Update 'watch_data' and operations for continue watch.
-     * 
-     * If need to recreate watch_data, should restore operations and
-     * return 1. After that, replace_operations() will be called for
-     * newly created watch data.
-     *
-     * No other callback function which works with the same object may
-     * be called concurrently with this. 'watch_data' become
-     * unavailable for other functions after this callback returns 1.
-     * 
-     * Executed in atomic context.
-     */
-    int (*update_operations)(
-        struct kedr_coi_instrumentor_impl* iface_impl,
-        struct kedr_coi_instrumentor_watch_data* watch_data,
-        const void** ops_p);
-    
-    /*
-     * Called when 'get_orig_operation' is called for an object which
-     * is watched.
-     * 
-     * 'watch_data' are data(any) corresponded to that object.
-     * 
-     * Return original object's operation at the given offset.
-     *
-     * No other callback function which works with the same object may
-     * be called concurrently with this.
-     *
-     * Executed in atomic context.
-     */
-    void* (*get_orig_operation)(
-        struct kedr_coi_instrumentor_impl* iface_impl,
-        struct kedr_coi_instrumentor_watch_data* watch_data,
-        const void* ops,
-        size_t operation_offset);
-    
-    /*
-     * Called when 'get_orig_operation' is called for an object which
-     * is not watched.
-     * 
-     * Should return original object's operation at the given offset or
-     * ERR_PTR() on error(normally, caller cannot recover from that error).
-     *
-     * No other callback function which works with the same object may
-     * be called concurrently with this.
-     *
-     * Executed in atomic context.
-     */
-    void* (*get_orig_operation_nodata)(
-        struct kedr_coi_instrumentor_impl* iface_impl,
-        const void* ops,
-        size_t operation_offset);
-};
-
-
 /* 
- * Create instrumentors with given backend.
- * 
- * Backend is controlled by instrumentor created.
+ * Similar methods, but for directly watched object, which is also a
+ * container of operations.
  */
-struct kedr_coi_instrumentor*
-kedr_coi_instrumentor_create(
-    struct kedr_coi_instrumentor_impl* iface_impl);
+int kedr_coi_instrumentor_watch_direct(
+    struct kedr_coi_instrumentor* instrumentor,
+    void* object);
 
-
-//********** Creation of the normal instrumentors ********************
-/*
- * Instrumentor expects that pointer to operations may change, but
- * content of operations struct may not change.
- */
-struct kedr_coi_instrumentor*
-kedr_coi_instrumentor_create_indirect(
-    size_t operations_struct_size,
-    const struct kedr_coi_replacement* replacements);
-
-/*
- * Same as previous function, but use more agressive replacement mechanism.
- * 
- * This mechanism is tolerable to restoring operations pointer outside
- * of instrumentor, but replacements also affects on other objects
- * which share same operations structure.
- */
-struct kedr_coi_instrumentor*
-kedr_coi_instrumentor_create_indirect1(
-    size_t operations_struct_size,
-    const struct kedr_coi_replacement* replacements);
-
-
-/*
- * Instrumentor expects that pointer to operations may not be changed
- * and unique, but content of operations struct may change.
- */
-struct kedr_coi_instrumentor*
-kedr_coi_instrumentor_create_direct(
-    size_t object_struct_size,
-    const struct kedr_coi_replacement* replacements);
+int kedr_coi_instrumentor_forget_direct(
+    struct kedr_coi_instrumentor* instrumentor,
+    void* object,
+    bool norestore);
 
 //**************Foreign instrumentor************************//
-struct kedr_coi_instrumentor_with_foreign;
+struct instrument_data_foreign_operations;
 
-struct kedr_coi_instrumentor_with_foreign_impl_iface;
+/* Abstract data described instrumentation of one operations object. */
+struct instrument_data_foreign
+{
+    int refs;
+    
+    struct instrument_data* idata_binded;
+    
+    const struct instrument_data_foreign_operations* fi_ops;
+};
 
-struct kedr_coi_foreign_instrumentor_watch_data;
-
-struct kedr_coi_foreign_instrumentor_impl;
-struct kedr_coi_foreign_instrumentor_impl_iface;
+/* Data described one watch for the foreign interceptor. */
+struct kedr_coi_foreign_instrumentor_watch_data
+{
+    /* Referenced instrument_data_foreign object */
+    struct instrument_data_foreign* idata_foreign;
+    /* Element of the hash table of ids. */
+    struct kedr_coi_hash_elem id_elem;
+    /* Element of the hash table of ties. */
+    struct kedr_coi_hash_elem tie_elem;
+    /* Element in 'foreign_ops_p_table' in normal instrumentor. */
+    struct kedr_coi_hash_elem ops_p_elem;
+};
 
 struct kedr_coi_foreign_instrumentor
 {
-    struct kedr_coi_instrumentor_with_foreign* instrumentor_binded;
     // Hash table of identificators
-    struct kedr_coi_hash_table hash_table_ids;
+    struct kedr_coi_hash_table ids_table;
     // Hash table of ties. NOTE: may be not unique
-    struct kedr_coi_hash_table hash_table_ties;
-    // Protect both hash tables, 'ids' and 'ties'
-    spinlock_t lock;
+    struct kedr_coi_hash_table ties_table;
+
+    struct kedr_coi_instrumentor* instrumentor_binded;
     
-    // used only while instrumentor is being deleted
-    void (*trace_unforgotten_watch)(void* id, void* tie, void* user_data);
-    void* user_data;
-
-    /* Backend */
-    struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl;
+    const struct kedr_coi_replacement* replacements;
 };
-
-// Data corresponded to one replacement(one watch() call)
-struct kedr_coi_foreign_instrumentor_watch_data
-{
-    // All fields - protected
-    struct kedr_coi_hash_elem hash_elem_id;
-    struct kedr_coi_hash_elem hash_elem_tie;
-};
-
-//***********  API for foreign instrumentor************************
 
 /* 
- * Watch for given object(tie).
+ * Return operations, which should be used for instrumentation has an
+ * effect.
+ */
+void* instrument_data_foreign_get_repl_operations(
+    struct instrument_data_foreign* idata_foreign);
+
+
+/* 
+ * Return referenced 'instrument_data' object for given ops.
+ * 
+ * 'instrument_data_foreign' object will be created if needed.
+ * 
+ * On error, return ERR_PTR().
+ */
+struct instrument_data_foreign* instrumentor_foreign_get_data(
+    struct kedr_coi_foreign_instrumentor* instrumentor,
+    const void* ops);
+
+/* 
+ * Return foreign idata object for given operations.
+ * If such object is not exists, return NULL.
+ */
+struct instrument_data_foreign* instrumentor_foreign_find_data(
+    struct kedr_coi_foreign_instrumentor* instrumentor,
+    const void* ops);
+
+
+/*
+ * Increment reference counter on idata_foreign.
+ */
+void instrument_data_foreign_ref(
+    struct instrument_data_foreign* idata_foreign);
+/*
+ * Decrement reference counter on idata_foreign.
+ * 
+ * If it drops to 0, idata will be deleted. In that case operations
+ * in the originial operations structure will be restored if needed.
+ */
+void instrument_data_foreign_unref(
+    struct kedr_coi_foreign_instrumentor* instrumentor,
+    struct instrument_data_foreign* idata_foreign);
+
+/*
+ * Decrement reference counter on idata_foreign.
+ * 
+ * If it drops to 0, idata will be deleted. Operations structure will not
+ * be restored.
+ */
+void instrument_data_foreign_unref_norestore(
+    struct kedr_coi_foreign_instrumentor* instrumentor,
+    struct instrument_data_foreign* idata_foreign);
+
+
+/*
+ * Return normal operation at given offset.
+ * 
+ * It may be a replacement of the normal instrumentor, or original
+ * operation iself (which, in turn, may be NULL).
+ * 
+ * This value is used for @op_chained in regular 'bind_with_factory' path.
+ */
+void* instrument_data_foreign_normal_operation(
+    struct kedr_coi_foreign_instrumentor* instrumentor,
+    struct instrument_data_foreign* idata_foreign,
+    size_t operation_offset);
+
+/*
+ * Chain operation at given offset.
+ * 
+ * It may be a replacement of the normal instrumentor, or original
+ * operation iself (which, in turn, may be NULL).
+ * 
+ * This value is used for @op_chained when 'bind_with_factory' shouldn't
+ * bind object.
+ */
+void* instrument_data_foreign_chain_operation(
+    struct kedr_coi_foreign_instrumentor* instrumentor,
+    struct instrument_data_foreign* idata_foreign,
+    size_t operation_offset);
+
+
+//***********  API for foreign instrumentor************************
+/* Create foreign instrumentor, binded with given normal one. */
+struct kedr_coi_foreign_instrumentor* kedr_coi_foreign_instrumentor_create(
+    struct kedr_coi_instrumentor* instrumentor_binded,
+    const struct kedr_coi_replacement* replacements);
+
+/* 
+ * Destroy foreign instrumentor.
+ */
+void kedr_coi_foreign_instrumentor_destroy(
+    struct kedr_coi_foreign_instrumentor* instrumentor,
+    trace_unforgotten_watch_t trace_unforgotten_watch,
+    void* user_data);
+    
+/* 
+ * Watch for given object(id).
  * 
  * All needed operations of that object are replaced corresponded to
  * backend.
@@ -359,20 +408,14 @@ int kedr_coi_foreign_instrumentor_forget(
     const void* id,
     const void** ops_p);
 
-/* Destroy instrumentor and its backend. */
-void kedr_coi_foreign_instrumentor_destroy(
-    struct kedr_coi_foreign_instrumentor* instrumentor,
-    void (*trace_unforgotten_watch)(void* id, void* tie, void* user_data),
-    void* user_data);
-
 /* 
  * If 'foriegn_tie' is watched by foreign instrumentor,
- * watch for 'tie' of normal instrumentor(with which foreign one is binded).
+ * watch for 'object' by the normal instrumentor(with which foreign one is binded).
  * 
  * Also set 'op_chained' to operation which should be executed next.
  * 
- * If 'foreign_tie' is watched and 'tie' become watched, replace
- * operations 'as if' them is watched by normal instrumentor, set
+ * If 'foreign_tie' is watched and 'object' become watched, replace
+ * operations 'as if' them are watched by the normal instrumentor, set
  * 'op_chained' to operation which should be called next,
  * 'op_orig' to original operation, and return 0.
  * 
@@ -385,7 +428,8 @@ void kedr_coi_foreign_instrumentor_destroy(
  * But these operations may differ from ones would be when replaced
  * solely by normal instrumentor(see below).
  * 
- * If 'foreign_tie' is not watched, set 'op_chained' to operation which
+ * If 'foreign_tie' is not watched, or 'object' is already watched
+ * by the normal instrumentor, set 'op_chained' to operation which
  * should be called next and return 1.
  * 
  * If 'foreign_tie' is watched, but watching for the new object is failed
@@ -406,7 +450,7 @@ void kedr_coi_foreign_instrumentor_destroy(
  */
 int kedr_coi_foreign_instrumentor_bind(
     struct kedr_coi_foreign_instrumentor* instrumentor,
-    const void* tie,
+    void* object,
     const void* foreign_tie,
     const void** ops_p,
     size_t operation_offset,
@@ -414,319 +458,112 @@ int kedr_coi_foreign_instrumentor_bind(
     void** op_orig);
 
 
-/*******************Backend for foreign instrumentor*******************/
-/* Implements replacement mechanism */
-struct kedr_coi_foreign_instrumentor_impl
-{
-    /*
-     * Destroy backend.
-     */
-    void (*destroy_impl)(
-        struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl);
+/*************** instrumentation mechanism implementation *************/
+/*
+ * All callbacks(normal and foreign ones) are called under
+ * instrumentor's lock.
+ */
 
-    struct kedr_coi_foreign_instrumentor_impl_iface* interface;
-};
-// Interface of the foreign instrumentor backend
-struct kedr_coi_foreign_instrumentor_impl_iface
-{
-    /*
-     * Allocate watch_data object.
-     * 
-     * Return object allocated or NULL on error. May sleep.
-     */
-    struct kedr_coi_foreign_instrumentor_watch_data* (*alloc_watch_data)(
-        struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl);
-
-    /*
-     * Called when 'watch' is called for a new id.
-     * 
-     * 'watch_data_new' are data allocated with 'alloc_watch_data'.
-     * 
-     * Replace operations and fill 'watch_data_new' with data
-     * described this replacement.
-     * 
-     * No other callback function which works with the same object may
-     * be called concurrently with this. 'watch_data_new' become
-     * available for other functions only when this callback returns
-     * successfully.
-     * 
-     * Executed in atomic context.
-     */
-    int (*replace_operations)(
-        struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
-        struct kedr_coi_foreign_instrumentor_watch_data* watch_data_new,
-        const void** ops_p);
-    
-    /*
-     * Called when 'forget' is called for an id, which is watched.
-     * 
-     * 'watch_data' are data concerned with this id.
-     * 
-     * Executed in atomic context.
-     * 
-     * Should remove from watch data information about replacement and,
-     * if 'ops_p' is not NULL, adjust 'ops_p' to initial operations.
-     *
-     * No other callback function which works with the same object may
-     * be called concurrently with this. 'watch_data' become unavailable
-     * for other functions after this callback returns.
-     *
-     * Executed in atomic context.
-     */
-    void (*clean_replacement)(
-        struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
-        struct kedr_coi_foreign_instrumentor_watch_data* watch_data,
-        const void** ops_p);
-    
-    /*
-     * Free data previously allocated with alloc_watch_data().
-     */
-    void (*free_watch_data)(
-        struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
-        struct kedr_coi_foreign_instrumentor_watch_data* watch_data);
-
-
-    /*
-     * Called when 'watch' is called for id already used for watch.
-     * 
-     * Update watch_data and operations for continue watch.
-     * 
-     * If need to recreate watch_data, should restore operations and
-     * return 1. After that, replace_operations() will be called for
-     * newly created watch data.
-     *
-     * No other callback function which works with the same object may
-     * be called concurrently with this. 'watch_data' become
-     * unavailable for other functions after this callback returns 1.
-     * 
-     * Executed in atomic context.
-     */
-    int (*update_operations)(
-        struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
-        struct kedr_coi_foreign_instrumentor_watch_data* watch_data,
-        const void** ops_p);
-    
-    /*
-     * Called when 'kedr_coi_bind_object' is called,
-     * but neither foreign tie nor normal object is watched.
-     * 
-     * Restore object operations and 'op_orig' should be set to original
-     * operation for object.
-     * 
-     * On any fail, function should return negative error code.
-     * If function fails to extract original operation, 'op_orig'
-     * should be set to ERR_PTR() (that error usually is unrecoverable for caller).
-     * 
-     * No other callback function which works with the same object or
-     * foreign tie may be called concurrently with this.
-     *
-     * NOTE: 'restore object operations' means that object operations
-     * will work AS original ones, but they may be not equal to original
-     * ones.
-     *
-     * Executed in atomic context.
-     */
-
-    int (*restore_foreign_operations_nodata)(
-        struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
-        const void** ops_p,
-        size_t operation_offset,
-        void** op_orig);
-
-    /*
-     * Called when 'kedr_coi_bind_object' is called, foreign tie is
-     * watched, but allocation of the data for the new watch is failed.
-     * 
-     * Restore object operations and 'op_orig' should 
-     * be set to original operation for object.
-     * 
-     * On any fail, function should return negative error code.
-     * If function fails to extract original operation, 'op_orig'
-     * should be set to ERR_PTR().
-     * 
-     * No other callback function which works with the same object or
-     * prototype object may be called concurrently with this.
-     *
-     * NOTE: 'restore object operations' means that object operations
-     * will work AS original ones, but they may be not equal to original
-     * ones.
-     * 
-     * Executed in atomic context.
-     */
-
-    int (*restore_foreign_operations)(
-        struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
-        struct kedr_coi_foreign_instrumentor_watch_data* watch_data,
-        const void** ops_p,
-        size_t operation_offset,
-        void** op_orig);
-};
-
-
-/*****************Instrumentor with foreing support********************/
-struct kedr_coi_instrumentor_with_foreign_impl;
-
-/* Normal instrumentor which also may create foreign ones. */
-struct kedr_coi_instrumentor_with_foreign
-{
-    /* Derivation from normal instrumentor */
-    struct kedr_coi_instrumentor base;
-    /* Backend */
-    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl;
-};
-
-
-/********* API for normal instrumentor with foreign support ************/
-/* Create foreign instrumentor for given one */
-struct kedr_coi_foreign_instrumentor*
-kedr_coi_foreign_instrumentor_create(
-    struct kedr_coi_instrumentor_with_foreign* instrumentor,
-    const struct kedr_coi_replacement* replacements);
-
-/************ Backend for instrumentor with foreign support ***********/
-/* Implements replacement mechanism */
-struct kedr_coi_instrumentor_with_foreign_impl_iface;
-
-struct kedr_coi_instrumentor_with_foreign_impl
-{
-    /* Derives from normal instrumentor backend */
-    struct kedr_coi_instrumentor_impl base;
-    /* Additional virtual functions */
-    struct kedr_coi_instrumentor_with_foreign_impl_iface* interface;
-};
-
-struct kedr_coi_instrumentor_with_foreign_impl_iface
+struct instrument_data_operations
 {
     /* 
-     * All callback operations which accept 'op_orig'/'op_chained'
-     * parameter are called (indirectly) from intermediate operation.
-     * Operation from that parameter is used by intermediate operation
-     * as operation to be called next.
-     * 
-     * If that operation cannot be determined, it should be set to
-     * ERR_PTR() and error should be returned. Note, that this error
-     * is usually cannot be recovered by the caller.
+     * Return pointer to operations, which should be used for
+     * instrumentation mechanism works.
      */
-
-    /*
-     * Create foreign instrumentor for normal one.
+    void* (*get_repl_operations)(struct instrument_data* idata);
+    
+    /* 
+     * Return pointer to original operations structure.
      */
-    struct kedr_coi_foreign_instrumentor_impl*
-        (*foreign_instrumentor_impl_create)(
-            struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
-            const struct kedr_coi_replacement* replacements);
+    void* (*get_orig_operations)(struct instrument_data* idata);
 
-    /*
-     * Called when 'kedr_coi_bind_object' is called and tie object is
-     * watched.
-     * 
-     * 'watch_data_new' are data allocated for the object.
-     * 
-     * Replace operations for an object and fill 'watch_data_new' with
-     * information about this replacements.
-     * 'op_repl' should be set to replaced operation for an object.
-     * 
-     * If fail to replace operations, function should return negative
-     * error code and set 'op_repl' to original operation of the object.
-     * 
-     * No other callback function which works with the same object or
-     * prototype object may be called concurrently with this.
-     * 
-     * Executed in atomic context.
-     */
 
-    int (*replace_operations_from_foreign)(
-        struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
-        struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
-        struct kedr_coi_instrumentor_watch_data* watch_data_new,
-        const void** ops_p,
-        struct kedr_coi_foreign_instrumentor_watch_data* foreign_watch_data,
-        size_t operation_offset,
-        void** op_repl);
+    /* Return original operation at given offset. */
+    void* (*get_orig_operation)(
+        struct instrument_data* idata,
+        size_t operation_offset);
+    
     
     /*
-     * Called when 'kedr_coi_bind_object' is called, foreign tie is
-     * watched and object is watched also.
+     * Return 1 if operations are processed by this @idata object.
+     * Return 0 otherwise.
      * 
-     * 'watch_data' are data corresponded to the object.
-     * 
-     * Operation should update operations for an object.
-     * 'op_repl' should be set to replaced operation for an object.
-     * 
-     * If fail to update operations, function should return negative
-     * error code and set 'op_repl' to original operation of the object.
-     * 
-     * No other callback function which works with the same object or
-     * prototype object may be called concurrently with this.
-     * 
-     * Executed in atomic context.
-     */
-
-    int (*update_operations_from_foreign)(
-        struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
-        struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
-        struct kedr_coi_instrumentor_watch_data* watch_data,
-        const void** ops_p,
-        struct kedr_coi_foreign_instrumentor_watch_data* foreign_data,
-        size_t operation_offset,
-        void** op_repl);
+     * Used for detect changed operations when update watch.
+     * */
+    bool (*my_operations)(struct instrument_data* idata,
+        const void* ops);
     
-    /*
-     * Called when 'kedr_coi_bind_object' is called, tie is not watched
-     * but object is watched.
-     * 
-     * 'watch_data' are data corresponded to the object.
-     * 
-     * Executed in atomic context.
-     * 
-     * This is strange situation. Operation may do anything with
-     * object's operations that is applicable to that situation
-     * from the view of replacement mechanism. E.g, update operations
-     * in the object.
-     *
-     * Then 'op_chained' should be set to operation, which is intended
-     * to execute after. It may be object's replaced operation, or
-     * original one.
-     * 
-     * On any fail, function should return negative error code.
-     * 
-     * No other callback function which works with the same object or
-     * tie may be called concurrently with this.
-     */
+    void (*destroy_idata)(
+        struct kedr_coi_instrumentor* instrumentor,
+        struct instrument_data* idata);
+    
+    void (*destroy_idata_norestore)(
+        struct kedr_coi_instrumentor* instrumentor,
+        struct instrument_data* idata);
+    
 
-    int (*chain_operation)(
-        struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
-        struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
-        struct kedr_coi_instrumentor_watch_data* watch_data,
-        const void** ops_p,
-        size_t operation_offset,
-        void** op_chained);
+    /* 
+     * Create foreign data for given ones.
+     * 
+     * On success, reference on idata will be consumed for object created.
+     * 
+     * Return ERR_PTR() on error.
+     */
+    struct instrument_data_foreign* (*create_foreign_data)(
+        struct instrument_data* idata,
+        struct kedr_coi_foreign_instrumentor* instrumentor_foreign);
+
+    /* 
+     * Look for foreign data for given ones.
+     * 
+     * If not found, NULL is be returned.
+     */
+    struct instrument_data_foreign* (*find_foreign_data)(
+        struct instrument_data* idata,
+        struct kedr_coi_foreign_instrumentor* instrumentor_foreign);
+
 };
 
-struct kedr_coi_instrumentor_with_foreign*
-kedr_coi_instrumentor_with_foreign_create(
-    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl);
+struct instrument_data_foreign_operations
+{
+    /* 
+     * Return pointer to operations, which should be used for
+     * instrumentation mechanism works.
+     */
+    void* (*get_repl_operations)(
+        struct instrument_data_foreign* idata_foreign);
 
-/*********** Creation of instrumentor with foreign support ************/
-/*
- * Similar to kedr_coi_instrumentor_create_indirect(), but with foreign
- * support.
- */
-struct kedr_coi_instrumentor_with_foreign*
-kedr_coi_instrumentor_with_foreign_create_indirect(
-    size_t operations_struct_size,
-    const struct kedr_coi_replacement* replacements);
+    /* 
+     * Return 'normal' operation at given offset.
+     * 
+     * It may be replacement operation for normal instrumentor,
+     * or original operation itself.
+     */
+    void* (*get_normal_operation)(
+        struct kedr_coi_foreign_instrumentor* instrumentor,
+        struct instrument_data_foreign* idata_foreign,
+        size_t operation_offset);
 
-/*
- * Similar to kedr_coi_instrumentor_create_indirect1(), but with foreign
- * support.
- */
-struct kedr_coi_instrumentor_with_foreign*
-kedr_coi_instrumentor_with_foreign_create_indirect1(
-    size_t operations_struct_size,
-    const struct kedr_coi_replacement* replacements);
-
-/* Foreign support for direct instrumentor is not needed(not used) */
+    /* 
+     * If there are other foriegn instrumentation is done for these ops,
+     * return replacement for the operation at given offset.
+     * Otherwise return original operation.
+     */
+    void* (*get_chain_operation)(
+        struct kedr_coi_foreign_instrumentor* instrumentor,
+        struct instrument_data_foreign* idata_foreign,
+        size_t operation_offset);
+        
+    
+    void (*destroy_idata_foreign)(
+        struct kedr_coi_foreign_instrumentor* instrumentor,
+        struct instrument_data_foreign* idata_foreign);
+    
+    void (*destroy_idata_foreign_norestore)(
+        struct kedr_coi_foreign_instrumentor* instrumentor,
+        struct instrument_data_foreign* idata_foreign);
+    
+};
 
 /********************** Global functions ******************************/
 /*

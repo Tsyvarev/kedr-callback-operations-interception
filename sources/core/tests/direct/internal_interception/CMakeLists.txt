@@ -1,6 +1,3 @@
-set(module_name "test_instrumentor_direct_internal_interception")
-
-kedr_coi_test_add_kernel("internal_interception"
-    ${module_name}
+add_test_interceptor_direct("internal"
     "test.c"
 )

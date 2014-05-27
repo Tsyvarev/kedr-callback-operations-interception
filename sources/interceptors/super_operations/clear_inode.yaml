@@ -1,0 +1,16 @@
+operations:
+
+  - name:  clear_inode
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+    object:  inode->i_sb
+
+# Called from clear_inode
+    default:  return;
+
+    header: |
+            /* 'super_operations' has 'clear_inode' method */
+            #define SUPER_OPERATIONS_HAS_CLEAR_INODE

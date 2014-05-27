@@ -1,0 +1,20 @@
+operations:
+  - name:  bdev_try_to_free_page
+    returnType:  int
+
+    args:
+      - type:  struct super_block *
+        name:  sb
+
+      - type:  struct page *
+        name:  page
+
+      - type:  gfp_t
+        name:  wait
+
+    object:  sb
+
+# Called from blkdev_releasepage
+    implementation_header: |
+            #include <linux/buffer_head.h>
+    default:  return try_to_free_buffers(page);

@@ -90,7 +90,7 @@ struct kedr_coi_factory_interceptor* factory_interceptor;
 KEDR_COI_TEST_DEFINE_FACTORY_INTERMEDIATE_FUNC(op1_factory_repl,
     get_factory, OPERATION_OFFSET(op1), factory_interceptor);
 
-static struct kedr_coi_factory_intermediate factory_intermediate_operations[] =
+static struct kedr_coi_intermediate factory_intermediate_operations[] =
 {
     INTERMEDIATE(op1, op1_factory_repl),
     INTERMEDIATE_FINAL
@@ -103,8 +103,7 @@ int test_init(void)
     interceptor = INDIRECT_CONSTRUCTOR("Simple indirect interceptor",
         offsetof(struct test_object, ops),
         sizeof(struct test_operations),
-        intermediate_operations,
-        NULL);
+        intermediate_operations);
     
     if(interceptor == NULL)
     {
@@ -116,8 +115,7 @@ int test_init(void)
         interceptor,
         "Simple factory interceptor",
         offsetof(struct test_factory, factory_ops),
-        factory_intermediate_operations,
-        NULL);
+        factory_intermediate_operations);
     
     if(factory_interceptor == NULL)
     {
@@ -142,6 +140,9 @@ int test_run(void)
     struct test_factory factory = {.factory_ops = &test_operations_orig};
     struct test_object object;
     
+    //debug
+    //pr_info("Test 'factory.base': original operations are %p", &test_operations_orig);
+    
     result = kedr_coi_payload_register(interceptor, &payload);
     
     if(result)
@@ -157,6 +158,7 @@ int test_run(void)
         goto err_start;
     }
     
+
     result = kedr_coi_factory_interceptor_watch(factory_interceptor,
         &factory);
     if(result < 0)
@@ -172,8 +174,17 @@ int test_run(void)
     op1_call_counter = 0;
     op1_pre1_call_counter = 0;
     
+    //debug
+    //pr_info("Test 'factory.base' before create: object.ops->op1 is %pF, object.ops->op2 is %pF",
+    //    object.ops->op1, object.ops->op2);
+
     object.ops->op1(&object, &factory);
     
+    //debug
+    //pr_info("Test 'factory.base' after create: object.ops->op1 is %pF, object.ops->op2 is %pF",
+    //    object.ops->op1, object.ops->op2);
+
+
     if(op1_pre1_call_counter == 0)
     {
         pr_err("Pre handler for operation 1 wasn't called.");
@@ -220,6 +231,7 @@ int test_run(void)
         result = -EINVAL;
         goto err_forget;
     }
+
 
     kedr_coi_factory_interceptor_forget(factory_interceptor, &factory);
     kedr_coi_interceptor_stop(interceptor);

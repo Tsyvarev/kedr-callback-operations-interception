@@ -349,7 +349,7 @@ static void operation_payloads_release_all(
 /*
  * Check payload before registration.
  * 
- * Return 0 if payload allowed to register and negative error code
+ * Return 0 if payload is allowed to register and negative error code
  * otherwise.
  */
 static int operation_payloads_check_payload(
@@ -520,6 +520,7 @@ operation_payloads_create_replacements(
     struct operation_payloads* payloads)
 {
     struct operation_info* operation;
+    struct kedr_coi_replacement* replacements;
     int replacements_n = 0;
     int i;
     
@@ -536,11 +537,10 @@ operation_payloads_create_replacements(
         return 0;
     }
     // Allocate array
-    payloads->replacements =
-        kmalloc(sizeof(*payloads->replacements) * (replacements_n + 1),
+    replacements = kmalloc(sizeof(*replacements) * (replacements_n + 1),
         GFP_KERNEL);
     
-    if(payloads->replacements == NULL)
+    if(replacements == NULL)
     {
         pr_err("Failed to allocate replacements array");
         return -ENOMEM;
@@ -552,21 +552,21 @@ operation_payloads_create_replacements(
     {
         if(operation->is_intercepted || operation->default_is_intercepted)
         {
-            struct kedr_coi_replacement* replacement =
-                &payloads->replacements[i];
+            struct kedr_coi_replacement* replacement = replacements + i;
         
             replacement->operation_offset = operation->operation_offset;
             replacement->repl = operation->repl;
             replacement->mode = operation->default_is_intercepted
                 ? operation->is_intercepted ? replace_all : replace_null
                 : replace_not_null;
-            
             i++;
         }
     }
     BUG_ON(i != replacements_n);
     
-    payloads->replacements[replacements_n].operation_offset = -1;
+    replacements[replacements_n].operation_offset = -1;
+    
+    payloads->replacements = replacements;
     
     return 0;
 }
@@ -606,7 +606,8 @@ int operation_payloads_use(struct operation_payloads* payloads,
         list_for_each_entry(operation, &payloads->operations, list)
         {
             operation->is_intercepted = true;
-            operation->default_is_intercepted = true;
+            if(!operation->internal_only)
+                operation->default_is_intercepted = true;
         }
     }
 
@@ -632,6 +633,12 @@ int operation_payloads_use(struct operation_payloads* payloads,
         operation_payloads_unuse_all(payloads);
         operation_payloads_release_all(payloads);
         goto out;
+    }
+
+    if(intercept_all)
+    {
+        struct kedr_coi_replacement* replacements = payloads->replacements;
+        BUG_ON(replacements == NULL || replacements[0].operation_offset == -1 || replacements[1].operation_offset != -1);
     }
 
     payloads->is_used = 1;

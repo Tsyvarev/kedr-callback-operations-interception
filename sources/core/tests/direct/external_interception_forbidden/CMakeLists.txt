@@ -1,6 +1,3 @@
-set(module_name "test_instrumentor_direct_no_external")
-
-kedr_coi_test_add_kernel("external_interception_forbidden"
-    ${module_name}
+add_test_interceptor_direct("no_external"
     "test.c"
 )

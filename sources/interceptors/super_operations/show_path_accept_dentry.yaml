@@ -1,0 +1,23 @@
+operations:
+
+  - name:  show_path
+    returnType:  int
+
+    args:
+      - type:  struct seq_file *
+        name:  m
+
+      - type:  struct dentry *
+        name:  dentry
+
+    object:  dentry->d_sb
+
+# Called by show_mountinfo.
+# Default implementation uses seq_dentry, which is not accessible for modules.
+
+    header: |
+            /* 'super_operations' has method 'show_path' */
+            #define SUPER_OPERATIONS_HAS_SHOW_PATH
+            
+            /* 'super_operations' has method 'show_path' which accepts struct dentry* as second argument. */
+            #define SUPER_OPERATIONS_SHOW_PATH_ACCEPT_DENTRY

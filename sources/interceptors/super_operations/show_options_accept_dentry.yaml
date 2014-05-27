@@ -1,0 +1,19 @@
+operations:
+  - name:  show_options
+    returnType:  int
+
+    args:
+      - type:  struct seq_file *
+        name:  m
+
+      - type:  struct dentry *
+        name:  dentry
+
+    object:  dentry->d_sb
+
+# Called from show_vfsmnt
+    default:  return 0;
+
+    header: |
+            /* 'super_operations' has method 'show_options' which accepts struct dentry* as second argument. */
+            #define SUPER_OPERATIONS_SHOW_OPTIONS_ACCEPT_DENTRY

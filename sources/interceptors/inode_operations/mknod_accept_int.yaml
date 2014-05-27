@@ -1,0 +1,22 @@
+operations:
+  - name:  mknod
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  dir
+
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  int
+        name:  mode
+
+      - type:  dev_t
+        name:  dev
+
+    object:  dir
+
+# Called vfs_mknod
+    default:  return -EPERM;
+

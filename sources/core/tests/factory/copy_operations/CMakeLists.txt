@@ -1,6 +1,3 @@
-set(module_name "test_instrumentor_factory${indirect_suffix}_copy_operations")
-
-kedr_coi_test_add_kernel("copy_operations"
-    ${module_name}
+add_test_interceptor_factory("copy_operations"
     "test.c"
 )

@@ -1,9 +1,9 @@
 /*
- * Implementation of instrumentors object hierarchy.
+ * Implementation of instrumentors.
  */
 
 /* ========================================================================
- * Copyright (C) 2011-2012, Andrey V. Tsyvarev  <tsyvarev@ispras.ru>
+ * Copyright (C) 2014, Andrey V. Tsyvarev  <tsyvarev@ispras.ru>
  *
  *
  * This program is free software: you can redistribute it and/or modify
@@ -27,355 +27,398 @@
 #include <linux/slab.h> /* memory allocations */
 #include <linux/spinlock.h> /* spinlocks */
 
-//************* Normal instrumentor *****************************
-
-// Wrappers around instrumentor implementation virtual methods
-static struct kedr_coi_instrumentor_watch_data*
-instrumentor_impl_alloc_watch_data(
-    struct kedr_coi_instrumentor_impl* iface_impl)
+/* @ops shouldn't be NULL. */
+static void* operation_at_offset(const void* ops, size_t operation_offset)
 {
-    return iface_impl->interface->alloc_watch_data(iface_impl);
+    return *((void**)((const char*)ops + operation_offset));
 }
 
-static void
-instrumentor_impl_free_watch_data(
-    struct kedr_coi_instrumentor_impl* iface_impl,
+static struct kedr_coi_replacement empty_replacements[] = {
+    {
+        .operation_offset = -1
+    }
+};
+//************* Normal instrumentor *****************************
+// Auxiliary functions
+/* 
+ * Return watch data for given object.
+ * If object is not watched, return NULL.
+ */
+static struct kedr_coi_instrumentor_watch_data* instrumentor_find_watch_data(
+    struct kedr_coi_instrumentor* instrumentor, const void* object)
+{
+    struct kedr_coi_hash_elem* elem;
+    struct kedr_coi_instrumentor_watch_data* watch_data;
+    
+    elem = kedr_coi_hash_table_find_elem(
+        &instrumentor->objects_table, object);
+
+    if(elem)
+        watch_data = container_of(elem, typeof(*watch_data), object_elem);
+    else
+        watch_data = NULL;
+    
+    return watch_data;
+}
+
+static void instrumentor_destroy_watch_data(
+    struct kedr_coi_instrumentor* instrumentor,
     struct kedr_coi_instrumentor_watch_data* watch_data)
 {
-    iface_impl->interface->free_watch_data(iface_impl, watch_data);
+    instrument_data_unref(instrumentor, watch_data->idata);
+    
+    kedr_coi_hash_table_remove_elem(&instrumentor->objects_table,
+        &watch_data->object_elem);
+    
+    kfree(watch_data);
 }
 
-static int
-instrumentor_impl_replace_operations(
-    struct kedr_coi_instrumentor_impl* iface_impl,
-    struct kedr_coi_instrumentor_watch_data* watch_data_new,
+static void instrumentor_destroy_watch_data_norestore(
+    struct kedr_coi_instrumentor* instrumentor,
+    struct kedr_coi_instrumentor_watch_data* watch_data)
+{
+    instrument_data_unref_norestore(instrumentor, watch_data->idata);
+    
+    kedr_coi_hash_table_remove_elem(&instrumentor->objects_table,
+        &watch_data->object_elem);
+    
+    kfree(watch_data);
+}
+
+/* 
+ * Apply instrumentation, that is set operations to the replacement ones.
+ * 
+ * Do nothing for 'at_place' instrumentation mechanism.
+ */
+static void instrument_data_replace_ops(struct instrument_data* idata,
     const void** ops_p)
 {
-    return iface_impl->interface->replace_operations(iface_impl,
-        watch_data_new, ops_p);
+    void* ops_repl = instrument_data_get_repl_operations(idata);
+    if(ops_repl != *ops_p)
+        *ops_p = ops_repl;
 }
 
-static int
-instrumentor_impl_update_operations(
-    struct kedr_coi_instrumentor_impl* iface_impl,
-    struct kedr_coi_instrumentor_watch_data* watch_data,
+/* 
+ * Revert instrumentation, that is set operations to the original ones.
+ * 
+ * Do nothing for 'at_place' instrumentation mechanism.
+ */
+static void instrument_data_restore_ops(struct instrument_data* idata,
     const void** ops_p)
 {
-    return iface_impl->interface->update_operations
-        ? iface_impl->interface->update_operations(iface_impl,
-            watch_data, ops_p)
-        : -EEXIST;
+    void* ops_orig = instrument_data_get_orig_operations(idata);
+    if(ops_orig != *ops_p)
+        *ops_p = ops_orig;
 }
 
-static void
-instrumentor_impl_clean_replacement(
-    struct kedr_coi_instrumentor_impl* iface_impl,
-    struct kedr_coi_instrumentor_watch_data* watch_data,
-    const void** ops_p)
+struct instrument_data* instrumentor_find_data(
+    struct kedr_coi_instrumentor* instrumentor,
+    const void* ops)
 {
-    iface_impl->interface->clean_replacement(iface_impl,
-        watch_data, ops_p);
-}
-
-static void
-instrumentor_impl_destroy(struct kedr_coi_instrumentor_impl* iface_impl)
-{
-    iface_impl->destroy_impl(iface_impl);
-}
-
-static void*
-instrumentor_impl_get_orig_operation(
-    struct kedr_coi_instrumentor_impl* iface_impl,
-    struct kedr_coi_instrumentor_watch_data* watch_data,
-    const void* ops,
-    size_t operation_offset)
-{
-    return iface_impl->interface->get_orig_operation(iface_impl,
-        watch_data, ops, operation_offset);
-}
-
-static void*
-instrumentor_impl_get_orig_operation_nodata(
-    struct kedr_coi_instrumentor_impl* iface_impl,
-    const void* ops,
-    size_t operation_offset)
-{
-    return iface_impl->interface->get_orig_operation_nodata(iface_impl,
-        ops, operation_offset);
-}
-
-// Callback for free watch elem
-static void free_watch_elem(
-    struct kedr_coi_hash_elem* hash_elem,
-    struct kedr_coi_hash_table* hash_table)
-{
-    struct kedr_coi_instrumentor* instrumentor = container_of(
-        hash_table, typeof(*instrumentor), hash_table_objects);
-    struct kedr_coi_instrumentor_watch_data* watch_data = container_of(
-        hash_elem, typeof(*watch_data), hash_elem_object);
+    struct kedr_coi_hash_elem* elem;
+    struct instrument_data_search* idata_search;
+    struct instrument_data* idata;
     
-    instrumentor_impl_clean_replacement(instrumentor->iface_impl,
-        watch_data, NULL);
-    
-    instrumentor_impl_free_watch_data(instrumentor->iface_impl,
-        watch_data);
-    
-    if(instrumentor->trace_unforgotten_watch)
+    elem = kedr_coi_hash_table_find_elem(
+        &instrumentor->idata_table, ops);
+
+    if(elem)
     {
-        instrumentor->trace_unforgotten_watch((void*)hash_elem->key,
-            instrumentor->user_data);
+        idata_search = container_of(elem, typeof(*idata_search), ops_elem);
+        idata = idata_search->idata;
     }
-#ifdef KEDR_COI_DEBUG
     else
     {
-        pr_err("Watch %p wasn't removed from the watch_data map %p.",
-            hash_elem->key, &instrumentor->hash_table_objects);
+        idata = NULL;
     }
-#endif
 
+    return idata;
 }
 
-static void kedr_coi_instrumentor_finalize(
-    struct kedr_coi_instrumentor* instrumentor)
+void* instrument_data_get_repl_operations(struct instrument_data* idata)
 {
-    kedr_coi_hash_table_destroy(&instrumentor->hash_table_objects,
-        free_watch_elem);
-
-    if(instrumentor->iface_impl)
-        instrumentor_impl_destroy(instrumentor->iface_impl);
+    return idata->i_ops->get_repl_operations(idata);
 }
 
-static void kedr_coi_instrumentor_destroy_f(
-    struct kedr_coi_instrumentor* instrumentor)
+void* instrument_data_get_orig_operations(struct instrument_data* idata)
 {
-    kedr_coi_instrumentor_finalize(instrumentor);
+    return idata->i_ops->get_orig_operations(idata);
+}
+
+void* instrument_data_get_orig_operation(struct instrument_data* idata,
+    size_t operation_offset)
+{
+    return idata->i_ops->get_orig_operation(idata, operation_offset);
+}
+
+bool instrument_data_my_operations(struct instrument_data* idata,
+    const void* ops)
+{
+    return idata->i_ops->my_operations(idata, ops);
+}
+
+
+void instrument_data_ref(struct instrument_data* idata)
+{
+    idata->refs++;
+}
+
+void instrument_data_unref(
+    struct kedr_coi_instrumentor* instrumentor,
+    struct instrument_data* idata)
+{
+    if(--idata->refs == 0)
+    {
+        idata->i_ops->destroy_idata(instrumentor, idata);
+    }
+}
+
+void instrument_data_unref_norestore(
+    struct kedr_coi_instrumentor* instrumentor,
+    struct instrument_data* idata)
+{
+    if(--idata->refs == 0)
+    {
+        idata->i_ops->destroy_idata_norestore(instrumentor, idata);
+    }
+}
+
+/*
+ * Called by kedr_coi_instrumentor_get_orig_operation when no
+ * instrument data are found.
+ * 
+ * Return original operation in that case(which may be NULL).
+ * 
+ * Return PTR_ERR() in case of error.
+ */
+static void* instrumentor_get_orig_operation_nodata(
+    struct kedr_coi_instrumentor* instrumentor,
+    const void* ops,
+    size_t operation_offset)
+{
+    /* 
+     * Options are not instrumented by us, or, more likely,
+     * our instrumentation is just removed without restoring.
+     * 
+     * Verify operation at given offset. If it is not
+     * coincide with any of our replacements, return it.
+     * 
+     * Otherwise return error. It is better than infinite recursion, which
+     * would occure if we return operation itself, and it will be called
+     * again by the caller of kedr_coi_instrumentor_get_orig_operation().
+     */
+    const struct kedr_coi_replacement* replacement;
+    void* op = operation_at_offset(ops, operation_offset);
+
+    for_each_replacement(replacement, instrumentor->replacements)
+    {
+        if(replacement->repl == op)
+        {
+            pr_err("Original for replacement operation %pF has lost.", op);
+            return ERR_PTR(-EINVAL);
+        }
+    }
+    return op;
+}
+
+/* Called under lock. */
+static int instrumentor_watch_internal(
+    struct kedr_coi_instrumentor* instrumentor,
+    void* object,
+    const void** ops_p)
+{
+    int err;
+    struct instrument_data* idata;
+    struct kedr_coi_instrumentor_watch_data* watch_data;
+    
+    watch_data = instrumentor_find_watch_data(instrumentor, object);
+
+    if(watch_data)
+    {
+        // Update replacement
+        idata = watch_data->idata;
+        if(!instrument_data_my_operations(idata, *ops_p))
+        {
+            //Need to change instrument data
+            idata = instrumentor_get_data(instrumentor, *ops_p);
+            if(IS_ERR(idata))
+            {
+                /*
+                 * Forget watch in case of unsuccessfull update.
+                 * Watch has no sence if we fail to change operations pointer.
+                 */
+                instrument_data_restore_ops(watch_data->idata, ops_p);
+                instrumentor_destroy_watch_data(instrumentor, watch_data);
+
+                return PTR_ERR(idata);
+            }
+            instrument_data_unref(instrumentor, watch_data->idata);
+            watch_data->idata = idata;
+        }
+        
+        instrument_data_replace_ops(idata, ops_p);
+        return 1;
+    }
+    // Create new watch
+    idata = instrumentor_get_data(instrumentor, *ops_p);
+    if(IS_ERR(idata))
+    {
+        return PTR_ERR(idata);
+    }
+    
+    err = -ENOMEM;
+    watch_data = kmalloc(sizeof(*watch_data), GFP_ATOMIC);
+    if(watch_data == NULL) goto fail_alloc_watch_data;
+
+    watch_data->idata = idata;
+    kedr_coi_hash_elem_init(&watch_data->object_elem, object);
+    err = kedr_coi_hash_table_add_elem(
+        &instrumentor->objects_table, &watch_data->object_elem);
+    if(err) goto fail_add_object_elem;
+
+    instrument_data_replace_ops(watch_data->idata, ops_p);
+    return 0;
+
+fail_add_object_elem:
+    kfree(watch_data);
+
+fail_alloc_watch_data:
+    instrument_data_unref(instrumentor, idata);
+    return err;
+}
+//*************API for normal instrumentor*************************
+struct kedr_coi_instrumentor* kedr_coi_instrumentor_create(
+    size_t operations_struct_size,
+    const struct kedr_coi_replacement* replacements,
+    bool (*replace_at_place)(const void* ops))
+{
+    int err;
+    struct kedr_coi_instrumentor* instrumentor = kmalloc(sizeof(*instrumentor),
+        GFP_KERNEL);
+    if(instrumentor == NULL) return NULL;
+    
+    err = kedr_coi_hash_table_init(&instrumentor->objects_table);
+    if(err) goto fail_objects_table_init;
+
+    err = kedr_coi_hash_table_init(&instrumentor->idata_table);
+    if(err) goto fail_idata_table_init;
+    
+    err = kedr_coi_hash_table_init(&instrumentor->foreign_ops_p_table);
+    if(err) goto fail_foreign_ops_p_table_init;
+    
+    instrumentor->operations_struct_size = operations_struct_size;
+    instrumentor->replacements = replacements
+        ? replacements
+        : empty_replacements;
+    instrumentor->replace_at_place = replace_at_place;
+    
+    spin_lock_init(&instrumentor->lock);
+
+    return instrumentor;
+
+fail_foreign_ops_p_table_init:
+    kedr_coi_hash_table_destroy(&instrumentor->idata_table, NULL, NULL);
+fail_idata_table_init:
+    kedr_coi_hash_table_destroy(&instrumentor->objects_table, NULL, NULL);
+
+fail_objects_table_init:
+    kfree(instrumentor);
+    return NULL;
+}
+
+struct instrumentor_destroy_data
+{
+    struct kedr_coi_instrumentor* instrumentor;
+    trace_unforgotten_watch_t trace_unforgotten_watch;
+    void* user_data;
+};
+
+static void instrumentor_destroy_watch_data_callback(
+    struct kedr_coi_hash_elem* elem,
+    void* user_data)
+{
+    const void* object = elem->key;
+    struct kedr_coi_instrumentor_watch_data* watch_data = 
+        container_of(elem, typeof(*watch_data), object_elem);
+    struct instrumentor_destroy_data* destroy_data = user_data;
+    
+    instrumentor_destroy_watch_data(destroy_data->instrumentor, watch_data);
+    
+    if(destroy_data->trace_unforgotten_watch)
+        destroy_data->trace_unforgotten_watch(object, destroy_data->user_data);
+}
+
+void kedr_coi_instrumentor_destroy(struct kedr_coi_instrumentor* instrumentor,
+    void (*trace_unforgotten_watch)(const void* object, void* user_data),
+    void* user_data)
+{
+    struct instrumentor_destroy_data destroy_data =
+    {
+        .instrumentor = instrumentor,
+        .trace_unforgotten_watch = trace_unforgotten_watch,
+        .user_data = user_data
+    };
+    
+    kedr_coi_hash_table_destroy(&instrumentor->objects_table,
+        &instrumentor_destroy_watch_data_callback, &destroy_data);
+
+    kedr_coi_hash_table_destroy(&instrumentor->foreign_ops_p_table,
+        NULL, NULL);
+
+    kedr_coi_hash_table_destroy(&instrumentor->idata_table, NULL, NULL);
+    
     kfree(instrumentor);
 }
 
-// Protected constructor
-static int kedr_coi_instrumentor_init(
-    struct kedr_coi_instrumentor* instrumentor)
-{
-    int result;
-    
-    result = kedr_coi_hash_table_init(&instrumentor->hash_table_objects);
-    if(result) return result;
-    
-    spin_lock_init(&instrumentor->lock);
-    
-    instrumentor->iface_impl = NULL;
-    
-    return 0;
-}
-
-// Protected method
-static void kedr_coi_instrumentor_set_impl(
+int kedr_coi_instrumentor_watch(
     struct kedr_coi_instrumentor* instrumentor,
-    struct kedr_coi_instrumentor_impl* iface_impl)
-{
-    instrumentor->iface_impl = iface_impl;
-}
-
-
-// Protected auxiliary methods
-// Should be executed with lock taken.
-static int
-instrumentor_add_watch_data(
-    struct kedr_coi_instrumentor *instrumentor,
-    struct kedr_coi_instrumentor_watch_data* watch_data)
-{
-    int result;
-    
-    result = kedr_coi_hash_table_add_elem(
-        &instrumentor->hash_table_objects,
-        &watch_data->hash_elem_object);
-    if(result) return result;
-    
-    return 0;
-}
-
-// Should be executed with lock taken.
-static void
-instrumentor_remove_watch_data(
-    struct kedr_coi_instrumentor *instrumentor,
-    struct kedr_coi_instrumentor_watch_data* watch_data)
-{
-    kedr_coi_hash_table_remove_elem(&instrumentor->hash_table_objects,
-        &watch_data->hash_elem_object);
-}
-
-
-// Should be executed with lock taken.
-static struct kedr_coi_instrumentor_watch_data*
-instrumentor_find_watch_data(
-    struct kedr_coi_instrumentor *instrumentor,
-    const void* object)
-{
-    struct kedr_coi_hash_elem* elem = kedr_coi_hash_table_find_elem(
-        &instrumentor->hash_table_objects, object);
-    
-    if(elem == NULL) return NULL;
-    return elem
-        ? container_of(elem,
-            struct kedr_coi_instrumentor_watch_data,
-            hash_elem_object)
-        : NULL;
-}
-
-//**************** Implementation of instrumentor's API ****************
-
-/*
- *  'watch_data_new' is allocated watch data(but not added(!)). 
- * 
- * Should be executed with lock taken.
- * 
- * On error 'watch_data_new' should be deleted by the caller.
- */
-static int
-kedr_coi_instrumentor_watch_internal(
-    struct kedr_coi_instrumentor* instrumentor,
-    const void** ops_p,
-    struct kedr_coi_instrumentor_watch_data* watch_data_new)
-{
-    int result;
-    struct kedr_coi_instrumentor_watch_data* watch_data;
-    
-    struct kedr_coi_instrumentor_impl* iface_impl =
-        instrumentor->iface_impl;
-    // Check whether object is already known.
-    watch_data = instrumentor_find_watch_data(instrumentor,
-        (void*)watch_data_new->hash_elem_object.key);
-    
-    if(watch_data != NULL)
-    {
-        // Object is already known, update its per-object data and object's operations
-        result = instrumentor_impl_update_operations(iface_impl,
-            watch_data, ops_p);
-        
-        if(result < 0) return result;//error
-        
-        if(result == 0)
-        {
-            instrumentor_impl_free_watch_data(iface_impl, watch_data_new);
-            
-            return 0;// there is no indicator of 'update'
-        }
-        // Need to recreate object data, remove current one
-        instrumentor_remove_watch_data(instrumentor, watch_data);
-        instrumentor_impl_free_watch_data(iface_impl, watch_data);
-        // Now situation as if object is not known
-    }
-    
-    // Object is not known. Fill new instance of watch data and add
-    // it to the hash table of known objects.
-    result = instrumentor_add_watch_data(instrumentor, watch_data_new);
-    if(result) return result;
-    
-    result = instrumentor_impl_replace_operations(iface_impl,
-        watch_data_new,
-        ops_p);
-    
-    if(result)
-    {
-        instrumentor_remove_watch_data(instrumentor, watch_data_new);
-        return result;
-    }
-    
-    return 0;
-}
-
-int
-kedr_coi_instrumentor_watch(
-    struct kedr_coi_instrumentor* instrumentor,
-    const void* object,
+    void* object,
     const void** ops_p)
 {
     unsigned long flags;
-    int result;
-    
-    struct kedr_coi_instrumentor_watch_data* watch_data_new;
-    
-    struct kedr_coi_instrumentor_impl* iface_impl =
-        instrumentor->iface_impl;
-
-    // Expects that object is firstly watched('likely')
-    watch_data_new = instrumentor_impl_alloc_watch_data(iface_impl);
-
-    if(watch_data_new == NULL)
-    {
-        // TODO: fallback to the 'update' mode may be appropriate here?
-        return -ENOMEM;
-    }
-    
-    kedr_coi_hash_elem_init(&watch_data_new->hash_elem_object, object);
+    int err;
     
     spin_lock_irqsave(&instrumentor->lock, flags);
-    
-    result = kedr_coi_instrumentor_watch_internal(instrumentor,
-        ops_p, watch_data_new);
-
+    err = instrumentor_watch_internal(instrumentor, object, ops_p);
     spin_unlock_irqrestore(&instrumentor->lock, flags);
-    
-    if(result < 0)
-    {
-        instrumentor_impl_free_watch_data(iface_impl, watch_data_new);
-    }
 
-    return result;
+    return err;
 }
 
-int
-kedr_coi_instrumentor_forget(
+
+int kedr_coi_instrumentor_forget(
     struct kedr_coi_instrumentor* instrumentor,
-    const void* object,
+    void* object,
     const void** ops_p)
 {
     unsigned long flags;
-    int result;
-    
+    int err = 0;
     struct kedr_coi_instrumentor_watch_data* watch_data;
+    struct instrument_data* idata;
     
-    struct kedr_coi_instrumentor_impl* iface_impl =
-        instrumentor->iface_impl;
-
     spin_lock_irqsave(&instrumentor->lock, flags);
     
     watch_data = instrumentor_find_watch_data(instrumentor, object);
-    
-    if(watch_data == NULL)
+    if(watch_data)
     {
-        // Object is no watched
+        idata = watch_data->idata;
         
-        result = 1;
-        goto out;
+        if(ops_p && instrument_data_my_operations(idata, *ops_p))
+            instrument_data_restore_ops(idata, ops_p);
+        
+        instrumentor_destroy_watch_data(instrumentor, watch_data);
+    }
+    else
+    {
+        err = 1; //Not watched
     }
     
-    instrumentor_remove_watch_data(instrumentor, watch_data);
-    
-    instrumentor_impl_clean_replacement(iface_impl, watch_data, ops_p);
-    instrumentor_impl_free_watch_data(iface_impl, watch_data);
-    
-    result = 0;
-out:
     spin_unlock_irqrestore(&instrumentor->lock, flags);
-
-    return result;
+    
+    return err;
 }
 
-void
-kedr_coi_instrumentor_destroy(
-    struct kedr_coi_instrumentor* instrumentor,
-    void (*trace_unforgotten_watch)(void* object, void* user_data),
-    void* user_data)
-{
-    instrumentor->trace_unforgotten_watch = trace_unforgotten_watch;
-    instrumentor->user_data = user_data;
-
-    instrumentor->destroy(instrumentor);
-}
-
-int
-kedr_coi_instrumentor_get_orig_operation(
+int kedr_coi_instrumentor_get_orig_operation(
     struct kedr_coi_instrumentor* instrumentor,
     const void* object,
     const void* ops,
@@ -383,741 +426,738 @@ kedr_coi_instrumentor_get_orig_operation(
     void** op_orig)
 {
     unsigned long flags;
-    int result;
-    
+    int err = 0;
     struct kedr_coi_instrumentor_watch_data* watch_data;
+    struct instrument_data* idata;
+
+    spin_lock_irqsave(&instrumentor->lock, flags);
+    
+    watch_data = instrumentor_find_watch_data(instrumentor, object);
+    if(watch_data)
+    {
+        idata = watch_data->idata;
+        *op_orig = idata->i_ops->get_orig_operation(idata, operation_offset);
+    }
+    else
+    {
+        err = 1; //Not watched
+        idata = instrumentor_find_data(instrumentor, ops);
+        if(idata == NULL)
+        {
+            *op_orig = instrumentor_get_orig_operation_nodata(
+                instrumentor, ops, operation_offset);
+            if(IS_ERR(*op_orig))
+                err = PTR_ERR(*op_orig);
+        }
+        else
+        {
+            *op_orig = instrument_data_get_orig_operation(
+                idata, operation_offset);
+        }
+    }
+    
+    spin_unlock_irqrestore(&instrumentor->lock, flags);
+    
+    return err;
+}
+/* 
+ * Similar methods, but for directly watched object, which is also a
+ * container of operations.
+ */
+int kedr_coi_instrumentor_watch_direct(
+    struct kedr_coi_instrumentor* instrumentor,
+    void* object)
+{
+    //TODO: Ignore seatch idata by ops.
+    return kedr_coi_instrumentor_watch(instrumentor, object, (const void**)&object);
+}
+
+int kedr_coi_instrumentor_forget_direct(
+    struct kedr_coi_instrumentor* instrumentor,
+    void* object,
+    bool norestore)
+{
+    /* 
+     * Difference from indirect instrumentor's method is that
+     * in case of norestore watch data are destroyed in 'norestore' mode
+     * also.
+     */
+    unsigned long flags;
+    int err = 0;
+    struct kedr_coi_instrumentor_watch_data* watch_data;
+    struct instrument_data* idata;
     
     spin_lock_irqsave(&instrumentor->lock, flags);
     
     watch_data = instrumentor_find_watch_data(instrumentor, object);
-    
-    if(watch_data == NULL)
+    if(watch_data)
     {
-        // Object is not watched
-        *op_orig = instrumentor_impl_get_orig_operation_nodata(
-            instrumentor->iface_impl,
-            ops,
-            operation_offset);
-
-        result = 1;// indicator of 'object not watched'
+        idata = watch_data->idata;
+        
+        if(!norestore) 
+        {
+            // On direct instrumentation operations cannot be changed outside.
+            instrument_data_restore_ops(idata, (const void**)&object);
+            instrumentor_destroy_watch_data(instrumentor, watch_data);
+        }
+        else
+        {
+            instrumentor_destroy_watch_data_norestore(instrumentor, watch_data);
+        }
     }
     else
     {
-        *op_orig = instrumentor_impl_get_orig_operation(
-            instrumentor->iface_impl,
-            watch_data,
-            ops,
-            operation_offset);
-        
-        result = 0;
+        err = 1; //Not watched
     }
-
+    
     spin_unlock_irqrestore(&instrumentor->lock, flags);
+    
+    return err;
 
-    return IS_ERR(*op_orig)? PTR_ERR(*op_orig) : result;
 }
 
-struct kedr_coi_instrumentor*
-kedr_coi_instrumentor_create(
-    struct kedr_coi_instrumentor_impl* iface_impl)
+
+//**************Foreign instrumentor************************//
+void* instrument_data_foreign_get_repl_operations(
+    struct instrument_data_foreign* idata_foreign)
 {
-    struct kedr_coi_instrumentor* instrumentor =
-        kmalloc(sizeof(*instrumentor), GFP_KERNEL);
-    
-    if(instrumentor == NULL)
+    return idata_foreign->fi_ops->get_repl_operations(
+        idata_foreign);
+}
+
+void instrument_data_foreign_ref(
+    struct instrument_data_foreign* idata_foreign)
+{
+    idata_foreign->refs++;
+}
+
+void instrument_data_foreign_unref(
+    struct kedr_coi_foreign_instrumentor* instrumentor,
+    struct instrument_data_foreign* idata_foreign)
+{
+    if(--idata_foreign->refs == 0)
     {
-        pr_err("Failed allocate normal instrumentor structure.");
-        return NULL;
+        idata_foreign->fi_ops->destroy_idata_foreign(
+            instrumentor, idata_foreign);
+    }
+}
+
+void instrument_data_foreign_unref_norestore(
+    struct kedr_coi_foreign_instrumentor* instrumentor,
+    struct instrument_data_foreign* idata_foreign)
+{
+    if(--idata_foreign->refs == 0)
+    {
+        idata_foreign->fi_ops->destroy_idata_foreign_norestore(
+            instrumentor, idata_foreign);
+    }
+}
+
+struct instrument_data_foreign* instrumentor_foreign_find_data(
+    struct kedr_coi_foreign_instrumentor* instrumentor,
+    const void* ops)
+{
+    struct instrument_data_foreign* idata_foreign = NULL;
+    struct instrument_data* idata;
+
+    struct kedr_coi_instrumentor* instrumentor_binded =
+        instrumentor->instrumentor_binded;
+    
+    idata = instrumentor_find_data(instrumentor_binded, ops);
+    if(idata)
+    {
+        idata_foreign = idata->i_ops->find_foreign_data(idata, instrumentor);
+    }
+
+    return idata_foreign;
+}
+
+struct instrument_data_foreign* instrumentor_foreign_get_data(
+    struct kedr_coi_foreign_instrumentor* instrumentor,
+    const void* ops)
+{
+    struct instrument_data* idata;
+    struct kedr_coi_instrumentor* instrumentor_binded;
+    struct instrument_data_foreign* idata_foreign;
+    
+    idata_foreign = instrumentor_foreign_find_data(instrumentor, ops);
+    if(idata_foreign)
+    {
+        instrument_data_foreign_ref(idata_foreign);
+        return idata_foreign;
     }
     
-    if(kedr_coi_instrumentor_init(instrumentor))
+    instrumentor_binded = instrumentor->instrumentor_binded;
+    idata = instrumentor_get_data(instrumentor_binded, ops);
+    if(IS_ERR(idata)) return (void*)idata;
+    
+    idata_foreign = idata->i_ops->create_foreign_data(idata, instrumentor);
+    if(IS_ERR(idata_foreign))
     {
-        kfree(instrumentor);
-        return NULL;
+        instrument_data_unref(instrumentor_binded, idata);
     }
     
-    instrumentor->destroy = kedr_coi_instrumentor_destroy_f;
-    kedr_coi_instrumentor_set_impl(instrumentor, iface_impl);
-    
-    return instrumentor;
+    return idata_foreign;
 }
-//********Foreign instrumentor support******************************//
-
-// Wrappers around instrumentor implementation virtual methods
-static struct kedr_coi_foreign_instrumentor_watch_data*
-foreign_instrumentor_impl_alloc_watch_data(
-    struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl)
-{
-    return foreign_iface_impl->interface->alloc_watch_data(
-        foreign_iface_impl);
-}
-
-static void
-foreign_instrumentor_impl_free_watch_data(
-    struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
-    struct kedr_coi_foreign_instrumentor_watch_data* watch_data)
-{
-    foreign_iface_impl->interface->free_watch_data(foreign_iface_impl,
-        watch_data);
-}
-
-static int
-foreign_instrumentor_impl_replace_operations(
-    struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
-    struct kedr_coi_foreign_instrumentor_watch_data* watch_data_new,
-    const void** ops_p)
-{
-    return foreign_iface_impl->interface->replace_operations(
-        foreign_iface_impl, watch_data_new, ops_p);
-}
-
-static int
-foreign_instrumentor_impl_update_operations(
-    struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
-    struct kedr_coi_foreign_instrumentor_watch_data* watch_data,
-    const void** ops_p)
-{
-    return foreign_iface_impl->interface->update_operations
-        ? foreign_iface_impl->interface->update_operations(
-            foreign_iface_impl, watch_data, ops_p)
-        : -EEXIST;
-}
-
-static void
-foreign_instrumentor_impl_clean_replacement(
-    struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
-    struct kedr_coi_foreign_instrumentor_watch_data* watch_data,
-    const void** ops_p)
-{
-    foreign_iface_impl->interface->clean_replacement(
-        foreign_iface_impl, watch_data, ops_p);
-}
-
-static void
-foreign_instrumentor_impl_destroy(
-    struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl)
-{
-    foreign_iface_impl->destroy_impl(foreign_iface_impl);
-}
-
-static int foreign_instrumentor_impl_restore_foreign_operations(
-    struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
-    struct kedr_coi_foreign_instrumentor_watch_data* watch_data,
-    const void** ops_p,
-    size_t operation_offset,
-    void** op_orig)
-{
-    return foreign_iface_impl->interface->restore_foreign_operations(
-        foreign_iface_impl, watch_data, ops_p, operation_offset, op_orig);
-}
-
-static int foreign_instrumentor_impl_restore_foreign_operations_nodata(
-    struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
-    const void** ops_p,
-    size_t operation_offset,
-    void** op_orig)
-{
-    return foreign_iface_impl->interface->restore_foreign_operations_nodata(
-        foreign_iface_impl, ops_p, operation_offset, op_orig);
-}
-
-
-static struct kedr_coi_foreign_instrumentor_impl*
-instrumentor_wf_impl_foreign_instrumentor_impl_create(
-    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
-    const struct kedr_coi_replacement* replacements)
-{
-    return iface_wf_impl->interface->foreign_instrumentor_impl_create(
-        iface_wf_impl, replacements);
-}
-
-static int
-instrumentor_wf_impl_replace_operations_from_foreign(
-    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
-    struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
-    struct kedr_coi_instrumentor_watch_data* watch_data_new,
-    const void** ops_p,
-    struct kedr_coi_foreign_instrumentor_watch_data* foreign_watch_data,
-    size_t operation_offset,
-    void** op_repl)
-{
-    return iface_wf_impl->interface->replace_operations_from_foreign(
-        iface_wf_impl, foreign_iface_impl, watch_data_new, ops_p,
-        foreign_watch_data, operation_offset, op_repl);
-}
-
-static int
-instrumentor_wf_impl_update_operations_from_foreign(
-    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
-    struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
-    struct kedr_coi_instrumentor_watch_data* watch_data,
-    const void** ops_p,
-    struct kedr_coi_foreign_instrumentor_watch_data* foreign_watch_data,
-    size_t operation_offset,
-    void** op_repl)
-{
-    return iface_wf_impl->interface->update_operations_from_foreign(
-        iface_wf_impl, foreign_iface_impl, watch_data, ops_p,
-        foreign_watch_data, operation_offset, op_repl);
-}
-
-static int
-instrumentor_wf_impl_chain_operation(
-    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl,
-    struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
-    struct kedr_coi_instrumentor_watch_data* watch_data,
-    const void** ops_p,
-    size_t operation_offset,
-    void** op_chained)
-{
-    return iface_wf_impl->interface->chain_operation(
-        iface_wf_impl, foreign_iface_impl, watch_data, ops_p,
-        operation_offset, op_chained);
-}
-
 
 /* 
- *  Callback for deleting currently known watchings.
- * 
- * Aside from freeing watch data, call 'trace_unforgotten_watch'
- * for every such data.
+ * Return watch data for given id.
+ * If object is not watched, return NULL.
  */
-
-static void free_foreign_watch_elem(
-    struct kedr_coi_hash_elem* hash_elem,
-    struct kedr_coi_hash_table* hash_table)
-{
-    struct kedr_coi_foreign_instrumentor* instrumentor =
-        container_of(hash_table, typeof(*instrumentor), hash_table_ids);
-    struct kedr_coi_foreign_instrumentor_watch_data* watch_data =
-        container_of(hash_elem, typeof(*watch_data), hash_elem_id);
-    
-    struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl =
-        instrumentor->foreign_iface_impl;
-
-    foreign_instrumentor_impl_clean_replacement(foreign_iface_impl,
-        watch_data, NULL);
-    
-    kedr_coi_hash_table_remove_elem(&instrumentor->hash_table_ties,
-        &watch_data->hash_elem_tie);
-
-    foreign_instrumentor_impl_free_watch_data(foreign_iface_impl,
-        watch_data);
-
-    if(instrumentor->trace_unforgotten_watch)
-    {
-        instrumentor->trace_unforgotten_watch((void*)hash_elem->key,
-            (void*)watch_data->hash_elem_tie.key, instrumentor->user_data);
-    }
-#ifdef KEDR_COI_DEBUG
-    else
-    {
-        pr_err("Watch %p wasn't removed from the watch_data map %p.",
-            (void*)hash_elem->key, &instrumentor->hash_table_ids);
-    }
-#endif
-}
-
-static void kedr_coi_instrumentor_with_foreign_destroy_f(
-    struct kedr_coi_instrumentor* instrumentor)
-{
-    struct kedr_coi_instrumentor_with_foreign* instrumentor_real =
-        container_of(instrumentor, typeof(*instrumentor_real), base);
-    
-    kedr_coi_instrumentor_finalize(instrumentor);
-    kfree(instrumentor_real);
-}
-
-
-// Constructor
-static int kedr_coi_instrumentor_with_foreign_init(
-    struct kedr_coi_instrumentor_with_foreign* instrumentor)
-{
-    instrumentor->iface_wf_impl = NULL;
-    return kedr_coi_instrumentor_init(&instrumentor->base);
-}
-
-// Protected method
-static void kedr_coi_instrumentor_with_foreign_set_impl(
-    struct kedr_coi_instrumentor_with_foreign* instrumentor,
-    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl)
-{
-    kedr_coi_instrumentor_set_impl(
-        &instrumentor->base,
-        &iface_wf_impl->base);
-    
-    instrumentor->iface_wf_impl = iface_wf_impl;
-}
-
-struct kedr_coi_instrumentor_with_foreign*
-kedr_coi_instrumentor_with_foreign_create(
-    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl)
-{
-    struct kedr_coi_instrumentor_with_foreign* instrumentor =
-        kmalloc(sizeof(*instrumentor), GFP_KERNEL);
-    
-    if(instrumentor == NULL)
-    {
-        pr_err("Failed allocate instrumentor with foreign structure.");
-        return NULL;
-    }
-    
-    if(kedr_coi_instrumentor_with_foreign_init(instrumentor))
-    {
-        kfree(instrumentor);
-        return NULL;
-    }
-    
-    instrumentor->base.destroy = kedr_coi_instrumentor_with_foreign_destroy_f;
-    kedr_coi_instrumentor_with_foreign_set_impl(instrumentor, iface_wf_impl);
-    
-    return instrumentor;
-}
-
-
-// Protected constructor
-static int kedr_coi_foreign_instrumentor_init(
-    struct kedr_coi_foreign_instrumentor* instrumentor)
-{
-    int result;
-    
-    result = kedr_coi_hash_table_init(&instrumentor->hash_table_ids);
-    if(result) return result;
-    
-    result = kedr_coi_hash_table_init(&instrumentor->hash_table_ties);
-    if(result)
-    {
-        kedr_coi_hash_table_destroy(&instrumentor->hash_table_ids, NULL);
-        return result;
-    }
-    
-    spin_lock_init(&instrumentor->lock);
-    
-    return 0;
-}
-
-// Protected method
-static void kedr_coi_foreign_instrumentor_set_impl(
-    struct kedr_coi_foreign_instrumentor* instrumentor,
-    struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl,
-    struct kedr_coi_instrumentor_with_foreign* binded_instrumentor)
-{
-    instrumentor->instrumentor_binded = binded_instrumentor;
-    instrumentor->foreign_iface_impl = foreign_iface_impl;
-}
-
-// Protected auxiliary methods
-// Should be executed with lock taken.
-static int
-foreign_instrumentor_add_watch_data(
-    struct kedr_coi_foreign_instrumentor *instrumentor,
-    struct kedr_coi_foreign_instrumentor_watch_data* watch_data)
-{
-    int result;
-    
-    result = kedr_coi_hash_table_add_elem(
-        &instrumentor->hash_table_ids,
-        &watch_data->hash_elem_id);
-    if(result) return result;
-    
-    result = kedr_coi_hash_table_add_elem(
-        &instrumentor->hash_table_ties,
-        &watch_data->hash_elem_tie);
-    if(result)
-    {
-        kedr_coi_hash_table_remove_elem(
-            &instrumentor->hash_table_ids,
-            &watch_data->hash_elem_id);
-        return result;
-    }
-    
-    return 0;
-}
-
-// Should be executed with lock taken.
-static void
-foreign_instrumentor_remove_watch_data(
-    struct kedr_coi_foreign_instrumentor *instrumentor,
-    struct kedr_coi_foreign_instrumentor_watch_data* watch_data)
-{
-    kedr_coi_hash_table_remove_elem(&instrumentor->hash_table_ids,
-        &watch_data->hash_elem_id);
-    
-    kedr_coi_hash_table_remove_elem(&instrumentor->hash_table_ties,
-        &watch_data->hash_elem_tie);
-}
-
-
-// Should be executed with lock taken.
 static struct kedr_coi_foreign_instrumentor_watch_data*
-foreign_instrumentor_find_watch_data(
-    struct kedr_coi_foreign_instrumentor *instrumentor,
+instrumentor_foreign_find_watch_data_by_id(
+    struct kedr_coi_foreign_instrumentor* instrumentor,
     const void* id)
 {
-    struct kedr_coi_hash_elem* elem = kedr_coi_hash_table_find_elem(
-        &instrumentor->hash_table_ids, id);
-
-    return elem
-        ? container_of(elem,
-            struct kedr_coi_foreign_instrumentor_watch_data,
-            hash_elem_id)
-        : NULL;
+    struct kedr_coi_foreign_instrumentor_watch_data* watch_data;
+    struct kedr_coi_hash_elem* elem;
+    
+    elem = kedr_coi_hash_table_find_elem(&instrumentor->ids_table, id);
+    if(elem)
+        watch_data = container_of(elem, typeof(*watch_data), id_elem);
+    else
+        watch_data = NULL;
+    
+    return watch_data;
 }
 
-// Should be executed with lock taken.
+/* 
+ * Return watch data for given tie.
+ * If object is not watched, return NULL.
+ */
 static struct kedr_coi_foreign_instrumentor_watch_data*
-foreign_instrumentor_find_watch_data_by_tie(
-    struct kedr_coi_foreign_instrumentor *instrumentor,
+instrumentor_foreign_find_watch_data_by_tie(
+    struct kedr_coi_foreign_instrumentor* instrumentor,
     const void* tie)
 {
-    struct kedr_coi_hash_elem* elem = kedr_coi_hash_table_find_elem(
-        &instrumentor->hash_table_ties, tie);
-
-    return elem
-        ? container_of(elem,
-            struct kedr_coi_foreign_instrumentor_watch_data,
-            hash_elem_tie)
-        : NULL;
+    struct kedr_coi_foreign_instrumentor_watch_data* watch_data;
+    struct kedr_coi_hash_elem* elem;
+    
+    elem = kedr_coi_hash_table_find_elem(&instrumentor->ties_table, tie);
+    if(elem)
+        watch_data = container_of(elem, typeof(*watch_data), tie_elem);
+    else
+        watch_data = NULL;
+    
+    return watch_data;
 }
 
 
-//******** Implementation of foreign instrumentor's API ****************
+static void instrumentor_foreign_destroy_watch_data(
+    struct kedr_coi_foreign_instrumentor* instrumentor,
+    struct kedr_coi_foreign_instrumentor_watch_data* watch_data)
+{
+    instrument_data_foreign_unref(instrumentor,
+        watch_data->idata_foreign);
+    
+    kedr_coi_hash_table_remove_elem(&instrumentor->ids_table,
+        &watch_data->id_elem);
+    
+    kedr_coi_hash_table_remove_elem(&instrumentor->ties_table,
+        &watch_data->tie_elem);
+    
+    kedr_coi_hash_table_remove_elem(
+        &instrumentor->instrumentor_binded->foreign_ops_p_table,
+        &watch_data->ops_p_elem);
+    
+    kfree(watch_data);
+}
+
+void instrument_data_foreign_replace_ops(
+    struct instrument_data_foreign* idata_foreign,
+    const void** ops_p)
+{
+    const void* ops_repl =
+        instrument_data_foreign_get_repl_operations(idata_foreign);
+    if(ops_repl != *ops_p) *ops_p = ops_repl;
+}
+
 
 /*
- *  'watch_data_new' is allocated watch data(but not added(!)). 
+ * Return normal operation at given offset.
  * 
- * Should be executed with lock taken.
+ * It may be a replacement of the normal instrumentor, or original operation
+ * iself (which, in turn, may be NULL).
  * 
- * On error 'watch_data_new' should be deleted by the caller.
+ * This value is used for @op_chained, if object becomes watched
+ * or is watched already.
  */
-static int
-kedr_coi_foreign_instrumentor_watch_internal(
+void* instrument_data_foreign_normal_operation(
     struct kedr_coi_foreign_instrumentor* instrumentor,
-    const void** ops_p,
-    struct kedr_coi_foreign_instrumentor_watch_data* watch_data_new)
+    struct instrument_data_foreign* idata_foreign,
+    size_t operation_offset)
 {
-    int result;
-    struct kedr_coi_foreign_instrumentor_watch_data* watch_data;
-    
-    struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl =
-        instrumentor->foreign_iface_impl;
-    // Check whether object is already known.
-    watch_data = foreign_instrumentor_find_watch_data(instrumentor,
-        (void*)watch_data_new->hash_elem_id.key);
-    
-    if(watch_data != NULL)
+    return idata_foreign->fi_ops->get_normal_operation(
+        instrumentor,
+        idata_foreign,
+        operation_offset);
+}
+
+/*
+ * Chain operation at given offset.
+ * 
+ * It may be a replacement of the normal instrumentor, or original operation
+ * iself (which, in turn, may be NULL).
+ * 
+ * This value is used for @op_chained when 'bind_with_factory' path shouldn't
+ * bind object.
+ */
+void* instrument_data_foreign_chain_operation(
+    struct kedr_coi_foreign_instrumentor* instrumentor,
+    struct instrument_data_foreign* idata_foreign,
+    size_t operation_offset)
+{
+    return idata_foreign->fi_ops->get_chain_operation(
+        instrumentor,
+        idata_foreign,
+        operation_offset);
+}
+
+/*
+ * Called by kedr_coi_foreign_instrumentor_bind when no foreign
+ * instrument data are found.
+ * 
+ * Return original operation in that case(which may be NULL).
+ * 
+ * Return PTR_ERR() in case of error.
+ */
+static void* instrumentor_foreign_get_orig_operation_nodata(
+    struct kedr_coi_foreign_instrumentor* instrumentor,
+    const void* ops,
+    size_t operation_offset)
+{
+    /* 
+     * Options are not instrumented by us, or, more likely,
+     * our instrumentation is just removed without restoring.
+     * 
+     * Verify operation at given offset. If it is not
+     * coincide with any of our replacements, return it.
+     * 
+     * Otherwise return error. It is better than infinite recursion, which
+     * would occure if we return operation itself, and it will be called
+     * again by the caller of kedr_coi_instrumentor_get_orig_operation().
+     */
+    const struct kedr_coi_replacement* replacement;
+    void* op = operation_at_offset(ops, operation_offset);
+
+    for_each_replacement(replacement, instrumentor->replacements)
     {
-        // Id is already known, update its watch data and object's operations
-        result = foreign_instrumentor_impl_update_operations(
-            foreign_iface_impl, watch_data, ops_p);
-        
-        if(result < 0) return result;//error
-        
-        if(result == 0)
+        if(replacement->repl == op)
         {
-            foreign_instrumentor_impl_free_watch_data(
-                foreign_iface_impl, watch_data_new);
-            
-            return 0;// there is no indicator of 'update'
+            pr_err("Original for replacement operation %pF has lost.", op);
+            return ERR_PTR(-EINVAL);
         }
-        // Need to recreate object data, remove current one
-        foreign_instrumentor_remove_watch_data(instrumentor, watch_data);
-        foreign_instrumentor_impl_free_watch_data(
-            foreign_iface_impl, watch_data);
-        // Now situation as if id is not known
     }
-    
-    // Id is not known. Fill new instance of watch data and add
-    // it to the hash table of known ids.
-    result = foreign_instrumentor_add_watch_data(instrumentor,
-        watch_data_new);
-    if(result) return result;
-    
-    result = foreign_instrumentor_impl_replace_operations(
-        foreign_iface_impl, watch_data_new, ops_p);
-    
-    if(result)
-    {
-        foreign_instrumentor_remove_watch_data(instrumentor,
-            watch_data_new);
-        return result;
-    }
-    
-    return 0;
+    return op;
 }
 
-int
-kedr_coi_foreign_instrumentor_watch(
+/* Executed under lock. */
+static int foreign_instrumentor_watch(
     struct kedr_coi_foreign_instrumentor* instrumentor,
     const void* id,
     const void* tie,
     const void** ops_p)
 {
-    unsigned long flags;
-    int result;
-    
-    struct kedr_coi_foreign_instrumentor_watch_data* watch_data_new;
-    
-    struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl =
-        instrumentor->foreign_iface_impl;
-
-    // Expects that id is firstly watched('likely')
-    watch_data_new = foreign_instrumentor_impl_alloc_watch_data(
-        foreign_iface_impl);
-
-    if(watch_data_new == NULL)
-    {
-        // TODO: fallback to the 'update' mode may be appropriate here?
-        return -ENOMEM;
-    }
-    
-    kedr_coi_hash_elem_init(&watch_data_new->hash_elem_id, id);
-    kedr_coi_hash_elem_init(&watch_data_new->hash_elem_tie, tie);
-    
-    spin_lock_irqsave(&instrumentor->lock, flags);
-    
-    result = kedr_coi_foreign_instrumentor_watch_internal(instrumentor,
-        ops_p, watch_data_new);
-
-    spin_unlock_irqrestore(&instrumentor->lock, flags);
-    
-    if(result < 0)
-    {
-        foreign_instrumentor_impl_free_watch_data(
-            foreign_iface_impl, watch_data_new);
-    }
-
-    return result;
-}
-
-int
-kedr_coi_foreign_instrumentor_forget(
-    struct kedr_coi_foreign_instrumentor* instrumentor,
-    const void* id,
-    const void** ops_p)
-{
-    unsigned long flags;
-    int result;
-    
+    int err;
+    struct instrument_data_foreign* idata_foreign;
     struct kedr_coi_foreign_instrumentor_watch_data* watch_data;
+    struct kedr_coi_instrumentor* instrumentor_binded;
     
-    struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl =
-        instrumentor->foreign_iface_impl;
+    watch_data = instrumentor_foreign_find_watch_data_by_id(instrumentor, id);
 
-    spin_lock_irqsave(&instrumentor->lock, flags);
-    
-    watch_data = foreign_instrumentor_find_watch_data(instrumentor, id);
-    
-    if(watch_data == NULL)
+    if(watch_data)
     {
-        // Id is not watched
-        result = 1;
-        goto out;
+        // Update replacement
+        idata_foreign = watch_data->idata_foreign;
+        
+        if(!instrument_data_my_operations(idata_foreign->idata_binded, *ops_p))
+        {
+            idata_foreign = instrumentor_foreign_get_data(instrumentor, *ops_p);
+            if(IS_ERR(idata_foreign))
+            {
+                instrument_data_restore_ops(idata_foreign->idata_binded, ops_p);
+                instrumentor_foreign_destroy_watch_data(instrumentor, watch_data);
+                return PTR_ERR(idata_foreign);
+            }
+            instrument_data_foreign_unref(instrumentor,
+                watch_data->idata_foreign);
+            watch_data->idata_foreign = idata_foreign;
+        }
+        
+        instrument_data_foreign_replace_ops(idata_foreign, ops_p);
+        return 1;
     }
     
-    foreign_instrumentor_remove_watch_data(instrumentor, watch_data);
+    instrumentor_binded = instrumentor->instrumentor_binded;
     
-    foreign_instrumentor_impl_clean_replacement(
-        foreign_iface_impl, watch_data, ops_p);
-    foreign_instrumentor_impl_free_watch_data(
-        foreign_iface_impl, watch_data);
+    if(kedr_coi_hash_table_find_elem(
+        &instrumentor_binded->foreign_ops_p_table,
+        ops_p))
+    {
+        pr_err("Operations field %p is already watched by other foreign interceptor. "
+            "There is no sense to watch that field again.", ops_p);
+        return -EBUSY;
+    }
     
-    result = 0;
-out:
-    spin_unlock_irqrestore(&instrumentor->lock, flags);
+    // Create new watch
+    idata_foreign = instrumentor_foreign_get_data(instrumentor, *ops_p);
+    if(IS_ERR(idata_foreign))
+    {
+        return PTR_ERR(idata_foreign);
+    }
+    
+    err = -ENOMEM;
+    watch_data = kmalloc(sizeof(*watch_data), GFP_ATOMIC);
+    if(watch_data == NULL) goto fail_alloc_watch_data;
 
-    return result;
+    watch_data->idata_foreign = idata_foreign;
+    
+    kedr_coi_hash_elem_init(&watch_data->id_elem, id);
+    err = kedr_coi_hash_table_add_elem(
+        &instrumentor->ids_table, &watch_data->id_elem);
+    if(err) goto fail_add_id_elem;
+
+    kedr_coi_hash_elem_init(&watch_data->tie_elem, tie);
+    err = kedr_coi_hash_table_add_elem(
+        &instrumentor->ties_table, &watch_data->tie_elem);
+    if(err) goto fail_add_tie_elem;
+
+    kedr_coi_hash_elem_init(&watch_data->ops_p_elem, ops_p);
+    err = kedr_coi_hash_table_add_elem(
+        &instrumentor_binded->foreign_ops_p_table,
+        &watch_data->ops_p_elem);
+    if(err) goto fail_add_ops_p_elem;
+
+
+    instrument_data_foreign_replace_ops(watch_data->idata_foreign, ops_p);
+    return 0;
+
+fail_add_ops_p_elem:
+    kedr_coi_hash_table_remove_elem(&instrumentor_binded->foreign_ops_p_table,
+        &watch_data->ops_p_elem);
+fail_add_tie_elem:
+    kedr_coi_hash_table_remove_elem(&instrumentor->ids_table,
+        &watch_data->id_elem);
+fail_add_id_elem:
+    kfree(watch_data);
+fail_alloc_watch_data:
+    instrument_data_foreign_unref(instrumentor, idata_foreign);
+    return err;
 }
 
-//******** Foreign instrumentor API *********************************//
-
-int
-kedr_coi_foreign_instrumentor_bind(
+/* Executed under lock. */
+int foreign_instrumentor_bind(
     struct kedr_coi_foreign_instrumentor* instrumentor,
-    const void* object,
-    const void* tie,
+    void* object,
+    const void* foreign_tie,
     const void** ops_p,
     size_t operation_offset,
     void** op_chained,
     void** op_orig)
 {
-    //TODO: set op_orig
+    struct kedr_coi_instrumentor* instrumentor_binded
+        = instrumentor->instrumentor_binded;
     
-    int result = 0;
-    
+    struct kedr_coi_foreign_instrumentor_watch_data* watch_data_foreign;
     struct kedr_coi_instrumentor_watch_data* watch_data;
-    struct kedr_coi_instrumentor_watch_data* watch_data_new;
-    struct kedr_coi_foreign_instrumentor_watch_data* foreign_watch_data;
     
-    unsigned long flags_f, flags_wf;
+    struct instrument_data_foreign* idata_foreign;
+    struct instrument_data* idata;
     
-    struct kedr_coi_instrumentor_with_foreign* instrumentor_binded =
-        instrumentor->instrumentor_binded;
+    watch_data_foreign = instrumentor_foreign_find_watch_data_by_tie(
+        instrumentor, foreign_tie);
     
-    struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl =
-        instrumentor->foreign_iface_impl;
-    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl =
-        instrumentor_binded->iface_wf_impl;
-
-    watch_data_new = instrumentor_impl_alloc_watch_data(&iface_wf_impl->base);
-    // NOTE: doesn't verify watch_data at this stage
-    
-    spin_lock_irqsave(&instrumentor_binded->base.lock, flags_wf);
-    spin_lock_irqsave(&instrumentor->lock, flags_f);
-
-    watch_data = instrumentor_find_watch_data(
-        &instrumentor_binded->base, object);
-    foreign_watch_data = foreign_instrumentor_find_watch_data_by_tie(
-        instrumentor, tie);
-
-    if(foreign_watch_data)
+    if(watch_data_foreign)
     {
-        /* Foreign object is wacthed */
-        if(watch_data != NULL)
-        {
-            /* Current object is already watched */
-            result = instrumentor_wf_impl_update_operations_from_foreign(
-                iface_wf_impl, foreign_iface_impl, watch_data, ops_p,
-                foreign_watch_data, operation_offset, op_chained);
-            
-            if(result == 0)
-            {
-                if(watch_data_new)
-                    instrumentor_impl_free_watch_data(&iface_wf_impl->base,
-                    watch_data_new);
-                
-                *op_orig = instrumentor_impl_get_orig_operation(
-                    &iface_wf_impl->base, watch_data, *ops_p,
-                    operation_offset);
-                
-                goto out;
-            }
-            else if(result < 0)
-            {
-                if(watch_data_new)
-                    instrumentor_impl_free_watch_data(&iface_wf_impl->base,
-                    watch_data_new);
-                
-                goto out;
-            }
-            
-            /* result == 1. Need to recreate data. Fallback. */
-        }
-        /* Current object is not watched.*/
-        if(watch_data_new == NULL)
-        {
-            /* Failed to allocate watch data. Restore operations. */
-            result = -ENOMEM;
-            /* Error already set, ignore futhers error codes */
-            (void)foreign_instrumentor_impl_restore_foreign_operations(
-                foreign_iface_impl, foreign_watch_data, ops_p,
-                operation_offset, op_chained);
-            
-            goto out;
-        }
-        /* Main path */
-        kedr_coi_hash_elem_init(&watch_data_new->hash_elem_object, object);
-
-        result = instrumentor_wf_impl_replace_operations_from_foreign(
-            iface_wf_impl, foreign_iface_impl, watch_data_new, ops_p,
-            foreign_watch_data, operation_offset, op_chained);
+        /* Regular path. */
+        idata_foreign = watch_data_foreign->idata_foreign;
+        idata = idata_foreign->idata_binded;
         
-        if(result == 0)
+        *op_chained = instrument_data_foreign_normal_operation(
+            instrumentor,
+            idata_foreign,
+            operation_offset);
+        *op_orig = instrument_data_get_orig_operation(idata, operation_offset);
+        
+        // If object is already watched, 1 will be returned.
+        return instrumentor_watch_internal(instrumentor_binded, (void*)object,
+            ops_p);
+    }
+    // Foreign tie is not watched.
+
+    watch_data = instrumentor_find_watch_data(instrumentor_binded, object);
+    if(watch_data)
+    {
+        /* 
+         * .. but object is watched.
+         * 
+         * Need to chain to normal replacement or original operation.
+         * 
+         * By the way, update normal instrumentation.
+         */
+        idata = watch_data->idata;
+        
+        instrument_data_replace_ops(idata, ops_p);
+
+        idata_foreign = instrumentor_foreign_find_data(instrumentor, *ops_p);
+        if(idata_foreign)
         {
-            instrumentor_add_watch_data(&instrumentor_binded->base,
-                watch_data_new);
-            
-            *op_orig = instrumentor_impl_get_orig_operation(
-                &iface_wf_impl->base, watch_data_new, *ops_p,
+            /* 
+             * Note, that chaining to other foreign replacements is
+             * useless, because object is already watched.
+             */
+            *op_chained = instrument_data_foreign_normal_operation(
+                instrumentor,
+                idata_foreign,
                 operation_offset);
         }
         else
         {
-            instrumentor_impl_free_watch_data(&iface_wf_impl->base,
-                watch_data_new);
+            /*
+             *  Just check that operations, replaced by the normal
+             * instrumentor, do not contain garbage from foreign
+             * instrumentation. Here it would be our error.
+             */
+            *op_chained = instrumentor_foreign_get_orig_operation_nodata(
+                instrumentor, *ops_p, operation_offset);
+            BUG_ON(IS_ERR(*op_chained));
         }
-        
-        goto out;
+        *op_orig = instrument_data_get_orig_operation(idata, operation_offset);
+        return 1;
     }
-    /* Foreign object is not watched. Doesn't need new watch data. */
-    if(watch_data_new)
-        instrumentor_impl_free_watch_data(&iface_wf_impl->base,
-            watch_data_new);
     
-    if(watch_data != NULL)
+    idata = instrumentor_find_data(instrumentor_binded, *ops_p);
+    if(idata)
     {
-        /* Foreign object is not watched, but current object is. */
-        result = instrumentor_wf_impl_chain_operation(
-            iface_wf_impl, foreign_iface_impl, watch_data, ops_p,
-            operation_offset, op_chained);
-    }
-    else
-    {
-        /* Neither foreign nor current object is not watched. */
-        result = foreign_instrumentor_impl_restore_foreign_operations_nodata(
-            foreign_iface_impl, ops_p, operation_offset, op_chained);
-    }
+        /* 
+         * Both object and foriegn tie are not watched,
+         * but operations are instrumented.
+         * 
+         * Need to chain other foreign instrumentation or to original operation.
+         */
+        idata_foreign = instrumentor_foreign_find_data(instrumentor, *ops_p);
+        if(idata_foreign)
+        {
+            *op_chained = instrument_data_foreign_chain_operation(
+                instrumentor,
+                idata_foreign,
+                operation_offset);
+        }
+        else
+        {
+            /*
+             * There is no foreign instrumentation. Restore operations.
+             * 
+             * Also check that operations, replaced by the normal
+             * instrumentor, do not contain garbage from foreign
+             * instrumentation. Here it would be our error.
+             */
+            instrument_data_restore_ops(idata, ops_p);
+            
+            *op_chained = instrumentor_foreign_get_orig_operation_nodata(
+                instrumentor, *ops_p, operation_offset);
+            BUG_ON(IS_ERR(*op_chained));
+        }
 
-out:
-    spin_unlock_irqrestore(&instrumentor->lock, flags_f);
-    spin_unlock_irqrestore(&instrumentor_binded->base.lock, flags_wf);
+        *op_orig = instrument_data_get_orig_operation(idata, operation_offset);
+        
+        return 1;
+    }
+    //debug
+    pr_info("foreign_instrumentor_bind: cannot find instrumentation data.");
+
+    // Operations are not instrumented.
+    *op_chained = instrumentor_foreign_get_orig_operation_nodata(
+        instrumentor,
+        *ops_p,
+        operation_offset);
+
+    *op_orig = *op_chained;
     
-    return result;
+    return IS_ERR(*op_chained) ? PTR_ERR(*op_chained) : 1;
 }
 
-struct kedr_coi_foreign_instrumentor*
-kedr_coi_foreign_instrumentor_create(
-    struct kedr_coi_instrumentor_with_foreign* instrumentor,
+//***********  API for foreign instrumentor************************
+struct kedr_coi_foreign_instrumentor* kedr_coi_foreign_instrumentor_create(
+    struct kedr_coi_instrumentor* instrumentor_binded,
     const struct kedr_coi_replacement* replacements)
 {
-    struct kedr_coi_foreign_instrumentor* foreign_instrumentor;
-    struct kedr_coi_foreign_instrumentor_impl* foreign_iface_impl;
+    int err;
+    struct kedr_coi_foreign_instrumentor* instrumentor = kmalloc(
+        sizeof(*instrumentor), GFP_KERNEL);
     
-    struct kedr_coi_instrumentor_with_foreign_impl* iface_wf_impl =
-        instrumentor->iface_wf_impl;
+    if(!instrumentor) return NULL;
+    
+    err = kedr_coi_hash_table_init(&instrumentor->ids_table);
+    if(err) goto fail_ids_table;
 
-    foreign_iface_impl = instrumentor_wf_impl_foreign_instrumentor_impl_create(
-        iface_wf_impl, replacements);
-    
-    if(foreign_iface_impl == NULL) return NULL;
-    
-    foreign_instrumentor = kmalloc(sizeof(*foreign_instrumentor), GFP_KERNEL);
-    if(foreign_instrumentor == NULL)
-    {
-        pr_err("Failed to allocate memory for foreign instrumentor");
-        foreign_instrumentor_impl_destroy(foreign_iface_impl);
-        return NULL;
-    }
+    err = kedr_coi_hash_table_init(&instrumentor->ties_table);
+    if(err) goto fail_ties_table;
 
-    if(kedr_coi_foreign_instrumentor_init(foreign_instrumentor))
-    {
-        kfree(foreign_instrumentor);
-        foreign_instrumentor_impl_destroy(foreign_iface_impl);
-        return NULL;
-    }
-    
-    kedr_coi_foreign_instrumentor_set_impl(foreign_instrumentor,
-        foreign_iface_impl,
-        instrumentor);
-    
-    return foreign_instrumentor;
+    instrumentor->instrumentor_binded = instrumentor_binded;
+    instrumentor->replacements = replacements
+        ? replacements
+        : empty_replacements;
+
+    return instrumentor;
+
+fail_ties_table:
+    kedr_coi_hash_table_destroy(&instrumentor->ids_table,
+        NULL, NULL);
+fail_ids_table:
+    kfree(instrumentor);
+    return NULL;
 }
+
+struct instrumentor_foreign_destroy_data
+{
+    struct kedr_coi_foreign_instrumentor* instrumentor;
+    trace_unforgotten_watch_t trace_unforgotten_watch;
+    void* user_data;
+};
+
+static void instrumentor_foreign_destroy_watch_data_callback(
+    struct kedr_coi_hash_elem* elem,
+    void* user_data)
+{
+    const void* object = elem->key;
+    struct kedr_coi_foreign_instrumentor_watch_data* watch_data = 
+        container_of(elem, typeof(*watch_data), id_elem);
+    struct instrumentor_foreign_destroy_data* destroy_data = user_data;
+    
+    instrumentor_foreign_destroy_watch_data(destroy_data->instrumentor, watch_data);
+    
+    if(destroy_data->trace_unforgotten_watch)
+        destroy_data->trace_unforgotten_watch(object, destroy_data->user_data);
+}
+
 
 void kedr_coi_foreign_instrumentor_destroy(
     struct kedr_coi_foreign_instrumentor* instrumentor,
-    void (*trace_unforgotten_watch)(void* id, void* tie, void* user_data),
+    void (*trace_unforgotten_watch)(const void* object, void* user_data),
     void* user_data)
 {
-    instrumentor->trace_unforgotten_watch = trace_unforgotten_watch;
-    instrumentor->user_data = user_data;
-    
-    kedr_coi_hash_table_destroy(&instrumentor->hash_table_ids,
-        free_foreign_watch_elem);
-    
-    kedr_coi_hash_table_destroy(&instrumentor->hash_table_ties, NULL);
+    unsigned long flags;
+    struct kedr_coi_instrumentor* instrumentor_binded =
+        instrumentor->instrumentor_binded;
+    struct instrumentor_foreign_destroy_data destroy_data =
+    {
+        .instrumentor = instrumentor,
+        .trace_unforgotten_watch = trace_unforgotten_watch,
+        .user_data = user_data
+    };
 
-    if(instrumentor->foreign_iface_impl)
-        foreign_instrumentor_impl_destroy(instrumentor->foreign_iface_impl);
+    /* 
+     * Removing  of unforgotten watches may touch hash tables
+     * in normal instrumentor, so do that under lock.
+     */
+    spin_lock_irqsave(&instrumentor_binded->lock, flags);
+    kedr_coi_hash_table_destroy(&instrumentor->ids_table,
+        &instrumentor_foreign_destroy_watch_data_callback, &destroy_data);
+    spin_unlock_irqrestore(&instrumentor_binded->lock, flags);
     
+    /*
+     * Other hash tables are destroyed without callbacks.
+     * Locking is not needed here.
+     */
+    kedr_coi_hash_table_destroy(&instrumentor->ties_table,
+        NULL, NULL);
+
     kfree(instrumentor);
+}
+
+
+int kedr_coi_foreign_instrumentor_watch(
+    struct kedr_coi_foreign_instrumentor* instrumentor,
+    const void* id,
+    const void* tie,
+    const void** ops_p)
+{
+    unsigned long flags;
+    int err;
+    struct kedr_coi_instrumentor* instrumentor_binded =
+        instrumentor->instrumentor_binded;
+
+    spin_lock_irqsave(&instrumentor_binded->lock, flags);
+    err = foreign_instrumentor_watch(instrumentor, id, tie, ops_p);
+    spin_unlock_irqrestore(&instrumentor_binded->lock, flags);
+    
+    return err;
+}
+
+/* 
+ * Cancel watching for given object.
+ * 
+ * If ops_p is not NULL, operations replacement should be rollbacked.
+ * 
+ * Return 0 on success, 1 if object wasn't watched.
+ */
+int kedr_coi_foreign_instrumentor_forget(
+    struct kedr_coi_foreign_instrumentor* instrumentor,
+    const void* id,
+    const void** ops_p)
+{
+    unsigned long flags;
+    int err = 0;
+    struct kedr_coi_instrumentor* instrumentor_binded =
+        instrumentor->instrumentor_binded;
+    
+    struct kedr_coi_foreign_instrumentor_watch_data* watch_data;
+    struct instrument_data_foreign* idata_foreign;
+    
+    spin_lock_irqsave(&instrumentor_binded->lock, flags);
+    
+    watch_data = instrumentor_foreign_find_watch_data_by_id(instrumentor, id);
+    if(watch_data)
+    {
+        idata_foreign = watch_data->idata_foreign;
+    
+        if(ops_p)
+        {
+            /*
+             * It is possible, that normal instrumentor watch for
+             * the same object('self-foreign watch').
+             * 
+             * Normally, object forgotten by both instrumentors, normal
+             * and foreign ones. So we restore operations for both.
+             * 
+             * If normal instrumentation is needed, kedr_coi_instrumentor_watch()
+             * may be called for same object after.
+             */
+            instrument_data_restore_ops(idata_foreign->idata_binded, ops_p);
+            
+        }
+        
+        instrumentor_foreign_destroy_watch_data(instrumentor, watch_data);
+    }
+    else
+    {
+        err = 1; //Not watched
+    }
+    
+    spin_unlock_irqrestore(&instrumentor_binded->lock, flags);
+    
+    return err;
+}
+
+int kedr_coi_foreign_instrumentor_bind(
+    struct kedr_coi_foreign_instrumentor* instrumentor,
+    void* object,
+    const void* foreign_tie,
+    const void** ops_p,
+    size_t operation_offset,
+    void** op_chained,
+    void** op_orig)
+{
+    int err;
+    unsigned long flags;
+    struct kedr_coi_instrumentor* instrumentor_binded
+        = instrumentor->instrumentor_binded;
+    
+    spin_lock_irqsave(&instrumentor_binded->lock, flags);
+    err = foreign_instrumentor_bind(instrumentor,
+        object, foreign_tie, ops_p, operation_offset, op_chained, op_orig);
+    spin_unlock_irqrestore(&instrumentor_binded->lock, flags);
+
+    return err;
 }

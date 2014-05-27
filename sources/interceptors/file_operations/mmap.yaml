@@ -1,0 +1,16 @@
+operations:
+  - name:  mmap
+    returnType:  int
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  struct vm_area_struct *
+        name:  vma
+
+    object:  filp
+
+# Checked in do_mmap_pgoff, then called in mmap_region
+    default:  return -ENODEV;
+

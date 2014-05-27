@@ -1,7 +1,8 @@
 module_name=@module_name@
 
 kedr_gen_coi_templates_dir := @KEDR_COI_PREFIX_TEMPLATES@
-kedr_gen_tool := @kedr_gen_tool@
+jy_tool := @jy_tool@
+#kedr_gen_tool := @kedr_gen_tool@
 
 kedr_coi_interceptors_dir := @KEDR_COI_PREFIX_INTERCEPTORS@
 
@@ -21,8 +22,8 @@ ${module_name}.ko: cfake.c read_counter.c \
 file_operations_interceptor.c: $(kedr_coi_interceptors_dir)/file_operations_interceptor.c
 	cp -p $^ $@
 
-cdev_file_operations_interceptor.c cdev_file_operations_interceptor.h: cdev_file_operations_interceptor.%: cdev_file_operations.data
-	$(kedr_gen_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_factory_interceptor.$*/ $^ > $@
+cdev_file_operations_interceptor.c cdev_file_operations_interceptor.h: cdev_file_operations_interceptor.%: cdev_file_operations.yaml
+	python $(jy_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_factory_interceptor.$*/ $^ > $@
 
 
 clean:

@@ -1,0 +1,19 @@
+operations:
+  - name:  symlink
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  dir
+
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  const char *
+        name:  oldname
+
+    object:  dir
+
+# Called by vfs_symlink
+    default:  return -EPERM;
+

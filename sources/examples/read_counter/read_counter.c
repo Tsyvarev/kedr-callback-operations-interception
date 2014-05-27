@@ -93,19 +93,15 @@ struct kedr_coi_payload file_operations_payload =
     .post_handlers = file_operations_post_handlers,
 };
 
-extern int functions_support_register(void);
-extern void functions_support_unregister(void);
-
 int read_counter_init(void)
 {
     int result;
     
-    result = file_operations_interceptor_init(NULL);
+    result = file_operations_interceptor_init();
     if(result) goto err_file_operations;
     
     result = cdev_file_operations_interceptor_init(
-        file_operations_interceptor_factory_interceptor_create,
-        NULL);
+        file_operations_interceptor_factory_interceptor_create);
 
     if(result) goto err_cdev_file_operations;
 

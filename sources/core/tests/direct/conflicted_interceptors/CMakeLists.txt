@@ -1,6 +1,3 @@
-set(module_name "test_instrumentor_direct_conflicted_interceptors")
-
-kedr_coi_test_add_kernel("conflicted_interceptors"
-    ${module_name}
+add_test_interceptor_direct("conflicted_interceptors"
     "test.c"
 )

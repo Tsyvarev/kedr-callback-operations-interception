@@ -65,8 +65,7 @@ int test_init(void)
     interceptor = kedr_coi_interceptor_create_direct(
         "Simple direct interceptor",
         sizeof(struct test_object),
-        intermediate_operations,
-        NULL);
+        intermediate_operations);
     
     if(interceptor == NULL)
     {

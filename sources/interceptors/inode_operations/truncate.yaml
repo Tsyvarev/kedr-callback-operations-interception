@@ -1,0 +1,12 @@
+operations:
+# Do not used since 3.7
+  - name:  truncate
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+    object:  inode
+
+# Called from vmtruncate
+    default:  return;

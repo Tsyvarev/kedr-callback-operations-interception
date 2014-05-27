@@ -33,8 +33,9 @@ struct test_object
 };
 
 
-struct test_operations test_operations_orig =
+static struct test_operations test_operations_orig =
 {
+    NULL,
 };
 
 struct kedr_coi_interceptor* interceptor;
@@ -125,8 +126,7 @@ int test_init(void)
     interceptor = INDIRECT_CONSTRUCTOR("Indirect interceptor with several payloads",
         offsetof(struct test_object, ops),
         sizeof(struct test_operations),
-        intermediate_operations,
-        NULL);
+        intermediate_operations);
     
     if(interceptor == NULL)
     {

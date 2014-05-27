@@ -1,6 +1,3 @@
-set(module_name "test_instrumentor_direct_update")
-
-kedr_coi_test_add_kernel("update"
-    ${module_name}
+add_test_interceptor_direct("update"
     "test.c"
 )

@@ -1,0 +1,19 @@
+operations:
+
+  - name:  mkdir
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  dir
+
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  int
+        name:  mode
+
+    object:  dir
+
+# Called by vfs_mkdir
+    default:  return -EPERM;

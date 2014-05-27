@@ -1,0 +1,1 @@
+{{arg.type}} <$include 'block_argCopy_name'$> = {{arg.name}};

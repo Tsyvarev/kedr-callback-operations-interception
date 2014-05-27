@@ -1,0 +1,15 @@
+operations:
+  - name:  open
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+      - type:  struct file *
+        name:  filp
+
+    object:  filp
+
+    default:  return 0;
+

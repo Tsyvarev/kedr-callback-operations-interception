@@ -1,0 +1,10 @@
+# Removed since 3.6-rc1
+  - name:  write_super
+
+    args:
+      - type:  struct super_block *
+        name:  sb
+
+    object:  sb
+
+    default:  return;

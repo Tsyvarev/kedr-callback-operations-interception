@@ -5,7 +5,7 @@ kedr_coi_core_symbols=@kedr_coi_core_symbols@
 
 kedr_gen_templates_dir := @KEDR_INSTALL_DIR@/share/kedr/templates
 kedr_gen_coi_templates_dir := @KEDR_COI_PREFIX_TEMPLATES@
-kedr_gen_tool := @kedr_gen_tool@
+jy_tool := @jy_tool@
 
 kedr_coi_interceptors_dir := @KEDR_COI_PREFIX_INTERCEPTORS@
 
@@ -30,24 +30,24 @@ ${module_name}.ko: file_access_counter.c fs_interception.c functions_support.c \
 
 
 $(addsuffix _interceptor.c, $(interceptors_normal)): %_interceptor.c: %.data
-	$(kedr_gen_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_interceptor.c/ $^ > $@
+	python $(jy_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_interceptor.c/ $^ > $@
 
 $(addsuffix _interceptor.h, $(interceptors_normal)): %_interceptor.h: %.data
-	$(kedr_gen_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_interceptor.h/ $^ > $@
+	python $(jy_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_interceptor.h/ $^ > $@
 
 
 $(addsuffix _interceptor.c, $(interceptors_factory)): %_interceptor.c: %.data
-	$(kedr_gen_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_interceptor_factory.c/ $^ > $@
+	python $(jy_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_interceptor_factory.c/ $^ > $@
 
 $(addsuffix _interceptor.h, $(interceptors_factory)): %_interceptor.h: %.data
-	$(kedr_gen_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_interceptor_factory.h/ $^ > $@
+	python $(jy_tool) $(kedr_gen_coi_templates_dir)/kedr_coi_interceptor_factory.h/ $^ > $@
 
 
 $(addsuffix _interceptor.c, $(interceptors_standard)): %_interceptor.c: $(kedr_coi_interceptors_dir)/%_interceptor.c
 	cp -p $^ $@
 
-functions_support.c: functions.data
-	$(kedr_gen_tool) $(kedr_gen_templates_dir)/functions_support.c/ $^ > $@
+functions_support.c: functions.yaml
+	python $(jy_tool) $(kedr_gen_coi_templates_dir)/kedr_trampolines.c/ $^ > $@
 
 clean:
 	$(MAKE) -C ${KBUILD_DIR} M=${PWD} clean

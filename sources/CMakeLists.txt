@@ -49,6 +49,8 @@ include(kmodule)
 
 include(path_prefixes)
 
+include(template_generation)
+
 include(kedr_coi_testing)
 #######################################################################
 #######################################################################
@@ -117,12 +119,15 @@ message (STATUS "Build type is \"${CMAKE_BUILD_TYPE}\"")
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     kbuild_add_definitions(
-        "-DKEDR_COI_DEBUG -g"
+        "-Wall -Wextra -Wno-unused-parameter -DKEDR_COI_DEBUG -g"
     )
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
+    kbuild_add_definitions(
+        "-Wall"
+    )
 elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     kbuild_add_definitions(
-        "-g"
+        "-Wall -g"
     )
 else (CMAKE_BUILD_TYPE STREQUAL "Debug")
 	message(FATAL_ERROR "Incorrect build type: ${CMAKE_BUILD_TYPE}. Should be one of 'Debug', 'Release' or 'RelWithDebInfo'")
@@ -137,137 +142,14 @@ check_kernel_version(2 6 31)
 # Check if kernel modules can be built on this system
 check_module_build()
 
+# Determine way of hlist_for_each_* macros usage
+check_hlist_for_each_entry()
 #######################################################################
+set(JY_TOOL "python" "${CMAKE_CURRENT_SOURCE_DIR}/tools/jinja2-yaml/jinja2-yaml.py"
+	CACHE INTERNAL "jinja2-yaml tool for build KEDR COI itself")
 
-# kedr_gen (this time - for building KEDR COI itself)
-# Also need to set ${KEDR_GEN_TOOL} as the path to "kedr_gen". It can be used to 
-# execute "kedr_gen" tool during the build of payload modules, etc.
-
-set(KEDR_GEN CACHE FILEPATH "If set, it is a path to kedr_gen tool for use while building KEDR COI")
-
-if (KEDR_GEN)
-	# Check if the tool exists at the path specified.
-	execute_process (
-	    COMMAND ${KEDR_GEN} 
-	    RESULT_VARIABLE kedr_gen_exec_result
-		OUTPUT_QUIET
-	)
-	if (NOT kedr_gen_exec_result EQUAL 0)
-	    message (FATAL_ERROR 
-	"${KEDR_GEN} does not exist or cannot be executed."
-	    )
-	endif ()
-	
-    set (KEDR_GEN_TOOL ${KEDR_GEN})
-    
-    # ${KEDR_GEN_TOOL_INSTALLED} is the path to "kedr_gen" installation
-    # for outer use. Because KEDR gen is already installed, we will use existent
-    # installation.
-    set (KEDR_GEN_TOOL_INSTALLED ${KEDR_GEN})
-
-	message (STATUS "\"kedr_gen\" tool: ${KEDR_GEN}")
-
-else (KEDR_GEN)
-# kedr_gen is built here explicitly and installed to a temporary location.
-# This is only necessary to build KEDR itself.
-# This should be done before the first add_subdirectory() command.
-
-# The temporary install directory must be persistent and it must not be 
-# KEDR_COI_INSTALL_PREFIX_TEMP because it has nothing to do with the 
-# installation of KEDR COI: it is used when KEDR COI is being built only.
-
-	message (STATUS "Creating \"kedr_gen\"")
-	set (KEDR_GEN_TEMP_INSTALL "${CMAKE_CURRENT_BINARY_DIR}/kedr_gen.install")
-	set (KEDR_GEN_TEMP_BUILD "${CMAKE_CURRENT_BINARY_DIR}/kedr_gen.build")
-
-# The temporary build directory should be removed during 'make clean'
-# Note that the temporary install directory containing 'kedr_gen' must 
-# survive as kedr_gen will be necessary if the user wants to rebuild KEDR 
-# after 'make clean' without reconfiguring.
-	set_property (DIRECTORY APPEND PROPERTY 
-	    ADDITIONAL_MAKE_CLEAN_FILES kedr_gen.build
-	)
-
-# Remove the old temporary build and install directories first and 
-# (re)create them.
-
-	execute_process (
-	    COMMAND mkdir -p "${KEDR_GEN_TEMP_BUILD}" 
-	    RESULT_VARIABLE kedr_gen_result
-	)
-	if (NOT kedr_gen_result EQUAL 0)
-	    message (FATAL_ERROR 
-	"Failed to create directory ${KEDR_GEN_TEMP_BUILD}"
-	    )
-	endif ()
-
-	execute_process (
-	    COMMAND mkdir -p "${KEDR_GEN_TEMP_INSTALL}" 
-	    RESULT_VARIABLE kedr_gen_result
-	)
-	if (NOT kedr_gen_result EQUAL 0)
-	    message (FATAL_ERROR 
-	"Failed to create directory ${KEDR_GEN_TEMP_BUILD}"
-	    )
-	endif ()
-
-	# Configure kedr_gen
-	execute_process (
-	    COMMAND ${CMAKE_COMMAND} 
-	        -DCMAKE_INSTALL_PREFIX=${KEDR_GEN_TEMP_INSTALL}
-	        -DCMAKE_BUILD_TYPE=Release
-	        -DKEDR_GEN_INSTALL_PREFIX=${KEDR_GEN_TEMP_INSTALL}
-	        "${CMAKE_SOURCE_DIR}/tools/kedr_gen/src"
-	    WORKING_DIRECTORY ${KEDR_GEN_TEMP_BUILD}
-	    RESULT_VARIABLE kedr_gen_result
-	    OUTPUT_VARIABLE kedr_gen_output
-	    ERROR_VARIABLE  kedr_gen_output
-	)
-	if (NOT kedr_gen_result EQUAL 0)
-	    message ("Failed to configure \"kedr_gen\".")
-	    message ("CMake output:\n${kedr_gen_output}\n")
-	    message ("CMake result:\n${kedr_gen_result}\n")
-	    message (FATAL_ERROR "Unable to build \"kedr_gen\", aborting.")
-	endif ()
-
-	# Build kedr_gen
-	execute_process (
-	    COMMAND make
-	    WORKING_DIRECTORY ${KEDR_GEN_TEMP_BUILD}
-	    RESULT_VARIABLE kedr_gen_result
-	    OUTPUT_VARIABLE kedr_gen_output
-	    ERROR_VARIABLE  kedr_gen_output
-	)
-	if (NOT kedr_gen_result EQUAL 0)
-	    message ("Failed to build \"kedr_gen\".")
-	    message ("Make output:\n${kedr_gen_output}\n")
-	    message ("Make result:\n${kedr_gen_result}\n")
-	    message (FATAL_ERROR "Unable to build \"kedr_gen\", aborting.")
-	endif ()
-
-	# Install kedr_gen
-	execute_process (
-	    COMMAND make install
-	    WORKING_DIRECTORY ${KEDR_GEN_TEMP_BUILD}
-	    RESULT_VARIABLE kedr_gen_result
-	    OUTPUT_VARIABLE kedr_gen_output
-	    ERROR_VARIABLE  kedr_gen_output
-	)
-	if (NOT kedr_gen_result EQUAL 0)
-	    message ("Failed to install \"kedr_gen\" to ${KEDR_GEN_INSTALL_PREFIX}.")
-	    message ("Make output:\n${kedr_gen_output}\n")
-	    message ("Make result:\n${kedr_gen_result}\n")
-	    message (FATAL_ERROR "Unable to install \"kedr_gen\", aborting.")
-	endif ()
-
-# ${KEDR_GEN_TOOL} is the path to "kedr_gen". The path can be used to call
-# "kedr_gen" tool during the build of payload modules, etc.
-	set (KEDR_GEN_TOOL ${KEDR_GEN_TEMP_INSTALL}/kedr_gen)
-endif (KEDR_GEN)
-
-# Top directory with kedr_gen templates for different purposes.
-set(KEDR_GEN_COI_TEMPLATES_DIR "${CMAKE_SOURCE_DIR}/templates/") 
-	message (STATUS "Creating \"kedr_gen\" - done")
+# Top directory with jinja2 templates for different purposes.
+set(COI_TEMPLATES_DIR "${CMAKE_SOURCE_DIR}/templates/") 
 #######################################################################
 
 add_subdirectory(core)
@@ -287,6 +169,7 @@ endif (NOT CMAKE_CROSSCOMPILING)
 
 add_subdirectory(doc)
 
+configure_file("${CMAKE_SOURCE_DIR}/config.h.in" "${CMAKE_BINARY_DIR}/config.h")
 #######################################################################
 message (STATUS "Configured ${KEDR_COI_PACKAGE_NAME} version ${KEDR_COI_VERSION}")
 

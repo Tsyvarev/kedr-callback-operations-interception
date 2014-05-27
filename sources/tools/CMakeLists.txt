@@ -1,13 +1,10 @@
+SET(JY_TOOL "${CMAKE_CURRENT_SOURCE_DIR}/jinja2-yaml/jinja2-yaml.py" CACHE INTERNAL "Path to the jinja2-yaml in build process")
 if (NOT CMAKE_CROSSCOMPILING)
-# "kedr_gen" for outer use (including usage in examples)
-# Also need to set ${KEDR_GEN_TOOL_INSTALLED} as the path to "kedr_gen".
+# "jinja2-yaml" for outer use (including usage in examples)
+# Also need to set ${JY_TOOL_INSTALLED} as the path to "jinja2-yaml".
 # It can be used in examples.
-    if(KEDR_GEN_INSTALLED)
-        SET(KEDR_GEN_TOOL_INSTALLED "${KEDR_GEN_INSTALLED}" CACHE INTERNAL "Path to the kedr_gen used for examples")
-    else(KEDR_GEN_INSTALLED)
-    	set (KEDR_GEN_INSTALL_PREFIX ${KEDR_COI_INSTALL_PREFIX_EXEC_AUX})
-    	add_subdirectory(kedr_gen)
-        
-        SET(KEDR_GEN_TOOL_INSTALLED "${KEDR_COI_INSTALL_PREFIX_EXEC_AUX}/kedr_gen" CACHE INTERNAL "Path to the kedr_gen used for examples")
-    endif(KEDR_GEN_INSTALLED)
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/jinja2-yaml/jinja2-yaml.py"
+        DESTINATION ${KEDR_COI_INSTALL_PREFIX_EXEC_AUX}
+        PERMISSIONS OWNER_WRITE OWNER_READ GROUP_READ WORLD_READ OWNER_EXECUTE GROUP_EXECUTE WORLD_EXECUTE)
+    SET(JY_TOOL_INSTALLED "${KEDR_COI_INSTALL_PREFIX_EXEC_AUX}/jinja2-yaml.py" CACHE INTERNAL "Path to the jinja2-yaml tool used for examples")
 endif (NOT CMAKE_CROSSCOMPILING)

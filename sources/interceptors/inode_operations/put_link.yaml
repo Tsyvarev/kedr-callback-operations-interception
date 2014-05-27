@@ -1,0 +1,18 @@
+operations:
+  - name:  put_link
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  struct nameidata *
+        name:  nd
+
+      - type:  void *
+        name:  cookie
+
+    object:  dentry->d_inode
+
+# Called from put_link
+    default:  return;
+

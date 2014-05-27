@@ -1,0 +1,27 @@
+operations:
+  - name:  sendpage
+    returnType:  ssize_t
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  struct page *
+        name:  page
+
+      - type:  int
+        name:  offset
+
+      - type:  size_t
+        name:  size
+
+      - type:  loff_t *
+        name:  ppos
+
+      - type:  int
+        name:  more
+
+    object:  filp
+
+    default:  return -EINVAL;
+

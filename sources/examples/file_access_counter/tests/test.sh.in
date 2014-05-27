@@ -1,0 +1,7 @@
+#!/bin/sh
+
+# Only check that example can be built.
+if ! make -C @example_dir@; then
+    printf "Failed to build example.\n"
+    exit 1
+fi

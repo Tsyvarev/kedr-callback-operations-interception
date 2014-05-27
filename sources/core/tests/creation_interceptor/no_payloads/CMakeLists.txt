@@ -1,6 +1,3 @@
-set(module_name "test_instrumentor_creation${indirect_suffix}_no_payloads")
-
-kedr_coi_test_add_kernel("no_payloads"
-    ${module_name}
+add_test_interceptor_creation("no_payloads"
     "test.c"
 )

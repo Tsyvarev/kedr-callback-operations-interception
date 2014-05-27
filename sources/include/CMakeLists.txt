@@ -13,13 +13,7 @@ set(KEDR_COI_INCLUDE_FILES_INSTALL
 # Copy headers from src-tree into binary tree
 foreach(include_file ${KEDR_COI_INCLUDE_FILES_SRC})
     set(include_file_src "${CMAKE_CURRENT_SOURCE_DIR}/kedr-coi/${include_file}")
-	get_filename_component(dest_dir "${CMAKE_CURRENT_BINARY_DIR}/kedr-coi/${include_file}" PATH)
-	file(MAKE_DIRECTORY "${dest_dir}")
-	execute_process(COMMAND cp -p "${include_file_src}" "${dest_dir}"
-		RESULT_VARIABLE copy_result)
-	if(copy_result)
-		message(FATAL_ERROR "Fail to copy header file ${include_file}.")
-	endif(copy_result)
+	configure_file("${include_file_src}" "${CMAKE_CURRENT_BINARY_DIR}/kedr-coi/${include_file}" COPYONLY)
 endforeach(include_file ${KEDR_COI_INCLUDE_FILES_SRC})
 
 if (NOT CMAKE_CROSSCOMPILING)

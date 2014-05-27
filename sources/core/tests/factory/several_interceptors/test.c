@@ -103,7 +103,7 @@ struct kedr_coi_factory_interceptor* factory_interceptor;
 KEDR_COI_TEST_DEFINE_FACTORY_INTERMEDIATE_FUNC(op1_factory_repl,
     get_factory, OPERATION_OFFSET(op1), factory_interceptor);
 
-static struct kedr_coi_factory_intermediate factory_intermediate_operations[] =
+static struct kedr_coi_intermediate factory_intermediate_operations[] =
 {
     INTERMEDIATE(op1, op1_factory_repl),
     INTERMEDIATE_FINAL
@@ -127,7 +127,7 @@ struct kedr_coi_factory_interceptor* factory_interceptor_another;
 KEDR_COI_TEST_DEFINE_FACTORY_INTERMEDIATE_FUNC(op1_factory_repl_another,
     get_factory_another, OPERATION_OFFSET(op1), factory_interceptor_another);
 
-static struct kedr_coi_factory_intermediate factory_intermediate_operations_another[] =
+static struct kedr_coi_intermediate factory_intermediate_operations_another[] =
 {
     INTERMEDIATE(op1, op1_factory_repl_another),
     INTERMEDIATE_FINAL
@@ -139,8 +139,7 @@ int test_init(void)
     interceptor = INDIRECT_CONSTRUCTOR("Simple indirect interceptor",
         offsetof(struct test_object, ops),
         sizeof(struct test_operations),
-        intermediate_operations,
-        NULL);
+        intermediate_operations);
     
     if(interceptor == NULL)
     {
@@ -152,8 +151,7 @@ int test_init(void)
         interceptor,
         "Simple factory interceptor",
         offsetof(struct test_factory, factory_ops),
-        factory_intermediate_operations,
-        NULL);
+        factory_intermediate_operations);
     
     if(factory_interceptor == NULL)
     {
@@ -166,8 +164,7 @@ int test_init(void)
         interceptor,
         "Another simple factory interceptor",
         offsetof(struct test_factory_another, factory_ops),
-        factory_intermediate_operations_another,
-        NULL);
+        factory_intermediate_operations_another);
     
     if(factory_interceptor_another == NULL)
     {
@@ -346,6 +343,7 @@ int test_run(void)
 
     kedr_coi_factory_interceptor_forget(factory_interceptor_another, &factory_another);
     kedr_coi_factory_interceptor_forget(factory_interceptor, &factory);
+
     kedr_coi_interceptor_stop(interceptor);
     kedr_coi_payload_unregister(interceptor, &payload);
 

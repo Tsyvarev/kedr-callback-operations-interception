@@ -20,7 +20,22 @@ else(DEFINED indirect_use_copy)
     kbuild_add_definitions("-DINDIRECT_CONSTRUCTOR=kedr_coi_interceptor_create")
 endif(DEFINED indirect_use_copy)
 
+# For include 'test_harness_creation.h'
 kbuild_include_directories("${CMAKE_CURRENT_SOURCE_DIR}")
+set(__test_harness_creation_header "${CMAKE_CURRENT_SOURCE_DIR}/test_harness_creation.h")
+
+# Common way for add test in that category.
+# Automatically assign target name for module built and dependence
+# on 'test_harness_factory.h'
+function(add_test_interceptor_creation test_name source)
+    add_test_interceptor(${test_name}
+        "test_interceptor_creation${indirect_suffix}_${test_name}"
+        ${source}
+        ${ARGN}
+        ${__test_harness_creation_header}
+    )
+endfunction(add_test_interceptor_creation test_name source)
+
 
 add_subdirectory(base)
 add_subdirectory(no_payloads)

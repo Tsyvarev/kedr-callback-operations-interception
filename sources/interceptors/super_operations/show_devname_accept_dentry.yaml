@@ -1,0 +1,28 @@
+operations:
+
+  - name:  show_devname
+    returnType:  int
+
+    args:
+      - type:  struct seq_file *
+        name:  m
+
+      - type:  struct dentry *
+        name:  dentry
+
+    object:  dentry->d_sb
+    
+# Called from show_vfsmnt
+# 
+# Default implementation uses 'struct mount', which is container of
+# 'struct vfsmount'
+#
+# But it is difficult to obtain vfsmount from superblock.
+#
+# Previous callback variant obtains 'vfsmount' reference instead of dentry.
+    header: |
+            /* 'super_operations' has method 'show_devname' */
+            #define SUPER_OPERATIONS_HAS_SHOW_DEVNAME
+            
+            /* 'super_operations' has method 'show_devname' which accepts dentry as second argument */
+            #define SUPER_OPERATIONS_SHOW_DEVNAME_ACCEPT_DENTRY

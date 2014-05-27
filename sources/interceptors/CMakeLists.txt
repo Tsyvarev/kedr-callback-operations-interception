@@ -8,7 +8,7 @@ execute_process(
 )
 
 # Directory where generated header files will be placed.
-set(header_files_dir "${CMAKE_CURRENT_BINARY_DIR}/include-files")
+set(header_files_dir "${CMAKE_BINARY_DIR}/include/install/kedr-coi/interceptors")
 
 execute_process(
 	COMMAND mkdir -p "${header_files_dir}"
@@ -18,6 +18,59 @@ execute_process(
 	COMMAND mkdir -p "${KEDR_COI_TEST_PREFIX_INCLUDE}/interceptors"
 )
 
+set(KEDR_COI_TEMPLATES_DIR "${CMAKE_SOURCE_DIR}/templates")
+
+# 
+# add_interceptor(name [FACTORY] data_files ... )
+#
+# Create interceptor of given name from given data_file(s).
+# If FACTORY keyword is given, 'kedr_coi_factory_interceptor.*'
+# templates is used, otherwise use 'kedr_coi_interaceptor.*' ones.
+#
+# Header file will be stored in ${header_files_dir}, source file - 
+# in ${source_files_dir}. Also both files will be installed into
+# corresponded destinations.
+#
+# NOTE: Function is intended to be called from CMakeLists.txt in 
+# subdirectories, not from the current CMakeLists.txt.
+
+function(add_interceptor name data_file)
+    set(data_files_abs)
+    set(template_class "kedr_coi_interceptor")
+    foreach(f ${data_file} ${ARGN})
+	if(f STREQUAL "FACTORY")
+	    set(template_class "kedr_coi_factory_interceptor")
+	else(f STREQUAL "FACTORY")
+	    to_abs_path(data_file_abs ${f})
+	    list(APPEND data_files_abs ${data_file_abs})
+	endif(f STREQUAL "FACTORY")
+    endforeach(f ${data_file} ${ARGN})
+
+    add_custom_target(${name} ALL
+	DEPENDS "${source_files_dir}/${name}.c"
+		"${header_files_dir}/${name}.h"
+    )
+    
+    rule_copy_file("${source_files_dir}/${name}.c"
+	"${CMAKE_CURRENT_BINARY_DIR}/${name}.c"
+    )
+    rule_copy_file("${header_files_dir}/${name}.h"
+	"${CMAKE_CURRENT_BINARY_DIR}/${name}.h"
+    )
+    
+    jy_generate("${name}.c" "${KEDR_COI_TEMPLATES_DIR}/${template_class}.c"
+	${data_files_abs}
+    )
+    
+    jy_generate("${name}.h" "${KEDR_COI_TEMPLATES_DIR}/${template_class}.h"
+	${data_files_abs}
+    )
+    
+    install(FILES "${header_files_dir}/${name}.h"
+	DESTINATION "${KEDR_COI_INSTALL_PREFIX_INCLUDE}/interceptors")
+    install(FILES "${source_files_dir}/${name}.c"
+	DESTINATION "${KEDR_COI_INSTALL_PREFIX_INTERCEPTORS}")
+endfunction(add_interceptor name data_file)
 
 # create_predefined_interceptor_header(header_filename data_file [FACTORY])
 #
@@ -37,28 +90,21 @@ execute_process(
 
 function(create_predefined_interceptor_header header_filename data_file)
     set(template_class "kedr_coi_interceptor")
-	foreach(arg ${ARGN})
-		if(arg STREQUAL "FACTORY")
-			set(template_class "kedr_coi_factory_interceptor")
-		endif(arg STREQUAL "FACTORY")
-	endforeach(arg ${ARGN})
-	# Generate header file
-	execute_process(
-		COMMAND "${KEDR_GEN_TOOL}" "${KEDR_GEN_COI_TEMPLATES_DIR}/${template_class}.h" "${data_file}"
-		RESULT_VARIABLE generate_result
-		OUTPUT_FILE "${header_files_dir}/${header_filename}"
-		ERROR_VARIABLE generate_error
-	)
-	if(generate_result)
-		message("Error: ${generate_error}")
-		message(FATAL_ERROR "Fail to generate interceptor header file \"${header_filename}\".")
-	endif(generate_result)
+    foreach(arg ${ARGN})
+	if(arg STREQUAL "FACTORY")
+	    set(template_class "kedr_coi_factory_interceptor")
+	endif(arg STREQUAL "FACTORY")
+    endforeach(arg ${ARGN})
+
+    jy_generate_file(${header_filename} ${data_file}
+	"${KEDR_COI_TEMPLATES_DIR}/${template_class}.h"
+    )
     # Install this header file
-    install(FILES "${header_files_dir}/${header_filename}"
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${header_filename}"
         DESTINATION "${KEDR_COI_INSTALL_PREFIX_INCLUDE}/interceptors")
     # Make this header file available for testing
     execute_process(COMMAND cp -p -t "${KEDR_COI_TEST_PREFIX_INCLUDE}/interceptors"
-        "${header_files_dir}/${header_filename}"
+        "${CMAKE_CURRENT_BINARY_DIR}/${header_filename}"
         )
 endfunction(create_predefined_interceptor_header header data_file)
 
@@ -78,26 +124,21 @@ endfunction(create_predefined_interceptor_header header data_file)
 
 function(create_predefined_interceptor_source source_filename data_file)
     set(template_class "kedr_coi_interceptor")
-	foreach(arg ${ARGN})
-		if(arg STREQUAL "FACTORY")
-			set(template_class "kedr_coi_factory_interceptor")
-		endif(arg STREQUAL "FACTORY")
-	endforeach(arg ${ARGN})
-	# Generate source file
-    execute_process(
-		COMMAND "${KEDR_GEN_TOOL}" "${KEDR_GEN_COI_TEMPLATES_DIR}/${template_class}.c" "${data_file}"
-		RESULT_VARIABLE generate_result
-		OUTPUT_FILE "${source_files_dir}/${source_filename}"
-		ERROR_VARIABLE generate_error
-	)
-	if(generate_result)
-		message("Error: ${generate_error}")
-		message(FATAL_ERROR "Fail to generate interceptor source file \"${source_filename}\".")
-	endif(generate_result)
+    foreach(arg ${ARGN})
+	if(arg STREQUAL "FACTORY")
+	    set(template_class "kedr_coi_factory_interceptor")
+	endif(arg STREQUAL "FACTORY")
+    endforeach(arg ${ARGN})
+    # Generate source file
+    jy_generate_file(${source_filename} ${data_file}
+	"${KEDR_COI_TEMPLATES_DIR}/${template_class}.c")
     # Install generated file
-    install(FILES "${source_files_dir}/${source_filename}"
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${source_filename}"
         DESTINATION "${KEDR_COI_INSTALL_PREFIX_INTERCEPTORS}")
-    # Generated source file already available for testing.
+    # Create file's copy in the @source_files_dir.
+    execute_process(COMMAND cp -p -t "${source_files_dir}"
+        "${CMAKE_CURRENT_BINARY_DIR}/${source_filename}")
+
 endfunction(create_predefined_interceptor_source source_filename data_file)
 
 

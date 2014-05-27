@@ -1,0 +1,28 @@
+operations:
+  - name:  create
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  dir
+
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  umode_t
+        name:  mode
+
+      - type:  bool
+        name:  excl
+
+    object:  dir
+
+# Called by vfs_create
+    default:  return -EACCES;
+
+    header: |
+            /* 'inode_operations' has method 'create' which accepts umode_t as third argument */
+            #define INODE_OPERATIONS_CREATE_ACCEPT_UMODE
+     
+            /* 'inode_operations' has method 'create' which accepts bool as last argument */
+            #define INODE_OPERATIONS_CREATE_ACCEPT_BOOL

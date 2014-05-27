@@ -344,10 +344,11 @@ int kedr_coi_interceptor_start(struct kedr_coi_interceptor* interceptor);
  * All objects which are watched at this stage will be forgotten
  * using mechanism similar to kedr_coi_interceptor_forget_norestore.
  * Usually existance of such objects is a bug in objects' lifetime
- * determination mechanism (objects are alredy destroyed but interceptor
- * wasn't notified about that with '_forget' methods).
- * If 'trace_unforgotten_object' passed to the interceptor constructor
- * is not NULL it will be called for each unforgotten object.
+ * determination mechanism (objects are already destroyed but interceptor
+ * wasn't notified about that with one of 'kedr_coi_forget*' methods).
+ * 
+ * If 'trace_unforgotten_object' callback is set for interceptor,
+ * it will be called for each unforgotten object.
  */
 void kedr_coi_interceptor_stop(struct kedr_coi_interceptor* interceptor);
 
@@ -502,26 +503,22 @@ struct kedr_coi_intermediate
 /*
  * Create interceptor for specific type of object with operations.
  * 
- * 'name' is name of the interceptor and used internally(in messages)
- * 'operations_field_offset' is an offset of the pointer
+ * @name is a name of the interceptor.
+ * @operations_field_offset is an offset of the pointer
  *      to the operations struct inside object structure.
- * 'operations_struct_size' is a size of operations struct.
- * 'intermediate_operations' contain array of all known operations
- *      in the operations struct. Last element in that array should have '-1'
- *      in 'operation_offset' field.
- * If not NULL, 'trace_unforgotten_object' will be called from 
- * kedr_coi_interceptor_stop() for each object which will be watched
- * at that moment.
+ * @operations_struct_size is a size of operations struct.
+ * @intermediate_operations is an array of all known operations
+ *      in the operations struct. Last element in that array should have
+ *      '-1' in @operation_offset field.
  * 
- * Function return interceptor descriptor.
+ * Returns interceptor descriptor.
  */
 
 struct kedr_coi_interceptor*
 kedr_coi_interceptor_create(const char* name,
     size_t operations_field_offset,
     size_t operations_struct_size,
-    struct kedr_coi_intermediate* intermediate_operations,
-    void (*trace_unforgotten_object)(void* object));
+    const struct kedr_coi_intermediate* intermediate_operations);
 
 
 /*
@@ -530,51 +527,24 @@ kedr_coi_interceptor_create(const char* name,
  * This function is intended to use for objects, which has direct
  * pointers to operations instead of pointer to the operations structure.
  * 
- * 'name' is name of the interceptor and used internally(in messages)
- * 'object_size' is a size of object struct.
- * 'intermediate_operations' contain array of all known operations
+ * @name is a name of the interceptor.
+ * @object_size is a size of object struct.
+ * @intermediate_operations contain array of all known operations
  *      in the object struct. Last element in that array should have '-1'
  *      in 'operation_offset' field.
  * 
- * If not NULL, 'trace_unforgotten_object' will be called from 
- * kedr_coi_interceptor_stop() for each object which will be watched
- * at that moment.
- * Function return interceptor descriptor.
+ * Returns interceptor descriptor.
  */
 
 struct kedr_coi_interceptor*
 kedr_coi_interceptor_create_direct(const char* name,
     size_t object_size,
-    struct kedr_coi_intermediate* intermediate_operations,
-    void (*trace_unforgotten_object)(void* object));
+    const struct kedr_coi_intermediate* intermediate_operations);
 
 
 void
 kedr_coi_interceptor_destroy(
     struct kedr_coi_interceptor* interceptor);
-
-
-/*
- * Create interceptor similar to one returned by 
- * kedr_coi_interceptor_create(), but do not replace operations at place.
- * 
- * Instead, copy operations struct, replace operations in it and
- * set pointer to operations inside object to copied operations struct.
- * 
- * Useful when original operation struct is possibly protected from
- * write or is widely used by the system, so replacing its content is
- * dangerous.
- * 
- * Should be used only when it is really needed, because this interception
- * mechanizm is disabled not only when ponter to operations is externally
- * set to other operations, but also when it set to original operations.
- */
-struct kedr_coi_interceptor*
-kedr_coi_interceptor_create_use_copy(const char* name,
-    size_t operations_field_offset,
-    size_t operations_struct_size,
-    struct kedr_coi_intermediate* intermediate_operations,
-    void (*trace_unforgotten_object)(void* object));
 
 /**Interceptor for object creation using its operations in factory object**/
 
@@ -595,8 +565,9 @@ kedr_coi_interceptor_create_use_copy(const char* name,
  * interceptor of normal operations.
  * 
  * '_register_payload()' and '_unregister_payload' functions also similar
- * to normal interceptor's one, but may be used only for operation which
- * create normal object.
+ * to normal interceptor's one, but registered handlers are called
+ * only when normal object is created using factory operations.
+ * 
  * Normally, payloads for that type of interceptor are used only for
  * define actions which depend on object creation way. E.g., 'struct file'
  * object can be created from inode, character device or common device.
@@ -665,15 +636,16 @@ struct kedr_coi_intermediate_info;
 int kedr_coi_factory_interceptor_bind_object(
     struct kedr_coi_factory_interceptor* interceptor,
     void* object,
-    void* factory,
+    const void* factory,
     size_t operation_offset,
     struct kedr_coi_intermediate_info* info);
 
 /*
  * Replacement for operation which should call
- * kedr_coi_bind_object_with_factory() and then call chained operation.
- * which is set by that function. If there are handlers for the operation,
- * them should be called before and after chained operation.
+ * kedr_coi_factory_interceptor_bind_object() and then call chained
+ * operation which is set by that function.
+ * If there are handlers for the operation, them should be called before
+ * and after chained operation.
  * 
  * NOTE: When describe intermediate operation for factory interceptor,
  * 'is_internal' flag in 'kedr_coi_intermediate' structure shouldn't be
@@ -707,11 +679,10 @@ struct kedr_coi_intermediate;
 
 struct kedr_coi_factory_interceptor*
 kedr_coi_factory_interceptor_create(
-    struct kedr_coi_interceptor* interceptor_indirect,
+    struct kedr_coi_interceptor* interceptor,
     const char* name,
     size_t factory_operations_field_offset,
-    const struct kedr_coi_intermediate* intermediate_operations,
-    void (*trace_unforgotten_object)(void* object));
+    const struct kedr_coi_intermediate* intermediate_operations);
 
 /*************** Generic factory interceptor **************************/
 
@@ -799,8 +770,8 @@ static inline int kedr_coi_factory_interceptor_bind_object_generic(
  * Similar to kedr_coi_factory_interceptor_create(), except:
  * 
  * 1) Intermediate operaions, described in 'intermediate_operations'
- * should call kedr_coi_bind_object_with_factory_generic() instead of
- * kedr_coi_bind_object_with_factory()
+ * should call kedr_coi_factory_interceptor_bind_object_generic() instead of
+ * kedr_coi_factory_interceptor_bind_object()
  * 2) 'trace_unforgotten_ops' callback accept two identificators of
  * watch: 'id' and 'tie'.
  * 
@@ -819,9 +790,78 @@ struct kedr_coi_factory_interceptor*
 kedr_coi_factory_interceptor_create_generic(
     struct kedr_coi_interceptor* interceptor_indirect,
     const char* name,
-    const struct kedr_coi_intermediate* intermediate_operations,
-    void (*trace_unforgotten_ops)(void* id, void* tie));
+    const struct kedr_coi_intermediate* intermediate_operations);
 
-/**************************************/
+/*********** Methods which affects on interceptor's behaviour**********/
+/* 
+ * Set function to be called for each object which will be watched
+ * when kedr_coi_interceptor_stop() is called.
+ * 
+ * Note, that object's structure may be freed at that moment,
+ * so callback shouldn't access its fields.
+ * 
+ * Usually this callback is used for debugging purposes.
+ * 
+ * NULL means no callback, and it is default.
+ */
+void kedr_coi_interceptor_trace_unforgotten_object(
+    struct kedr_coi_interceptor* interceptor,
+    void (*cb)(const void* object));
+
+/*
+ * Similar to kedr_coi_interceptor_trace_unforgotten_object(),
+ * but uses for factory interceptor.
+ * 
+ * When applied to interceptor create by
+ * kedr_coi_factory_interceptor_create_generic(),
+ * 'object' corresponds to 'id' of the watch.
+ */
+void kedr_coi_factory_interceptor_trace_unforgotten_object(
+    struct kedr_coi_factory_interceptor* interceptor,
+    void (*cb)(const void* object));
+
+
+/* 
+ * Return true, if given addr is inside some module.
+ * Intended to be called with preemption disabled.
+ * 
+ * This is a default selector of instrumentation mechanism
+ * (see kedr_coi_interceptor_mechanism_selector() description below).
+ */
+bool kedr_coi_is_module_address(const void* addr);
+
+/*
+ * Change selector for operations interception mechanism.
+ * 
+ * If selector returns true, operations themselves will be replaced
+ * for implement interception semantic. This mechanism is referred
+ * as 'at_place' below.
+ * 
+ * Otherwise, original operations structure is treated as read-only,
+ * and newly created operations structure is used for implement
+ * interception semantic, by replacing original operations pointer by
+ * new one. This mechanism is referred as 'use_copy' below.
+ * 
+ * 'at_place' interception mechanism is more stable, because
+ * 'use_copy' interception is lost when driver's code repeat assignment
+ * to the pointer to operations structure. For make interception work
+ * in that case, one should call kedr_coi_interceptor_watch() again.
+ * 
+ * Note, that selector's callback is called under lock taken.
+ * When pointer to operations struct is NULL, special interception
+ * mechanism is used, selector callback is not called in that case.
+ * 
+ * Selector can be set only for interceptor, created by
+ * kedr_coi_interceptor_create(). 'direct' interceptor always use
+ * 'at_place' mechanism, as there is no pointer to operations stored in
+ * object. Factory interceptor use selector from normal interceptor it
+ * binded to.
+ * 
+ * Default selector is &kedr_coi_is_module_address, and it is sufficient
+ * in the most cases.
+ */
+void kedr_coi_interceptor_mechanism_selector(
+    struct kedr_coi_interceptor* interceptor,
+    bool (*replace_at_place)(const void* ops));
 
 #endif /* OPERATIONS_INTERCEPTION_H */

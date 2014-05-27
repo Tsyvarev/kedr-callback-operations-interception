@@ -200,7 +200,12 @@ static void dops_d_release_pre_dentry_lifetime(struct dentry* dentry,
 
 /* Update watching for dentry object */
 static void dops_d_revalidate_post_dentry_watch(struct dentry* dentry,
-    struct nameidata* nd, int returnValue,
+#ifdef DENTRY_OPERATIONS_D_REVALIDATE_ACCEPT_UINT
+    unsigned int excl,
+#else
+    struct nameidata* nd,
+#endif
+    int returnValue,
     struct kedr_coi_operation_call_info* call_info)
 {
     if(returnValue > 0)
@@ -234,7 +239,14 @@ static struct kedr_coi_payload dentry_operations_payload =
 
 /* Determine lifetime of dentry object from another inode object*/
 static void iops_lookup_post_dentry_lifetime(struct inode *inode,
-	struct dentry *dentry, struct nameidata *nd,
+	struct dentry *dentry,
+#if defined(INODE_OPERATIONS_LOOKUP_ACCEPT_BOOL)
+    bool excl,
+#elif defined(INODE_OPERATIONS_LOOKUP_ACCEPT_UINT)
+    unsigned int excl,
+#else
+    struct nameidata *nd,
+#endif /* INODE_OPERATIONS_LOOKUP_ACCEPT_BOOL */
     struct dentry *returnValue,
     struct kedr_coi_operation_call_info* call_info)
 {
@@ -251,7 +263,13 @@ static void iops_lookup_post_dentry_lifetime(struct inode *inode,
 }
 
 static void iops_mkdir_post_dentry_lifetime(struct inode* dir,
-    struct dentry* dentry, int mode, int returnValue,
+    struct dentry* dentry,
+#ifdef INODE_OPERATIONS_MKDIR_ACCEPT_UMODE
+    umode_t mode,
+#else
+    int mode,
+#endif
+    int returnValue,
     struct kedr_coi_operation_call_info* call_info)
 {
     if(returnValue == 0)
@@ -267,8 +285,19 @@ static void iops_link_post_dentry_lifetime(struct dentry* old_dentry,
 }
 
 
+
 static void iops_create_post_dentry_lifetime(struct inode* dir,
-    struct dentry* dentry, int mode, struct nameidata* nm,
+    struct dentry* dentry,
+#ifdef INODE_OPERATIONS_CREATE_ACCEPT_UMODE
+    umode_t mode,
+#else
+    int mode,
+#endif /* INODE_OPERATIONS_CREATE_ACCEPT_UMODE */
+#ifdef INODE_OPERATIONS_CREATE_ACCEPT_BOOL
+    bool excl,
+#else
+    struct nameidata* nm,
+#endif /* INODE_OPERATIONS_CREATE_ACCCEPT_BOOL */
     int returnValue, struct kedr_coi_operation_call_info* call_info)
 {
     if(returnValue == 0)
@@ -277,7 +306,14 @@ static void iops_create_post_dentry_lifetime(struct inode* dir,
 
 /* Update watching for inode object(from object itself)*/
 static void iops_lookup_post_inode_watch(struct inode *inode,
-	struct dentry *dentry, struct nameidata *nd,
+	struct dentry *dentry,
+#if defined(INODE_OPERATIONS_LOOKUP_ACCEPT_BOOL)
+    bool excl,
+#elif defined(INODE_OPERATIONS_LOOKUP_ACCEPT_UINT)
+    unsigned int excl,
+#else
+    struct nameidata *nd,
+#endif /* INODE_OPERATIONS_LOOKUP_ACCEPT_BOOL */
     struct dentry *returnValue,
     struct kedr_coi_operation_call_info* call_info)
 {
@@ -425,32 +461,32 @@ void fs_interception_stop(void)
     file_operations_interceptor_stop();
 }
 
-static void trace_unforgotten_file(struct file* filp)
+static void trace_unforgotten_file(const struct file* filp)
 {
     pr_info("File object %p wasn't forgotten by interceptor.", filp);
 }
 
-static void trace_unforgotten_inode(struct inode* inode)
+static void trace_unforgotten_inode(const struct inode* inode)
 {
     pr_info("Inode object %p wasn't forgotten by interceptor.", inode);
 }
 
-static void trace_unforgotten_inode_for_file(struct inode* inode)
+static void trace_unforgotten_inode_for_file(const struct inode* inode)
 {
     pr_info("Inode object %p wasn't forgotten by foreign interceptor for file operations.", inode);
 }
 
-static void trace_unforgotten_dentry(struct dentry* dentry)
+static void trace_unforgotten_dentry(const struct dentry* dentry)
 {
     pr_info("Dentry object %p wasn't forgotten by interceptor.", dentry);
 }
 
-static void trace_unforgotten_super(struct super_block* super)
+static void trace_unforgotten_super(const struct super_block* super)
 {
     pr_info("Super block %p wasn't forgotten by interceptor.", super);
 }
 
-static void trace_unforgotten_fst(struct file_system_type* type)
+static void trace_unforgotten_fst(const struct file_system_type* type)
 {
     pr_info("File system type %p wasn't forgotten by interceptor.", type);
 }
@@ -461,40 +497,62 @@ int fs_interception_init(void)
     int result;
     
     // Create interceptors
-    result = file_operations_interceptor_init(&trace_unforgotten_file);
+    result = file_operations_interceptor_init();
     if(result) goto err_file_operations;
     
-    result = file_system_type_interceptor_init(&trace_unforgotten_fst);
+    file_operations_interceptor_trace_unforgotten_object(
+        &trace_unforgotten_file);
+    
+    result = file_system_type_interceptor_init();
     if(result) goto err_file_system_type;
     
-    result = super_operations_interceptor_init(&trace_unforgotten_super);
+    file_system_type_interceptor_trace_unforgotten_object(
+        &trace_unforgotten_fst);
+    
+    result = super_operations_interceptor_init();
     if(result) goto err_super_operations;
     
-    result = dentry_operations_interceptor_init(&trace_unforgotten_dentry);
+    super_operations_interceptor_trace_unforgotten_object(
+        &trace_unforgotten_super);
+    
+    result = dentry_operations_interceptor_init();
     if(result) goto err_dentry_operations;
 
-    result = inode_operations_interceptor_init(&trace_unforgotten_inode);
+    dentry_operations_interceptor_trace_unforgotten_object(
+        &trace_unforgotten_dentry);
+
+    result = inode_operations_interceptor_init();
     if(result) goto err_inode_operations;
     
+    inode_operations_interceptor_trace_unforgotten_object(
+        &trace_unforgotten_inode);
+    
     result = inode_file_operations_interceptor_init(
-        file_operations_interceptor_factory_interceptor_create,
-        &trace_unforgotten_inode_for_file);
+        file_operations_interceptor_factory_interceptor_create);
     if(result) goto err_inode_file_operations;
+    
+    inode_file_operations_interceptor_trace_unforgotten_object(
+        &trace_unforgotten_inode_for_file);
 
     // Set connections between interceptors using payloads
-    result = file_operations_interceptor_payload_register(&file_operations_payload);
+    result = file_operations_interceptor_payload_register(
+        &file_operations_payload);
     if(result) goto err_file_operations_payload;
 
-    result = inode_operations_interceptor_payload_register(&inode_operations_payload);
+    result = inode_operations_interceptor_payload_register(
+        &inode_operations_payload);
     if(result) goto err_inode_operations_payload;
     
-    result = dentry_operations_interceptor_payload_register(&dentry_operations_payload);
+    result = dentry_operations_interceptor_payload_register(
+        &dentry_operations_payload);
     if(result) goto err_dentry_operations_payload;
 
-    result = super_operations_interceptor_payload_register(&super_operations_payload);
+    result = super_operations_interceptor_payload_register(
+        &super_operations_payload);
     if(result) goto err_super_operations_payload;
 
-    result = file_system_type_interceptor_payload_register(&file_system_type_payload);
+    result = file_system_type_interceptor_payload_register(
+        &file_system_type_payload);
     if(result) goto err_file_system_type_payload;
 
     return 0;

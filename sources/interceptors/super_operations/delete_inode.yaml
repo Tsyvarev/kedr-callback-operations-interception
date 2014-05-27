@@ -1,0 +1,14 @@
+operations:
+
+  - name:  delete_inode
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+    object:  inode->i_sb
+    default:  return;
+
+    header: |
+            /* 'super_operations' has 'delete_inode' method */
+            #define SUPER_OPERATIONS_HAS_DELETE_INODE
