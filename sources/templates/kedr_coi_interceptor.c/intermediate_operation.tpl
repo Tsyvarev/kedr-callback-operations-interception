@@ -1,1 +1,0 @@
-intermediate_operation_{{operation.name}},

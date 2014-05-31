@@ -580,6 +580,15 @@ kedr_coi_interceptor_destroy(
 
 struct kedr_coi_factory_interceptor;
 
+int kedr_coi_factory_payload_register(
+    struct kedr_coi_factory_interceptor* interceptor,
+    struct kedr_coi_payload* payload);
+
+int kedr_coi_factory_payload_unregister(
+    struct kedr_coi_factory_interceptor* interceptor,
+    struct kedr_coi_payload* payload);
+
+
 int kedr_coi_factory_interceptor_watch(
     struct kedr_coi_factory_interceptor* interceptor,
     void* factory);
@@ -594,15 +603,6 @@ int kedr_coi_factory_interceptor_forget_norestore(
 
 void kedr_coi_factory_interceptor_destroy(
     struct kedr_coi_factory_interceptor* interceptor);
-    
-int kedr_coi_factory_payload_register(
-    struct kedr_coi_factory_interceptor* interceptor,
-    struct kedr_coi_payload* payload);
-
-int kedr_coi_factory_payload_unregister(
-    struct kedr_coi_factory_interceptor* interceptor,
-    struct kedr_coi_payload* payload);
-
 
 /*******Creation of the foreign operations interceptor****************/
 
@@ -781,7 +781,7 @@ static inline int kedr_coi_factory_interceptor_bind_object_generic(
  * - kedr_coi_factory_interceptor_forget_generic()
  * - kedr_coi_factory_payload_register()
  * - kedr_coi_factory_payload_unregister()
- * - kedr_coi_factory_interceptor_bind_object_generic()
+ * - kedr_coi_factory_interceptor_bind_object[_generic]()
  * - kedr_coi_factory_interceptor_destroy()
  * 
  * It is an error to use other functions with that interceptor.

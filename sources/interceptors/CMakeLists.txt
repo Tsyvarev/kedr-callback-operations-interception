@@ -24,8 +24,7 @@ set(KEDR_COI_TEMPLATES_DIR "${CMAKE_SOURCE_DIR}/templates")
 # add_interceptor(name [FACTORY] data_files ... )
 #
 # Create interceptor of given name from given data_file(s).
-# If FACTORY keyword is given, 'kedr_coi_factory_interceptor.*'
-# templates is used, otherwise use 'kedr_coi_interaceptor.*' ones.
+# If FACTORY keyword is given, 'factory_' variants of templates will be used.
 #
 # Header file will be stored in ${header_files_dir}, source file - 
 # in ${source_files_dir}. Also both files will be installed into
@@ -36,10 +35,10 @@ set(KEDR_COI_TEMPLATES_DIR "${CMAKE_SOURCE_DIR}/templates")
 
 function(add_interceptor name data_file)
     set(data_files_abs)
-    set(template_class "kedr_coi_interceptor")
+    set(template_prefix "")
     foreach(f ${data_file} ${ARGN})
 	if(f STREQUAL "FACTORY")
-	    set(template_class "kedr_coi_factory_interceptor")
+	    set(template_prefix "factory_")
 	else(f STREQUAL "FACTORY")
 	    to_abs_path(data_file_abs ${f})
 	    list(APPEND data_files_abs ${data_file_abs})
@@ -58,11 +57,13 @@ function(add_interceptor name data_file)
 	"${CMAKE_CURRENT_BINARY_DIR}/${name}.h"
     )
     
-    jy_generate("${name}.c" "${KEDR_COI_TEMPLATES_DIR}/${template_class}.c"
+    jy_generate("${name}.c" "${KEDR_COI_TEMPLATES_DIR}/kedr_coi_interceptor"
+	"${template_prefix}interceptor_c"
 	${data_files_abs}
     )
     
-    jy_generate("${name}.h" "${KEDR_COI_TEMPLATES_DIR}/${template_class}.h"
+    jy_generate("${name}.h" "${KEDR_COI_TEMPLATES_DIR}/kedr_coi_interceptor"
+	"${template_prefix}interceptor_h"
 	${data_files_abs}
     )
     

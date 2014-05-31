@@ -8,9 +8,7 @@
 {{ header }}
 <$endif$>
 
-<$for operation in operations if operation.header$>
-{{ operation.header }}
-<$endfor$>
+<$ block api_declaration scoped$>
 
 int {{interceptor.name}}_init(void);
 void {{interceptor.name}}_trace_unforgotten_object(void (*cb)(const {{object.type}}* object));
@@ -28,19 +26,20 @@ int {{interceptor.name}}_forget({{object.type}}* object);
 int {{interceptor.name}}_forget_norestore({{object.type}}* object);
 
 <$if not interceptor.is_direct$>
+void {{interceptor.name}}_mechanism_selector(
+    bool (*replace_at_place)(const {{object.operations_type}}* ops));
 // For create factory and creation interceptors
-extern struct kedr_coi_factory_interceptor*
+struct kedr_coi_factory_interceptor*
 {{interceptor.name}}_factory_interceptor_create(
     const char* name,
     size_t factory_operations_field_offset,
     const struct kedr_coi_intermediate* intermediate_operations);
 
-extern struct kedr_coi_creation_interceptor*
+struct kedr_coi_creation_interceptor*
 {{interceptor.name}}_creation_interceptor_create(
     const char* name,
     const struct kedr_coi_intermediate* intermediate_operations);
 <$endif$>
-
 
 #ifndef KEDR_COI_CALLBACK_CHECKED
 #define KEDR_COI_CALLBACK_CHECKED(func, type) BUILD_BUG_ON_ZERO(!__builtin_types_compatible_p(typeof(&func), type)) + (char*)(&func)
@@ -48,12 +47,12 @@ extern struct kedr_coi_creation_interceptor*
 
 // Interception handlers types.
 <$for operation in operations$>
+<$ if operation.header $>
+{{ operation.header }}
+<$endif$>
 typedef void (*{{interceptor.operations_prefix}}_{{operation.name}}_pre_handler_t)({{operation.args | join(d=", ", attribute="type")}}, struct kedr_coi_operation_call_info* call_info);
 typedef void (*{{interceptor.operations_prefix}}_{{operation.name}}_post_handler_t)({{operation.args | join(d=", ", attribute="type")}}<$if operation.returnType$>, {{operation.returnType}}<$endif$>, struct kedr_coi_operation_call_info* call_info);
-<$endfor$>
 
-// Handlers for concrete operations
-<$for operation in operations$>
 #define {{interceptor.operations_prefix}}_{{operation.name}}_pre(pre_handler) { \
     .operation_offset = offsetof(<$include 'operations_type'$>, {{operation.name}}), \
     .func = KEDR_COI_CALLBACK_CHECKED(pre_handler, {{interceptor.operations_prefix}}_{{operation.name}}_pre_handler_t) \
@@ -74,6 +73,8 @@ typedef void (*{{interceptor.operations_prefix}}_{{operation.name}}_post_handler
     .external = true \
 }
 <$endif$>
+
 <$endfor$>
+<$ endblock api_declaration $>
 
 #endif /* KEDR_COI_INTERCEPTOR_{{interceptor.name}} */

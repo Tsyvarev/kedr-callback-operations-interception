@@ -754,6 +754,33 @@ int kedr_coi_factory_interceptor_forget_norestore(
         factory_interceptor, id, NULL);
 }
 
+int kedr_coi_factory_payload_register(
+    struct kedr_coi_factory_interceptor* interceptor,
+    struct kedr_coi_payload* payload)
+{
+    BUG_ON((interceptor->state != interceptor_state_initialized)
+        && (interceptor->state != interceptor_state_started));
+    
+    if(interceptor->state == interceptor_state_started)
+    {
+        pr_err("Cannot register payload because interceptor is "
+            "started. Factory interceptor stops when binded interceptor stops.");
+        return -EBUSY;
+    }
+
+    return operation_payloads_add(&interceptor->payloads, payload);
+}
+
+int kedr_coi_factory_payload_unregister(
+    struct kedr_coi_factory_interceptor* interceptor,
+    struct kedr_coi_payload* payload)
+{
+    BUG_ON((interceptor->state != interceptor_state_initialized)
+		&& (interceptor->state != interceptor_state_started));
+
+    return operation_payloads_remove(&interceptor->payloads, payload);
+}
+
 
 int kedr_coi_factory_interceptor_bind_object(
     struct kedr_coi_factory_interceptor* factory_interceptor,
@@ -762,13 +789,14 @@ int kedr_coi_factory_interceptor_bind_object(
     size_t operation_offset,
     struct kedr_coi_intermediate_info* info)
 {
+    int result;
     struct kedr_coi_interceptor* interceptor_binded =
         factory_interceptor->interceptor_binded;
         
     const void** ops_p;
 
     /*
-     * Similar to  kedr_coi_get_intermediate_info, this function
+     * Similar to kedr_coi_get_intermediate_info, this function
      * cannot be called if interceptor is not started.
      */
     BUG_ON(factory_interceptor->state != interceptor_state_started);
@@ -776,11 +804,7 @@ int kedr_coi_factory_interceptor_bind_object(
     ops_p = indirect_operations_p(object,
         interceptor_binded->operations_field_offset);
 
-    //TODO: Fill handlers
-    info->pre = NULL;
-    info->post = NULL;
-    
-    return kedr_coi_foreign_instrumentor_bind(
+    result = kedr_coi_foreign_instrumentor_bind(
         factory_interceptor->instrumentor,
         object,
         factory,
@@ -788,6 +812,31 @@ int kedr_coi_factory_interceptor_bind_object(
         operation_offset,
         &info->op_chained,
         &info->op_orig);
+
+    if(result == 0)
+    {
+        operation_payloads_get_interception_info(&factory_interceptor->payloads,
+            operation_offset, info->op_orig? 0 : 1,
+            &info->pre, &info->post);
+
+        return 0;
+    }
+    else if(result == 1)
+    {
+        // without handlers - as if no interception at all.
+        info->pre = NULL;
+        info->post = NULL;
+
+        return 0;
+    }
+    else /* result < 0 */
+    {
+        // without handlers - as if no interception at all.
+        info->pre = NULL;
+        info->post = NULL;
+
+        return result;
+    }
 }
 
 void kedr_coi_factory_interceptor_destroy(

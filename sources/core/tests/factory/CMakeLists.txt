@@ -44,5 +44,5 @@ add_subdirectory(conflicted_interceptors)
 add_subdirectory(update)
 add_subdirectory(copy_operations)
 add_subdirectory(internal_replacement)
-
 add_subdirectory(self_factory)
+add_subdirectory(factory_payload)

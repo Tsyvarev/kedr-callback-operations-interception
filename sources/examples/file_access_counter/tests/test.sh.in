@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Only check that example can be built.
-if ! make -C @example_dir@; then
-    printf "Failed to build example.\n"
+if ! make -C @example_dir@ clean all; then
+    printf "Failed to (re)build example.\n"
     exit 1
 fi

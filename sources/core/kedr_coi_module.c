@@ -67,6 +67,9 @@ EXPORT_SYMBOL(kedr_coi_interceptor_get_intermediate_info);
 EXPORT_SYMBOL(kedr_coi_interceptor_destroy);
 
 // Factory interceptor
+EXPORT_SYMBOL(kedr_coi_factory_payload_register);
+EXPORT_SYMBOL(kedr_coi_factory_payload_unregister);
+
 EXPORT_SYMBOL(kedr_coi_factory_interceptor_watch);
 EXPORT_SYMBOL(kedr_coi_factory_interceptor_forget);
 EXPORT_SYMBOL(kedr_coi_factory_interceptor_forget_norestore);

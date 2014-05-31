@@ -8,18 +8,18 @@ set(deps_format_file "${template_generation_module_dir}/template_generation_file
 
 # Generate file using jinja2-yaml tool.
 #
-# jy_generate (filename template_dir [template_name] datafile ...)
+# jy_generate (filename template_dir template_name datafile ...)
 #
 # filename - name of file to be generated. File will be created in the
 # CMAKE_CURRENT_BINARY_DIR.
-# template_dir - directory with templates used for generation.
+# templates_dir - directory with templates used for generation.
 # template_name - name of the template to be instantiated.
 # datafile - file(s) with template data
 #
 # If 'datafile' contains non-absolute path, it is assumed to be relative
 # to CMAKE_CURRENT_SOURCE_DIR if file exists, or to CMAKE_CURRENT_BINARY_DIR
 # (see to_abs_path() function).
-function(jy_generate filename template_dir datafile)
+function(jy_generate filename templates_dir template_name datafile)
     to_abs_path(datafiles_abs ${datafile} ${ARGN})
     set(output_file "${CMAKE_CURRENT_BINARY_DIR}/${filename}")
 
@@ -60,9 +60,12 @@ function(jy_generate filename template_dir datafile)
 	# changing will trigger reconfiguration at the next build.
 
     add_custom_command(OUTPUT "${output_file}"
-        COMMAND ${JY_TOOL} -o "${output_file}" -d "${deps_file}"
-            -F "${deps_format_file}"
-            ${template_dir} ${datafiles_abs}
+# Add ${deps_file} for output. It allows to simply remove it via 'make clean'
+# when some dependencies was removed without preliminary rebuilding.
+        "${deps_file}"
+        COMMAND ${JY_TOOL} -o "${output_file}" -t ${template_name}
+            -d "${deps_file}" -F "${deps_format_file}"
+            ${templates_dir} ${datafiles_abs}
         DEPENDS ${datafiles_abs} ${deps_list} ${list_filename}
     )
     # Add empty rules for generate dependencies files.
