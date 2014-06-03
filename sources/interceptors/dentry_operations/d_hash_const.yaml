@@ -4,7 +4,7 @@ operations:
     returnType:  int
 
     args:
-      - type:  struct dentry *
+      - type:  const struct dentry *
         name:  dentry
 
       - type:  struct qstr *

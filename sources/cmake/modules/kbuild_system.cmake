@@ -44,6 +44,14 @@ set(kbuild_cflags)
 # from "${name}.c" source.
 
 function(kbuild_add_module name)
+    string(LENGTH ${name} name_len)
+    if(name_len GREATER 55)
+		# Name of the kernel module should fit into array of size (64-sizeof(unsigned long)).
+		# On 64-bit systems(most restricted) this is 56.
+		# Even 56 length is not good, as it is not include null character.
+		# Without it, rmmod failed to unload module.
+		message(SEND_ERROR "Kernel module name exceeds 55 characters: '${name}'")
+    endif(name_len GREATER 55)
     set(symvers_file ${CMAKE_CURRENT_BINARY_DIR}/Module.symvers)
 	#Global target
 	add_custom_target(${name} ALL

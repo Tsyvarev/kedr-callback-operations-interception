@@ -1,1 +1,1 @@
-<$if operation.args | join(attribute='type')$>{{operation.args | join(d=", ", attribute="name")}}<$endif$>
+<$for arg in operation.args$><$if not loop.first$> ,<$endif$>{{ arg.name }}<$endfor$>

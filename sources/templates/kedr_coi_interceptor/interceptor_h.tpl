@@ -50,8 +50,8 @@ struct kedr_coi_creation_interceptor*
 <$ if operation.header $>
 {{ operation.header }}
 <$endif$>
-typedef void (*{{interceptor.operations_prefix}}_{{operation.name}}_pre_handler_t)({{operation.args | join(d=", ", attribute="type")}}, struct kedr_coi_operation_call_info* call_info);
-typedef void (*{{interceptor.operations_prefix}}_{{operation.name}}_post_handler_t)({{operation.args | join(d=", ", attribute="type")}}<$if operation.returnType$>, {{operation.returnType}}<$endif$>, struct kedr_coi_operation_call_info* call_info);
+typedef void (*{{interceptor.operations_prefix}}_{{operation.name}}_pre_handler_t)(<$include 'argumentTypeSpec_comma'$>struct kedr_coi_operation_call_info*);
+typedef void (*{{interceptor.operations_prefix}}_{{operation.name}}_post_handler_t)(<$include 'argumentTypeSpec_comma'$><$if operation.returnType$>{{operation.returnType}}, <$endif$>struct kedr_coi_operation_call_info*);
 
 #define {{interceptor.operations_prefix}}_{{operation.name}}_pre(pre_handler) { \
     .operation_offset = offsetof(<$include 'operations_type'$>, {{operation.name}}), \

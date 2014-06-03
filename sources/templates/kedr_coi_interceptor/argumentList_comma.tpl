@@ -1,1 +1,1 @@
-<$for arg in operations.args$>{{ arg.name }}, <$endfor$>
+<$for arg in operation.args$>{{ arg.name }}, <$endfor$>

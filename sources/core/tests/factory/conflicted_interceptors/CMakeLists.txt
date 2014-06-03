@@ -1,3 +1,3 @@
-add_test_interceptor_factory("conflicted_interceptors"
+add_test_interceptor_factory("conflicted"
     "test.c"
 )

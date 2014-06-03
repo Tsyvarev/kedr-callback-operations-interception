@@ -56,7 +56,7 @@ static <$if operation.returnType$>{{operation.returnType}}<$else$>void<$endif$> 
 <$if operation.returnType$>
     {{operation.returnType}} returnValue;
 <$endif$>
-    <$if operation.returnType$>{{operation.returnType}}<$else$>void<$endif$> (*chained)(<$include 'argumentSpec'$>);
+    <$if operation.returnType$>{{operation.returnType}}<$else$>void<$endif$> (*chained)(<$include 'argumentTypeSpec'$>);
             
 <$ block fill_info scoped$>
     get_intermediate_info({{operation.object}},
@@ -76,7 +76,7 @@ static <$if operation.returnType$>{{operation.returnType}}<$else$>void<$endif$> 
     
     if(intermediate_info.pre != NULL)
     {
-        void (**pre_function)(<$include 'argumentSpec_comma'$>struct kedr_coi_operation_call_info* call_info);
+        void (**pre_function)(<$include 'argumentTypeSpec_comma'$>struct kedr_coi_operation_call_info*);
         
         for(pre_function = (typeof(pre_function))intermediate_info.pre;
             *pre_function != NULL;
@@ -92,7 +92,7 @@ static <$if operation.returnType$>{{operation.returnType}}<$else$>void<$endif$> 
 
     if(intermediate_info.post != NULL)
     {
-        void (**post_function)(<$include 'argumentSpec_comma'$><$if operation.returnType$>{{operation.returnType}} returnValue, <$endif$>struct kedr_coi_operation_call_info* call_info);
+        void (**post_function)(<$include 'argumentTypeSpec_comma'$><$if operation.returnType$>{{operation.returnType}}, <$endif$>struct kedr_coi_operation_call_info*);
         
         for(post_function = (typeof(post_function))intermediate_info.post;
             *post_function != NULL;

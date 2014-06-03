@@ -30,14 +30,14 @@ OPTIONAL
     "show_devname"
         TYPED "accept_mnt" "int(*)(struct seq_file*, struct vfsmount*)"
         TYPED "accept_dentry" "int(*)(struct seq_file*, struct dentry*)"
+    "show_path"
+        TYPED "accept_mnt" "int(*)(struct seq_file*, struct vfsmount*)"
+        TYPED "accept_dentry" "int(*)(struct seq_file*, struct dentry*)"
 REQUIRED
     "show_options"
         TYPED "accept_mnt" "int(*)(struct seq_file*, struct vfsmount*)"
         TYPED "accept_dentry" "int(*)(struct seq_file*, struct dentry*)"
     "show_stats"
-        TYPED "accept_mnt" "int(*)(struct seq_file*, struct vfsmount*)"
-        TYPED "accept_dentry" "int(*)(struct seq_file*, struct dentry*)"
-    "show_path"
         TYPED "accept_mnt" "int(*)(struct seq_file*, struct vfsmount*)"
         TYPED "accept_dentry" "int(*)(struct seq_file*, struct dentry*)"
 OPTIONAL

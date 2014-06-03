@@ -135,6 +135,7 @@ template = env.get_template(template_name)
 topvars = {}
 
 def add_yaml_document(yaml_document):
+    # print >> sys.stderr, yaml_document
     for topvar in yaml_document.keys():
         debug("Find toplevel variable '" + topvar + "' in document")
         if topvar not in topvars:

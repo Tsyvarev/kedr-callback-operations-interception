@@ -1,3 +1,3 @@
-add_test_interceptor_creation("several_interceptors_1"
+add_test_interceptor_creation("several_1"
     "test.c"
 )

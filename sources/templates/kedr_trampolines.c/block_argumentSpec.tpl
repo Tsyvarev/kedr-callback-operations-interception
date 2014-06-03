@@ -1,1 +1,1 @@
-<$if function.args | join(attribute='name')$><$for arg in function.args$><$if not loop.first$>, <$endif$><$include 'block_arg'$><$endfor$><$if function.ellipsis$>, ...<$endif$><$else$>void<$endif$>
+<$if function.args$><$for arg in function.args$><$if not loop.first$>, <$endif$><$include 'block_arg'$><$endfor$><$if function.ellipsis$>, ...<$endif$><$else$>void<$endif$>

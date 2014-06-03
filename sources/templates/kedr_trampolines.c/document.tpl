@@ -5,19 +5,25 @@
 #include <kedr/core/kedr_functions_support.h>
 #include <kedr/core/kedr.h> /* only for types definition */
 
-<$if header$>{{header}}
+<$if header$>
+{{header}}
+<$endif$>
+<# Since jinja 2.6 full condition may be written as <$if functions | join(attribute='ellipsis')$> #>
+<# But jinja 2.5 does not support 'attribute' parameter of join()... #>
+<$for function in functions if function.ellipsis$>
+<$if loop.first$>#include <stdarg.h><$endif$>
+<$endfor$>
 
-<$endif$><$if functions | join(attribute='ellipsis')$>#include <stdarg.h>
-
-<$endif$><$if functions | join(attribute='name')$><$for function in functions$><$if not loop.first$>
-
-
-<$endif$><$include 'block_block'$><$endfor$><$endif$>
+<$for function in functions$>
+<$include 'block_block'$>
+<$endfor$>
 
 
 static struct kedr_intermediate_impl intermediate_impl[] =
 {
-<$if functions | join(attribute='name')$><$for function in functions$><$include 'intermediate_impl'$><$endfor$><$endif$>// Terminating element
+<$for function in functions$>
+	<$include 'intermediate_impl'$>
+<$endfor$>// Terminating element
 	{
 		.orig = NULL,
 	}
