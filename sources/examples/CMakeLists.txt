@@ -121,13 +121,42 @@ function(test_add_example_copy name orig_name dir)
     set_property(DIRECTORY PROPERTY ADDITIONAL_MAKE_CLEAN_FILES "${dir_abs}")
 endfunction(test_add_example_copy name orig_name dir)
 
-set (KEDR_COI_INSTALL_INCLUDE_DIR "${CMAKE_INSTALL_PREFIX}/include")
-# See comments in include/CMakeLists.txt about headers in examples.
-set (KEDR_COI_TEST_INCLUDE_DIR "${CMAKE_BINARY_DIR}/include/install")
+# example_export(TARGETS name [...] FILE <filename>)
+#
+# Similar to export() command, but works with example targets.
+function(example_export)
+    CMAKE_PARSE_ARGUMENTS(example_export "" "FILE" "TARGETS" ${ARGN})
+    if(NOT example_export_TARGETS)
+        message(FATAL_ERROR "example_export: At least one target should be given.")
+    endif(NOT example_export_TARGETS)
+    if(NOT example_export_FILE)
+        message(FATAL_ERROR "example_export: FILE <filename> option missing.")
+    endif(NOT example_export_FILE)
+    if(example_export_UNPARSED_ARGUMENTS)
+        message(FATAL_ERROR "example_export: Unparsed arguments ${example_export_UNPARSED_ARGUMENTS}.")
+    endif(example_export_UNPARSED_ARGUMENTS)
+    
+    # Check extension of <filename>, like standard export().
+    string(REGEX MATCH ".cmake$" cmake_suffix ${example_export_FILE})
+    if(NOT cmake_suffix)
+        message(SEND_ERROR "example_export: FILE option given filename\n""${example_export_FILE}""\n which does not have an extension of "".cmake"".")
+    endif(NOT cmake_suffix)
+    
+    set(file_content)
+    
+    foreach(target ${example_export_TARGETS})
+        set(file_content "${file_content}add_custom_target(""${target}"")\n")
+        get_property(example_files TARGET "${target}" PROPERTY "example_files")
+        set(file_content "${file_content}set_property(TARGET ""${target}"" PROPERTY ""example_files"" ${example_files})\n")
+        get_property(example_sources TARGET "${target}" PROPERTY "example_sources")
+        set(file_content "${file_content}set_property(TARGET ""${target}"" PROPERTY ""example_sources"" ${example_sources})\n")
+    endforeach(target ${example_export_TARGETS})
+    write_or_update_file(${example_export_FILE} "${file_content}")
+endfunction(example_export)
 
 add_subdirectory(read_counter)
 
-# This example use KEDR framework.
+# This example uses KEDR framework.
 if(KEDR_INSTALL_DIR)
     add_subdirectory(file_access_counter)
 endif(KEDR_INSTALL_DIR)

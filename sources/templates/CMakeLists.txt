@@ -3,12 +3,8 @@
 set(KEDR_COI_TEMPLATES_PATH "${KEDR_COI_INSTALL_PREFIX_TEMPLATES}")
 
 set(templates
-    kedr_coi_interceptor.c
-    kedr_coi_interceptor.h
-    kedr_coi_factory_interceptor.c
-    kedr_coi_factory_interceptor.h
-    kedr_coi_creation_interceptor.c
-    kedr_coi_creation_interceptor.h
+    "kedr_coi_interceptor"
+    "kedr_trampolines.c"
 )
 
 install(DIRECTORY ${templates} 

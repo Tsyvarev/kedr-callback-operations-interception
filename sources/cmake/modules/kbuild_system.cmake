@@ -1,8 +1,5 @@
 include(cmake_useful)
 
-# This environment variable can be used in Makefiles
-set (ENV{KERNELDIR} "${KBUILD_BUILD_DIR}")
-
 # Location of this CMake module
 set(kbuild_this_module_dir "${CMAKE_SOURCE_DIR}/cmake/modules")
 
@@ -188,18 +185,27 @@ function(kbuild_add_module name)
 					${CMAKE_CURRENT_BINARY_DIR}/Kbuild
 					)
 	
+	set(additional_make_flags)
+	if(ARCH)
+		list(APPEND additional_make_flags "ARCH=${ARCH}")
+	endif(ARCH)
+	if(CROSS_COMPILE)
+		list(APPEND additional_make_flags "CROSS_COMPILE=${CROSS_COMPILE}")
+	endif(CROSS_COMPILE)
+
+	
     # Create rules, depending on kbuild_use_symbols call
 	if(kbuild_symbol_files)
     	add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${name}.ko ${symvers_file}
 				COMMAND cat ${kbuild_symbol_files} >> ${symvers_file}
-    			COMMAND $(MAKE) ARCH=${KEDR_COI_ARCH} CROSS_COMPILE=${KEDR_COI_CROSS_COMPILE} 
-					-C ${KBUILD_BUILD_DIR} M=${CMAKE_CURRENT_BINARY_DIR} modules
+    			COMMAND $(MAKE) ${additional_make_flags} 
+					-C ${Kbuild_BUILD_DIR} M=${CMAKE_CURRENT_BINARY_DIR} modules
     			DEPENDS ${depend_files} ${kbuild_symbol_files}
                 )
 	else(kbuild_symbol_files)
     	add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${name}.ko ${symvers_file}
-    			COMMAND $(MAKE) ARCH=${KEDR_COI_ARCH} CROSS_COMPILE=${KEDR_COI_CROSS_COMPILE}
-					-C ${KBUILD_BUILD_DIR} M=${CMAKE_CURRENT_BINARY_DIR} modules
+    			COMMAND $(MAKE) ${additional_make_flags}
+					-C ${Kbuild_BUILD_DIR} M=${CMAKE_CURRENT_BINARY_DIR} modules
     			DEPENDS ${depend_files}
     			)
 	endif(kbuild_symbol_files)
@@ -248,11 +254,20 @@ function(kbuild_add_object source)
 	configure_file(${kbuild_this_module_dir}/kbuild_system_files/Kbuild_object.in
 					${CMAKE_CURRENT_BINARY_DIR}/Kbuild
 					)
+	# Additional options for make.
+	set(additional_make_options)
+	if(ARCH)
+		list(APPEND additional_make_options "ARCH=${ARCH}")
+	endif(ARCH)
+	if(CROSS_COMPILE)
+		list(APPEND additional_make_options "CROSS_COMPILE=${CROSS_COMPILE}")
+	endif(CROSS_COMPILE)
+	# TODO: other options like CC and HOSTCC.
 	#create rules
 	list(APPEND clean_files_list "${CMAKE_CURRENT_BINARY_DIR}/Module.symvers")
 	add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${name}.o"
-			COMMAND $(MAKE) ARCH=${KEDR_COI_ARCH} CROSS_COMPILE=${KEDR_COI_CROSS_COMPILE}
-				-C ${KBUILD_BUILD_DIR} M=${CMAKE_CURRENT_BINARY_DIR}
+			COMMAND $(MAKE) ${additional_make_options}
+				-C ${Kbuild_BUILD_DIR} M=${CMAKE_CURRENT_BINARY_DIR}
 			DEPENDS ${depend_files}
 			)
 

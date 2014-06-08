@@ -5,15 +5,11 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/test.sh.in"
     "${CMAKE_CURRENT_BINARY_DIR}/test.sh"
     @ONLY)
 
-kedr_coi_load_test_prefixes()
-set(KEDR_COI_INCLUDE_DIR "${KEDR_COI_TEST_INCLUDE_DIR}")
+kedr_coi_load_test_paths()
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/../Kbuild.in"
     "${CMAKE_CURRENT_BINARY_DIR}/Kbuild"
     @ONLY
 )
-
-set(kedr_coi_core_symbols "${CMAKE_BINARY_DIR}/core/Module.symvers")
-set(jy_tool "${JY_TOOL}")
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/../makefile.in"
     "${CMAKE_CURRENT_BINARY_DIR}/example_makefile"

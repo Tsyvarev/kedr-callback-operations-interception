@@ -1,0 +1,6 @@
+#!/bin/sh
+
+echo "Execute kernel-specific tests"
+@CMAKE_CTEST_COMMAND@
+echo "Execute common tests."
+(cd @USER_PART_BINARY_DIR@ && kernel_part_binary_dir=@CMAKE_BINARY_DIR@ @CMAKE_CTEST_COMMAND@)

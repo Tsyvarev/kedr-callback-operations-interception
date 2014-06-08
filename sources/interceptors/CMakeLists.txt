@@ -8,14 +8,10 @@ execute_process(
 )
 
 # Directory where generated header files will be placed.
-set(header_files_dir "${CMAKE_BINARY_DIR}/include/install/kedr-coi/interceptors")
+set(header_files_dir "${KEDR_COI_TEST_PREFIX_INCLUDE_KERNEL}/interceptors")
 
 execute_process(
 	COMMAND mkdir -p "${header_files_dir}"
-)
-
-execute_process(
-	COMMAND mkdir -p "${KEDR_COI_TEST_PREFIX_INCLUDE}/interceptors"
 )
 
 set(KEDR_COI_TEMPLATES_DIR "${CMAKE_SOURCE_DIR}/templates")
@@ -68,7 +64,7 @@ function(add_interceptor name data_file)
     )
     
     install(FILES "${header_files_dir}/${name}.h"
-	DESTINATION "${KEDR_COI_INSTALL_PREFIX_INCLUDE}/interceptors")
+	DESTINATION "${KEDR_COI_INSTALL_PREFIX_INCLUDE_KERNEL}/interceptors")
     install(FILES "${source_files_dir}/${name}.c"
 	DESTINATION "${KEDR_COI_INSTALL_PREFIX_INTERCEPTORS}")
 endfunction(add_interceptor name data_file)

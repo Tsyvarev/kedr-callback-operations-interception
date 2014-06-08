@@ -1,14 +1,15 @@
 module_name=@module_name@
 
-kedr_gen_coi_templates_dir := @KEDR_COI_PREFIX_TEMPLATES@
-jy_tool := @jy_tool@
-#kedr_gen_tool := @kedr_gen_tool@
+kedr_coi_templates_dir := @KEDR_COI_PREFIX_TEMPLATES@
+jy_tool := @KEDR_COI_MAKE_JY_TOOL@
 
-kedr_coi_interceptors_dir := @KEDR_COI_PREFIX_INTERCEPTORS@
+@multi_kernel_KERNEL_VAR_MAKE_DEFINITION@
 
-kedr_coi_core_symbols=@kedr_coi_core_symbols@
+kedr_coi_interceptors_dir := @KEDR_COI_MAKE_PREFIX_INTERCEPTORS@
 
-KBUILD_DIR=@KBUILD_BUILD_DIR@
+kedr_coi_core_symbols=@KEDR_COI_MAKE_CORE_SYMBOLS@
+
+KBUILD_DIR=/lib/modules/$(@multi_kernel_KERNEL_VAR@)/build
 PWD=`pwd`
 
 all: ${module_name}.ko
@@ -23,7 +24,7 @@ file_operations_interceptor.c: $(kedr_coi_interceptors_dir)/file_operations_inte
 	cp -p $^ $@
 
 cdev_file_operations_interceptor.c cdev_file_operations_interceptor.h: cdev_file_operations_interceptor.%: cdev_file_operations.yaml
-	python $(jy_tool) -o $@ $(kedr_gen_coi_templates_dir)/kedr_coi_interceptor/ -t factory_interceptor_$* $^
+	$(jy_tool) -o $@ $(kedr_coi_templates_dir)/kedr_coi_interceptor/ -t factory_interceptor_$* $^
 
 
 clean:

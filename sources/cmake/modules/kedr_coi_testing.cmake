@@ -47,25 +47,42 @@ endfunction(__kedr_coi_test_get_full_name RESULT_VAR test_name)
 # It should be used in the top-level CMakeLists.txt file before 
 # add_subdirectory () calls.
 macro (kedr_coi_test_init)
-	if (NOT CMAKE_CROSSCOMPILING)
-	    enable_testing ()
+    if (NOT CMAKE_CROSSCOMPILING)
+	enable_testing ()
+	if(KERNEL_PART_ONLY)
+	    # From kernel part run also user part.
+	    configure_file("${kedr_coi_testing_this_module_dir}/kedr_coi_testing_files/test_all_from_kernel.sh.in"
+		"${CMAKE_BINARY_DIR}/test_all_from_kernel.sh" @ONLY)
 	    add_custom_target (check 
-	        COMMAND ${CMAKE_CTEST_COMMAND}
+		COMMAND /bin/sh "${CMAKE_BINARY_DIR}/test_all_from_kernel.sh"
 	    )
-	    add_custom_target (build_tests)
-	    add_dependencies (check build_tests)
-	endif (NOT CMAKE_CROSSCOMPILING)
+	else(KERNEL_PART_ONLY)
+	    add_custom_target (check 
+	    COMMAND ${CMAKE_CTEST_COMMAND}
+	    )
+	endif(KERNEL_PART_ONLY)
+	add_custom_target (build_tests)
+	add_dependencies (check build_tests)
+    endif (NOT CMAKE_CROSSCOMPILING)
+    
+    # In user part test shell scripts should use this cmake variable for refer
+    # to build directory of kernel part.
+    if(KERNEL_PART)
+	set(test_shell_kernel_build_dir "${CMAKE_BUILD_DIRECTORY}")
+    else(KERNEL_PART)
+	set(test_shell_kernel_build_dir "\${kernel_part_build_dir}")
+    endif(KERNEL_PART)
 endmacro (kedr_coi_test_init)
 
 # Use this macro to specify an additional target to be built before the tests
 # are executed.
 macro (kedr_coi_test_add_target target_name)
-	if (NOT CMAKE_CROSSCOMPILING)
-	    set_target_properties (${target_name}
-	        PROPERTIES EXCLUDE_FROM_ALL true
-	    )
-	    add_dependencies (build_tests ${target_name})
-	endif (NOT CMAKE_CROSSCOMPILING)
+    if (NOT CMAKE_CROSSCOMPILING)
+        set_target_properties (${target_name}
+            PROPERTIES EXCLUDE_FROM_ALL true
+        )
+        add_dependencies (build_tests ${target_name})
+    endif (NOT CMAKE_CROSSCOMPILING)
 endmacro (kedr_coi_test_add_target target_name)
 
 
@@ -73,15 +90,15 @@ endmacro (kedr_coi_test_add_target target_name)
 # tests for the package. The script may reside in current source or binary 
 # directory (the source directory is searched first).
 function (kedr_coi_test_add_script test_name script_file)
-	if (NOT CMAKE_CROSSCOMPILING)
-	    set (TEST_SCRIPT_FILE)
-	    to_abs_path (TEST_SCRIPT_FILE ${script_file})
+    if (NOT CMAKE_CROSSCOMPILING)
+        set (TEST_SCRIPT_FILE)
+        to_abs_path (TEST_SCRIPT_FILE ${script_file})
         __kedr_coi_test_get_full_name(test_full_name "${test_name}")
-	        
-	    add_test (${test_full_name}
-	        /bin/bash ${TEST_SCRIPT_FILE} ${ARGN}
-	    )
-	endif (NOT CMAKE_CROSSCOMPILING)
+            
+        add_test (${test_full_name}
+            /bin/bash ${TEST_SCRIPT_FILE} ${ARGN}
+        )
+    endif (NOT CMAKE_CROSSCOMPILING)
 endfunction (kedr_coi_test_add_script)
 
 # kedr_coi_test_add_kernel(test_name module_name sources ... [DEPENDS module ...])
@@ -92,7 +109,7 @@ endfunction (kedr_coi_test_add_script)
 #
 # 'test_name' is the name of the test
 # 'module_name' is the name of the module created
-#	(in the current binary directory)
+#    (in the current binary directory)
 # 'source' is source file(s) which contained test. This file(s) should
 # export 3 functions:
 # int test_init(void)
@@ -111,23 +128,23 @@ endfunction (kedr_coi_test_add_script)
 # should be enumerated after DEPENDS keyword(NOT implemented).
 
 function(kedr_coi_test_add_kernel test_name module_name source)
-	if (NOT CMAKE_CROSSCOMPILING)
-		set(test_kernel_code_source
+    if (NOT CMAKE_CROSSCOMPILING)
+        set(test_kernel_code_source
             "${kedr_coi_testing_this_module_dir}/kedr_coi_testing_files/test_kernel_code.c"
         )
-		set(test_kernel_code_script
+        set(test_kernel_code_script
             "${kedr_coi_testing_this_module_dir}/kedr_coi_testing_files/test_kernel_code.sh"
         )
         
         kbuild_add_module(${module_name} "test_kernel_code.c"
             ${source} ${ARGN}
         )
-		rule_copy_file("test_kernel_code.c" "${test_kernel_code_source}")
+        rule_copy_file("test_kernel_code.c" "${test_kernel_code_source}")
         
-   	    set_target_properties (${module_name}
-	        PROPERTIES EXCLUDE_FROM_ALL true
-	    )
-	    add_dependencies (build_tests ${module_name})
+           set_target_properties (${module_name}
+            PROPERTIES EXCLUDE_FROM_ALL true
+        )
+        add_dependencies (build_tests ${module_name})
 
         __kedr_coi_test_get_full_name(test_full_name "${test_name}")
         
@@ -135,7 +152,7 @@ function(kedr_coi_test_add_kernel test_name module_name source)
             "${CMAKE_CURRENT_BINARY_DIR}/${module_name}.ko"
             ${kedr_coi_test_kernel_dependencies}
         )
-	endif (NOT CMAKE_CROSSCOMPILING)
+    endif (NOT CMAKE_CROSSCOMPILING)
 endfunction(kedr_coi_test_add_kernel test_name module_name source)
 
 # kedr_coi_test_add_kernel_dependency(module_name ...)
@@ -159,8 +176,8 @@ endfunction(kedr_coi_test_add_kernel_dependency module_name)
 # etc.) still need to be disabled explicitly. So it is more reliable to 
 # just turn off each add_subdirectory(tests) in this case.
 macro (kedr_coi_test_add_subdirectory subdir)
-	if (NOT CMAKE_CROSSCOMPILING)
-		add_subdirectory(${subdir})
-	endif (NOT CMAKE_CROSSCOMPILING)
+    if (NOT CMAKE_CROSSCOMPILING)
+        add_subdirectory(${subdir})
+    endif (NOT CMAKE_CROSSCOMPILING)
 endmacro (kedr_coi_test_add_subdirectory subdir)
 ########################################################################

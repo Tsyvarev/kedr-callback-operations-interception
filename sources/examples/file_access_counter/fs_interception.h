@@ -16,12 +16,12 @@
 
 #include <kedr-coi/operations_interception.h>
 
-#include <kedr-coi/interceptors/file_operations_interceptor.h>
-#include <kedr-coi/interceptors/inode_file_operations_interceptor.h>
-#include <kedr-coi/interceptors/file_system_type_interceptor.h>
-#include <kedr-coi/interceptors/super_operations_interceptor.h>
-#include <kedr-coi/interceptors/inode_operations_interceptor.h>
-#include <kedr-coi/interceptors/dentry_operations_interceptor.h>
+#include <kedr-coi-kernel/interceptors/file_operations_interceptor.h>
+#include <kedr-coi-kernel/interceptors/inode_file_operations_interceptor.h>
+#include <kedr-coi-kernel/interceptors/file_system_type_interceptor.h>
+#include <kedr-coi-kernel/interceptors/super_operations_interceptor.h>
+#include <kedr-coi-kernel/interceptors/inode_operations_interceptor.h>
+#include <kedr-coi-kernel/interceptors/dentry_operations_interceptor.h>
 
 /*
  * Initialize all interceptors for file system objects and set bindings

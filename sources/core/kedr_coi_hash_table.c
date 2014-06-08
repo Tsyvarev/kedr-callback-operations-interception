@@ -27,7 +27,7 @@
 #include <linux/slab.h> /* kmalloc */
 #include <linux/spinlock.h> /* spinlock */
 
-#include "config.h"
+#include "config_kernel.h"
 
 // Initial value of bits in the table
 #define BITS_DEFAULT 4

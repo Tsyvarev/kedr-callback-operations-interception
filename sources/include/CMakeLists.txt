@@ -1,13 +1,13 @@
 # List of include files that do not need configuring and
 # should be copied to the binary tree as is.
 set(KEDR_COI_INCLUDE_FILES_SRC
-	operations_interception.h
+    "operations_interception.h"
 )
 
 
 # List of include files to be installed.
 set(KEDR_COI_INCLUDE_FILES_INSTALL
-	operations_interception.h
+    "operations_interception.h"
 )
 
 # Copy headers from src-tree into binary tree

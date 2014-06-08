@@ -1,7 +1,9 @@
-cmake_minimum_required(VERSION 2.6)
+# Since 2.8.3 module CMakeParseArguments exists.
+cmake_minimum_required(VERSION 2.8.3)
 
 enable_language(C)
 enable_language(CXX)
+include(CMakeParseArguments)
 
 #######################################################################
 # Prohibit a common type of an in-source build.
@@ -22,32 +24,68 @@ set(KEDR_COI_VERSION_MAJOR 0)
 set(KEDR_COI_VERSION_MINOR 1)
 set(KEDR_COI_VERSION_MICRO 0)
 set(KEDR_COI_VERSION_SUFFIX "" CACHE STRING
-	"Version suffix, a string that should be appended ro the version"
+    "Version suffix, a string that should be appended ro the version"
 )
 set(KEDR_COI_VERSION 
 "${KEDR_COI_VERSION_MAJOR}.${KEDR_COI_VERSION_MINOR}.${KEDR_COI_VERSION_MICRO}${KEDR_COI_VERSION_SUFFIX}"
 )
 
-#######################################################################
-# ARCH and CROSS_COMPILE variables that can be used when building 
-# kernel modules. It is convenient to have them as environment variables
-# because Makefiles will be able to use them directly.
-if (NOT KEDR_COI_ARCH)
-	set (KEDR_COI_ARCH "x86")
-endif ()
-
-set (ENV{KEDR_COI_ARCH} "${KEDR_COI_ARCH}")
-set (ENV{KEDR_COI_CROSS_COMPILE} "${KEDR_COI_CROSS_COMPILE}")
 
 #######################################################################
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
-find_package(Kbuild)
+
+include(uninstall_target)
 
 include(cmake_useful)
-include(kbuild_system)
-include(kmodule)
 
+# Because Kbuild should be configured before multi_kernel,
+# use user-defined parameter as guard for configure it.
+if(NOT USER_PART_ONLY)
+    find_package(Kbuild "2.6.32" REQUIRED)
+endif(NOT USER_PART_ONLY)
+
+include(multi_kernel)
+
+# NB: 'path_prefixes' uses 'multi_kernel'
 include(path_prefixes)
+#######################################################################
+# Kernel-specific path definitions.
+if(KERNEL_PART)
+    kernel_part_path(KEDR_COI_INSTALL_PREFIX_KMODULE
+	"${KEDR_COI_KERNEL_INSTALL_PREFIX_KMODULE}")
+
+    kernel_part_path(KEDR_COI_INSTALL_PREFIX_KSYMVERS
+	"${KEDR_COI_KERNEL_INSTALL_PREFIX_KSYMVERS}")
+    # In the build tree both kmodules and symvers are placed in their own dirs,
+    # so there is no needs for have test variants for these paths.
+
+    # Per-kernel includes
+    kernel_part_path(KEDR_COI_INSTALL_INCLUDE_KERNEL_DIR
+	"${KEDR_COI_KERNEL_INSTALL_INCLUDE_KERNEL_DIR}")
+    kernel_part_path(KEDR_COI_TEST_INCLUDE_KERNEL_DIR
+	"${KEDR_COI_KERNEL_TEST_INCLUDE_KERNEL_DIR}")
+    add_testable_path (KEDR_COI_INCLUDE_KERNEL_DIR)
+    
+    kernel_part_path(KEDR_COI_INSTALL_PREFIX_INCLUDE_KERNEL
+	"${KEDR_COI_KERNEL_INSTALL_PREFIX_INCLUDE_KERNEL}")
+    kernel_part_path(KEDR_COI_TEST_PREFIX_INCLUDE_KERNEL
+	"${KEDR_COI_KERNEL_TEST_PREFIX_INCLUDE_KERNEL}")
+    add_testable_path (KEDR_COI_PREFIX_INCLUDE_KERNEL)
+endif(KERNEL_PART)
+
+kernel_make_path(KEDR_COI_INSTALL_MAKE_INCLUDE_KERNEL_DIR
+    "${KEDR_COI_KERNEL_INSTALL_INCLUDE_KERNEL_DIR}"
+)
+kernel_make_path(KEDR_COI_TEST_MAKE_INCLUDE_KERNEL_DIR
+    "${KEDR_COI_KERNEL_TEST_INCLUDE_KERNEL_DIR}"
+)
+kernel_build_test_make_path(KEDR_COI_TEST_MAKE_INCLUDE_KERNEL_DIR)
+add_testable_path (KEDR_COI_MAKE_INCLUDE_KERNEL_DIR)
+
+if(KERNEL_PART)
+    include(kbuild_system)
+    include(kmodule)
+endif(KERNEL_PART)
 
 include(template_generation)
 
@@ -60,44 +98,28 @@ kedr_coi_test_add_prefix("kedr_coi")
 #######################################################################
 #kedr_coi_install_library(library_name)
 function(kedr_coi_install_library library_name)
-	install(TARGETS ${library_name} LIBRARY
-			DESTINATION ${KEDR_COI_INSTALL_PREFIX_LIB})
+    install(TARGETS ${library_name} LIBRARY
+            DESTINATION ${KEDR_COI_INSTALL_PREFIX_LIB})
 endfunction(kedr_coi_install_library library_name)
 #kedr_coi_install_headers(install_subdir header_file [..])
 function(kedr_coi_install_headers install_subdir)
-	install(FILES ${header_file} ${ARGN}
-			DESTINATION ${KEDR_COI_INSTALL_PREFIX_INCLUDE}/${install_subdir})
+    install(FILES ${header_file} ${ARGN}
+            DESTINATION ${KEDR_COI_INSTALL_PREFIX_INCLUDE}/${install_subdir})
 endfunction(kedr_coi_install_headers install_subdir)
-#kedr_coi_install_kmodule(kmodule_name)
-function(kedr_coi_install_kmodule kmodule_name)
+if(KERNEL_PART)
+    #kedr_coi_install_kmodule(kmodule_name)
+    function(kedr_coi_install_kmodule kmodule_name)
 	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${kmodule_name}.ko"
-			DESTINATION "${KEDR_COI_INSTALL_PREFIX_KMODULE}")
-endfunction(kedr_coi_install_kmodule kmodule_name)
-#kedr_coi_install_symvers(kmodule_name)
-function(kedr_coi_install_symvers kmodule_name)
+		DESTINATION "${KEDR_COI_INSTALL_PREFIX_KMODULE}")
+    endfunction(kedr_coi_install_kmodule kmodule_name)
+    #kedr_coi_install_symvers(kmodule_name)
+    function(kedr_coi_install_symvers kmodule_name)
 	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/Module.symvers"
-			DESTINATION "${KEDR_COI_INSTALL_PREFIX_KSYMVERS}"
-			RENAME "${kmodule_name}.symvers")
-endfunction(kedr_coi_install_symvers kmodule_name)
-
+		DESTINATION "${KEDR_COI_INSTALL_PREFIX_KSYMVERS}"
+		RENAME "${kmodule_name}.symvers")
+    endfunction(kedr_coi_install_symvers kmodule_name)
+endif(KERNEL_PART)
 #######################################################################
-configure_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/cmake_uninstall.cmake.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
-    IMMEDIATE @ONLY
-)
-
-add_custom_target (uninstall_files
-    "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
-)
-
-add_custom_target (uninstall)
-
-# During uninstall process, the files should be removed first, then 
-# the directories.
-# 'uninstall_dirs' target is defined in cmake/modules/path_prefixes.cmake.
-add_dependencies (uninstall_dirs uninstall_files)
-add_dependencies (uninstall uninstall_dirs)
 
 #######################################################################
 #${CMAKE_SOURCE_DIR}/include - root of the include tree (see conventions).
@@ -118,59 +140,124 @@ endif ()
 message (STATUS "Build type is \"${CMAKE_BUILD_TYPE}\"")
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    kbuild_add_definitions(
-        "-Wall -Wextra -Wno-unused-parameter -DKEDR_COI_DEBUG -g"
-    )
+    if(KERNEL_PART)
+	kbuild_add_definitions(
+	    "-Wall -Wextra -Wno-unused-parameter -DKEDR_COI_DEBUG -g"
+	)
+    endif(KERNEL_PART)
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
-    kbuild_add_definitions(
-        "-Wall"
-    )
+    if(KERNEL_PART)
+	kbuild_add_definitions(
+	    "-Wall"
+	)
+    endif(KERNEL_PART)
 elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-    kbuild_add_definitions(
-        "-Wall -g"
-    )
+    if(KERNEL_PART)
+	kbuild_add_definitions(
+	    "-Wall -g"
+	)
+    endif(KERNEL_PART)
 else (CMAKE_BUILD_TYPE STREQUAL "Debug")
-	message(FATAL_ERROR "Incorrect build type: ${CMAKE_BUILD_TYPE}. Should be one of 'Debug', 'Release' or 'RelWithDebInfo'")
+    message(FATAL_ERROR "Incorrect build type: ${CMAKE_BUILD_TYPE}. Should be one of 'Debug', 'Release' or 'RelWithDebInfo'")
 endif()
 
 #######################################################################
-# Perform basic checks
-
-# Check if we use kernel version 2.6.31 or newer
-check_kernel_version(2 6 31)
-
-# Check if kernel modules can be built on this system
-check_module_build()
-
-# Determine way of hlist_for_each_* macros usage
-check_hlist_for_each_entry()
+if(KERNEL_PART)
+    # Determine way of hlist_for_each_* macros usage
+    check_hlist_for_each_entry()
+endif(KERNEL_PART)
 #######################################################################
-set(JY_TOOL "python" "${CMAKE_CURRENT_SOURCE_DIR}/tools/jinja2-yaml/jinja2-yaml.py"
-	CACHE INTERNAL "jinja2-yaml tool for build KEDR COI itself")
-
 # Top directory with jinja2 templates for different purposes.
 set(COI_TEMPLATES_DIR "${CMAKE_SOURCE_DIR}/templates/") 
 #######################################################################
 
-add_subdirectory(core)
+user_build_path(KEDR_COI_TEST_INCLUDE_DIR)
+if(USER_PART)
+    # Only common includes are processed here.
+    add_subdirectory(include)
+endif(USER_PART)
 
-add_subdirectory(include)
+if(KERNEL_PART)
+    add_subdirectory(core)
+endif(KERNEL_PART)
 
-add_subdirectory(templates)
+# For tests only.
+set(KEDR_COI_TEST_SHELL_CORE_MODULE "${CMAKE_BINARY_DIR}/core/kedr_coi.ko")
+kernel_build_test_shell_path(KEDR_COI_TEST_SHELL_CORE_MODULE)
 
-add_subdirectory(interceptors)
+kernel_make_path(KEDR_COI_INSTALL_MAKE_CORE_SYMBOLS
+    "${KEDR_COI_KERNEL_INSTALL_PREFIX_KSYMVERS}/kedr_coi.symvers"
+)
+set(KEDR_COI_TEST_MAKE_CORE_SYMBOLS "${CMAKE_BINARY_DIR}/core/Module.symvers")
+kernel_build_test_make_path(KEDR_COI_TEST_MAKE_CORE_SYMBOLS)
+add_testable_path(KEDR_COI_MAKE_CORE_SYMBOLS)
 
+# Tools may be used by anyone.
 add_subdirectory(tools)
 
 if (NOT CMAKE_CROSSCOMPILING)
-	# Examples
-	add_subdirectory(examples)
+    # jinja2-yaml will be installed, so it can be used, e.g. in examples.
+    set(KEDR_COI_INSTALL_MAKE_JY_TOOL "${KEDR_COI_INSTALL_PREFIX_EXEC_AUX}/jinja2-yaml.py")
+    # For tests use same ${JY_TOOL}, as for build package itself
+    # (defined in the tools/CMakeLists.txt).
+    # But need to explicitely join elements with ' ' instead of ';'.
+    string(REPLACE ";" " " KEDR_COI_TEST_MAKE_JY_TOOL "${JY_TOOL}")
+    add_testable_path(KEDR_COI_MAKE_JY_TOOL)
 endif (NOT CMAKE_CROSSCOMPILING)
 
-add_subdirectory(doc)
+# Templates are common.
+set(KEDR_COI_INSTALL_PREFIX_TEMPLATES
+    "${KEDR_COI_INSTALL_PREFIX_READONLY}/templates")
+set(KEDR_COI_TEST_PREFIX_TEMPLATES
+    "${CMAKE_SOURCE_DIR}/templates")
+if(USER_PART)
+    add_subdirectory(templates)
+endif(USER_PART)
+add_testable_path("KEDR_COI_PREFIX_TEMPLATES")
 
-configure_file("${CMAKE_SOURCE_DIR}/config.h.in" "${CMAKE_BINARY_DIR}/config.h")
+
+# But generated interceptors are per-kernel.
+set(KEDR_COI_KERNEL_INSTALL_PREFIX_INTERCEPTORS
+    "${KEDR_COI_INSTALL_PREFIX_READONLY}/interceptors/%kernel%")
+
+set(KEDR_COI_TEST_PREFIX_INTERCEPTORS
+    "${CMAKE_BINARY_DIR}/interceptors/")
+
+kernel_make_path(KEDR_COI_INSTALL_MAKE_PREFIX_INTERCEPTORS
+    ${KEDR_COI_KERNEL_INSTALL_PREFIX_INTERCEPTORS})
+set(KEDR_COI_TEST_MAKE_PREFIX_INTERCEPTORS ${KEDR_COI_TEST_PREFIX_INTERCEPTORS})
+kernel_build_test_make_path(KEDR_COI_TEST_MAKE_PREFIX_INTERCEPTORS)
+add_testable_path (KEDR_COI_MAKE_PREFIX_INTERCEPTORS)
+
+if(KERNEL_PART)
+    kernel_part_path(KEDR_COI_INSTALL_PREFIX_INTERCEPTORS
+	"${KEDR_COI_KERNEL_INSTALL_PREFIX_INTERCEPTORS}")
+
+    add_subdirectory(interceptors)
+endif(KERNEL_PART)
+
+
+
+# Common tests.
+if(USER_PART)
+    add_subdirectory(tests)
+endif(USER_PART)
+
+
+# Examples, kernel and user division is inside.
+if (NOT CMAKE_CROSSCOMPILING)
+    add_subdirectory(examples)
+endif (NOT CMAKE_CROSSCOMPILING)
+
+if(USER_PART)
+    add_subdirectory(doc)
+endif(USER_PART)
+
+if(KERNEL_PART)
+    configure_file("${CMAKE_SOURCE_DIR}/config_kernel.h.in" "${CMAKE_BINARY_DIR}/config_kernel.h")
+endif(KERNEL_PART)
 #######################################################################
+# TODO: Message should reflect KERNEL_PART_ONLY/ USER_PART_ONLY.
 message (STATUS "Configured ${KEDR_COI_PACKAGE_NAME} version ${KEDR_COI_VERSION}")
 
 #######################################################################

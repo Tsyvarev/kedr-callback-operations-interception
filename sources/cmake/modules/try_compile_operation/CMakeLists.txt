@@ -1,10 +1,6 @@
 # Needed for all CMakeLists files, otherwise cmake will warn
 cmake_minimum_required (VERSION 2.6)
 
-if (NOT KERNELDIR)
-	set(KERNELDIR /lib/modules/${KBUILD_VERSION_STRING}/build)
-endif (NOT KERNELDIR)
-
 project(kmodule_try_compile_operation)
 
 if(NOT IS_ABSOLUTE ${HEADER_FILE})
@@ -27,6 +23,15 @@ configure_file("Kbuild.in" "Kbuild"
 # 'make all' should produce try_compile.ko file
 add_custom_target(kmodule_compile ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/try_compile_operation.ko)
 # Rule to produce try_compile.ko from try_compile.c
+
+set(additional_make_flags)
+if(ARCH)
+	list(APPEND additional_make_flags "ARCH=${ARCH}")
+endif(ARCH)
+if(CROSS_COMPILE)
+	list(APPEND additional_make_flags "CROSS_COMPILE=${CROSS_COMPILE}")
+endif(CROSS_COMPILE)
+
 add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/try_compile_operation.ko"
-	COMMAND $(MAKE) ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} -C ${KERNELDIR} M=${CMAKE_CURRENT_BINARY_DIR} modules
+	COMMAND $(MAKE) ${additional_make_flags} -C ${KERNELDIR} M=${CMAKE_CURRENT_BINARY_DIR} modules
 					DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/try_compile_operation.c")

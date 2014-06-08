@@ -30,7 +30,7 @@
 #include <linux/fs.h>
 #include <linux/cdev.h>
 
-#include <kedr-coi/interceptors/file_operations_interceptor.h>
+#include <kedr-coi-kernel/interceptors/file_operations_interceptor.h>
 #include "cdev_file_operations_interceptor.h"
 
 unsigned read_counter = 0;

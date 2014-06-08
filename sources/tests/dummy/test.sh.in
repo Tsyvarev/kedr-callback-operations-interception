@@ -1,0 +1,14 @@
+#!/bin/sh
+
+kedr_coi_module_name=kedr_coi
+kedr_coi_module=@KEDR_COI_TEST_SHELL_CORE_MODULE@
+
+if ! /sbin/insmod ${kedr_coi_module}; then
+    printf "Failed to load ${kedr_coi_module_name} module into kernel.\n"
+    exit 1
+fi
+
+if ! /sbin/rmmod ${kedr_coi_module_name}; then
+    printf "Failed to unload ${kedr_coi_module_name} module from kernel.\n"
+    exit 1
+fi
