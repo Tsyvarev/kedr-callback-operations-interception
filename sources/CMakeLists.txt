@@ -109,14 +109,15 @@ endfunction(kedr_coi_install_headers install_subdir)
 if(KERNEL_PART)
     #kedr_coi_install_kmodule(kmodule_name)
     function(kedr_coi_install_kmodule kmodule_name)
-	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${kmodule_name}.ko"
-		DESTINATION "${KEDR_COI_INSTALL_PREFIX_KMODULE}")
+	kbuild_install(TARGETS ${kmodule_name} MODULE
+	    DESTINATION "${KEDR_COI_INSTALL_PREFIX_KMODULE}"
+	)
     endfunction(kedr_coi_install_kmodule kmodule_name)
     #kedr_coi_install_symvers(kmodule_name)
     function(kedr_coi_install_symvers kmodule_name)
-	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/Module.symvers"
-		DESTINATION "${KEDR_COI_INSTALL_PREFIX_KSYMVERS}"
-		RENAME "${kmodule_name}.symvers")
+	kbuild_install(TARGETS ${kmodule_name} SYMVERS
+	    DESTINATION "${KEDR_COI_INSTALL_PREFIX_KSYMVERS}"
+	)
     endfunction(kedr_coi_install_symvers kmodule_name)
 endif(KERNEL_PART)
 #######################################################################
@@ -182,13 +183,13 @@ if(KERNEL_PART)
 endif(KERNEL_PART)
 
 # For tests only.
-set(KEDR_COI_TEST_SHELL_CORE_MODULE "${CMAKE_BINARY_DIR}/core/kedr_coi.ko")
+kbuild_get_module_location(KEDR_COI_TEST_SHELL_CORE_MODULE "kedr_coi")
 kernel_build_test_shell_path(KEDR_COI_TEST_SHELL_CORE_MODULE)
 
 kernel_make_path(KEDR_COI_INSTALL_MAKE_CORE_SYMBOLS
     "${KEDR_COI_KERNEL_INSTALL_PREFIX_KSYMVERS}/kedr_coi.symvers"
 )
-set(KEDR_COI_TEST_MAKE_CORE_SYMBOLS "${CMAKE_BINARY_DIR}/core/Module.symvers")
+kbuild_get_symvers_location(KEDR_COI_TEST_MAKE_CORE_SYMBOLS "kedr_coi")
 kernel_build_test_make_path(KEDR_COI_TEST_MAKE_CORE_SYMBOLS)
 add_testable_path(KEDR_COI_MAKE_CORE_SYMBOLS)
 
@@ -255,6 +256,10 @@ endif(USER_PART)
 
 if(KERNEL_PART)
     configure_file("${CMAKE_SOURCE_DIR}/config_kernel.h.in" "${CMAKE_BINARY_DIR}/config_kernel.h")
+endif(KERNEL_PART)
+
+if(KERNEL_PART)
+    kbuild_finalize_linking()
 endif(KERNEL_PART)
 #######################################################################
 # TODO: Message should reflect KERNEL_PART_ONLY/ USER_PART_ONLY.

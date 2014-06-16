@@ -60,10 +60,10 @@ function(to_abs_path output_var)
     set("${output_var}" ${result} PARENT_SCOPE)
 endfunction(to_abs_path output_var path)
 
-#is_path_inside_dir(output_var dir path)
+# is_path_inside_dir(output_var dir path)
 #
 # Set output_var to true if path is absolute path inside given directory.
-# (!) path should be absolute.
+# NOTE: Path should be absolute.
 macro(is_path_inside_dir output_var dir path)
     file(RELATIVE_PATH _rel_path ${dir} ${path})
     string(REGEX MATCH "^\\.\\." _is_not_inside_dir ${_rel_path})

@@ -101,22 +101,24 @@ function (kedr_coi_test_add_script test_name script_file)
     endif (NOT CMAKE_CROSSCOMPILING)
 endfunction (kedr_coi_test_add_script)
 
-# kedr_coi_test_add_kernel(test_name module_name sources ... [DEPENDS module ...])
+# kedr_coi_test_add_kernel(<test_name> <module_name> <sources> ... [DEPENDS <module-target> ...])
 #
 # This function adds test as kernel space code.
 # This code is wrapped into kernel module, which is built during
 # 'build_tests' target and loaded into kernel during 'check'ing.
 #
-# 'test_name' is the name of the test
-# 'module_name' is the name of the module created
-#    (in the current binary directory)
-# 'source' is source file(s) which contained test. This file(s) should
+# <test_name> is the name of the test
+# <module_name> is the name of the module created
+#    (in the current binary directory).
+#    In the current implementation <module_name> is used as name of the target,
+#    so it should be unique.
+# <sources> are source files which contained test. These files(together) should
 # export 3 functions:
-# int test_init(void)
+# 1) int test_init(void)
 #  -initialize test, return 0 on successfull initialization and negative error code otherwise
-# int test_run(void)
+# 2) int test_run(void)
 #  -execute test actions and return 0 on success and negative error code(usually -1) on fail
-# void test_cleanup(void)
+# 3) void test_cleanup(void)
 #  -clean test after running(note, that running may fail)
 #
 # Possible source files are the same as in kbuild_add_module() function
@@ -124,11 +126,19 @@ endfunction (kedr_coi_test_add_script)
 # function is affects on the test module created by this function
 # (e.g. kbuild_include_directory).
 #
-# If test code use definitions from other modules, these modules
-# should be enumerated after DEPENDS keyword(NOT implemented).
+# If test code use definitions from other modules, targets for these
+# modules should be enumerated after DEPENDS keyword.
+# Targets for imported modules should have properties
+# KMODULE_IMPORTED_MODULE_LOCATION and KMODULE_IMPORTED_SYMVERS_LOCATION.
 
-function(kedr_coi_test_add_kernel test_name module_name source)
+function(kedr_coi_test_add_kernel test_name module_name)
     if (NOT CMAKE_CROSSCOMPILING)
+	cmake_parse_arguments(kernel_test "" "" "DEPENDS" ${ARGN})
+	
+	if(NOT kernel_test_UNPARSED_ARGUMENTS)
+	    message(FATAL_ERROR "kedr_coi_test_add_kernel: At least one source file should be specified.")
+	endif(NOT kernel_test_UNPARSED_ARGUMENTS)
+	
         set(test_kernel_code_source
             "${kedr_coi_testing_this_module_dir}/kedr_coi_testing_files/test_kernel_code.c"
         )
@@ -136,37 +146,27 @@ function(kedr_coi_test_add_kernel test_name module_name source)
             "${kedr_coi_testing_this_module_dir}/kedr_coi_testing_files/test_kernel_code.sh"
         )
         
-        kbuild_add_module(${module_name} "test_kernel_code.c"
-            ${source} ${ARGN}
-        )
         rule_copy_file("test_kernel_code.c" "${test_kernel_code_source}")
-        
-           set_target_properties (${module_name}
-            PROPERTIES EXCLUDE_FROM_ALL true
+	kbuild_add_module(${module_name} "test_kernel_code.c"
+            ${kernel_test_UNPARSED_ARGUMENTS}
         )
-        add_dependencies (build_tests ${module_name})
-
-        __kedr_coi_test_get_full_name(test_full_name "${test_name}")
+	kbuild_link_module(${module_name} ${kernel_test_DEPENDS})
         
-        add_test ("${test_full_name}" /bin/bash ${test_kernel_code_script}
+	kedr_coi_test_add_target(${module_name})
+        
+	# List of modules for load before test module and unload after it. 
+	set(preload_modules)
+	foreach(dep ${kernel_test_DEPENDS})
+	    kbuild_get_module_location(module_location ${dep})
+	    list(APPEND preload_modules ${module_location})
+	endforeach(dep ${kernel_test_DEPENDS})
+	
+	kedr_coi_test_add_script("${test_name}" "${test_kernel_code_script}"
             "${CMAKE_CURRENT_BINARY_DIR}/${module_name}.ko"
-            ${kedr_coi_test_kernel_dependencies}
+            ${preload_modules}
         )
     endif (NOT CMAKE_CROSSCOMPILING)
-endfunction(kedr_coi_test_add_kernel test_name module_name source)
-
-# kedr_coi_test_add_kernel_dependency(module_name ...)
-#
-# If test's kernel code (kedr_coi_test_add_kernel())
-# use symbols from other modules, this function should be called
-# before adding the test. Parameters, given to function,
-# will be interpreted as names of modules which should be loaded
-# before test and unloaded after it finished.
-
-function(kedr_coi_test_add_kernel_dependency module_name)
-    list(APPEND kedr_coi_test_kernel_dependencies ${module_name} ${ARGN})
-    set(kedr_coi_test_kernel_dependencies ${kedr_coi_test_kernel_dependencies} PARENT_SCOPE)
-endfunction(kedr_coi_test_add_kernel_dependency module_name)
+endfunction(kedr_coi_test_add_kernel test_name module_name)
 
 # Use this macro instead of add_subdirectory() for the subtrees related to 
 # testing of the package.
