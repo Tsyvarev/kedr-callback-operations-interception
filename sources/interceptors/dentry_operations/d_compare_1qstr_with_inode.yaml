@@ -1,0 +1,31 @@
+operations:
+
+  - name:  d_compare
+    returnType:  int
+
+    args:
+      - type:  const struct dentry *
+        name:  parent
+
+      - type:  const struct inode *
+        name:  parent_inode
+
+      - type:  const struct dentry *
+        name:  dentry
+
+      - type:  const struct inode *
+        name:  dentry_inode
+
+      - type:  unsigned int
+        name:  tlen
+
+      - type:  const char*
+        name:  tname
+
+      - type:  const struct qstr *
+        name:  name
+
+    object:  parent
+
+
+# Called from __d_lookup[_rcu]; checked in d_set_d_op
