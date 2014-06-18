@@ -14,81 +14,33 @@ if (CMAKE_CROSSCOMPILING)
     endif (KEDR_COI_SYSTEM_MAP_FILE)
 endif (CMAKE_CROSSCOMPILING)
 
-# kmodule_try_compile(RESULT_VAR bindir srcfile
-#           [COMPILE_DEFINITIONS flags ...]
-#           [OUTPUT_VARIABLE var])
+# Check that modules can really be built
+function(check_module_build)
+	check_begin("Checking if kernel modules can be built on this system")
 
-# Similar to try_module in simplified form, but compile srcfile as
-# kernel module, instead of user space program.
-#
-# 'flags' for COMPILE_DEFINITIONS may be any but without "'" symbols.
-
-function(kmodule_try_compile RESULT_VAR bindir srcfile)
-    set(current_scope)
-    to_abs_path(src_abs_path "${srcfile}")
-    foreach(arg ${ARGN})
-        if(arg STREQUAL "COMPILE_DEFINITIONS")
-            set(current_scope "COMPILE_DEFINITIONS")
-        elseif(arg STREQUAL "OUTPUT_VARIABLE")
-            set(current_scope "OUTPUT_VARIABLE")
-        elseif(current_scope STREQUAL "COMPILE_DEFINITIONS")
-            set(kmodule_cflags "${kmodule_cflags} '${arg}'")
-        elseif(current_scope STREQUAL "OUTPUT_VARIABLE")
-            set(output_variable "${arg}")
-        else(arg STREQUAL "COMPILE_DEFINITIONS")
-            message(FATAL_ERROR 
-                "Unknown parameter passed to kmodule_try_compile: '${arg}'."
-            )
-        endif(arg STREQUAL "COMPILE_DEFINITIONS")
-    endforeach(arg ${ARGN})
-    # Collect parameters to try_compile() function
-    set(additional_cmake_flags)
-    if(ARCH)
-        list(APPEND additional_cmake_flags "-DARCH=${ARCH}")
-    endif(ARCH)
-    if(CROSS_COMPILE)
-        list(APPEND additional_cmake_flags "-DCROSS_COMPILE=${CROSS_COMPILE}")
-    endif(CROSS_COMPILE)
-
-    if(DEFINED kmodule_cflags)
-        list(APPEND additional_cmake_flags
-            "-Dkmodule_flags:STRING=${kmodule_cflags}" # Parameters for compiler
+    if (NOT MODULE_BUILD_SUPPORTED)
+        check_try()
+        kbuild_try_compile(_module_build_result
+            "${CMAKE_BINARY_DIR}/check_module_build"
+            "${kmodule_test_sources_dir}/check_module_build/module.c"
         )
-    endif(DEFINED kmodule_cflags)
-
-    # Definition of output variable if needed.
-    set(output_variable_def)
-    if(DEFINED output_variable)
-        set(output_variable_def
-            "OUTPUT_VARIABLE" "output_tmp"
+        # Transform result to "yes"/"no" (instead of "TRUE"/"FALSE").
+        if(_module_build_result)
+            set(_module_build_result "yes")
+        else(_module_build_result)
+            set(_module_build_result "no")
+        endif(_module_build_result)
+        
+        set(MODULE_BUILD_SUPPORTED "${_module_build_result}" CACHE INTERNAL
+            "Can kernel modules be built on this system?"
         )
-    endif(DEFINED output_variable)
+    endif (NOT MODULE_BUILD_SUPPORTED)
+	check_end("${MODULE_BUILD_SUPPORTED}")
 
-    
-    set(try_compile_params
-             # Arhictecture
-            "-DCROSS_COMPILE=${CROSS_COMPILE}" # Cross compilation
-        )
-
-
-    try_compile(result_tmp # Result variable(temporary)
-        "${bindir}" # Binary directory
-        "${kmodule_this_module_dir}/kmodule_files" # Source directory
-        "kmodule_try_compile_target" # Project name
-         CMAKE_FLAGS # Flags to CMake:
-            "-DSRC_FILE:path=${src_abs_path}" # Path to real source file
-            "-DKERNELDIR=${Kbuild_BUILD_DIR}" # Kernel build directory
-            ${additional_cmake_flags}
-        ${output_variable_def}
-    )
-    
-    if(DEFINED output_variable)
-        # Set output variable for the caller
-        set("${output_variable}" "${output_tmp}" PARENT_SCOPE)
-    endif(DEFINED output_variable)
-    # Set result variable for the caller
-    set("${RESULT_VAR}" "${result_tmp}" PARENT_SCOPE)
-endfunction(kmodule_try_compile RESULT_VAR bindir srcfile)
+    if(NOT MODULE_BUILD_SUPPORTED)
+        message(FATAL_ERROR "Kernel modules cannot be built with given KBuild system.")
+    endif(NOT MODULE_BUILD_SUPPORTED)
+endfunction(check_module_build)
 ############################################################################
 
 # kmodule_try_compile_operation(RESULT_VAR bindir
@@ -104,31 +56,34 @@ endfunction(kmodule_try_compile RESULT_VAR bindir srcfile)
 function(kmodule_try_compile_operation RESULT_VAR bindir
     header_file operations_struct operation_name)
 
-    # Collect parameters to try_compile() function
-    set(additional_cmake_flags)
-    if(ARCH)
-        list(APPEND additional_cmake_flags "-DARCH=${ARCH}")
-    endif(ARCH)
-    if(CROSS_COMPILE)
-        list(APPEND additional_cmake_flags "-DCROSS_COMPILE=${CROSS_COMPILE}")
-    endif(CROSS_COMPILE)
-	foreach(arg ${ARGN})
-		list(APPEND additional_cmake_flags "-DOPERATION_TYPE:string=${arg}")
+    set(operation_type)
+    foreach(arg ${ARGN})
+		set(operation_type "${arg}")
     endforeach(arg ${ARGN})
 
+    if(operation_type)
+        set(configured_source_name "try_compile_operation_typed.c.in")
+    else(operation_type)
+        set(configured_source_name "try_compile_operation.c.in")
+    endif(operation_type)
+    
+    set(source_file "${bindir}/try_compile_operation.c")
+    
+    if(NOT IS_ABSOLUTE ${header_file})
+        message(FATAL_ERROR "<header_file> parameter should be absolute path")
+    endif(NOT IS_ABSOLUTE ${header_file})
 
+    get_filename_component(include_dir "${header_file}" PATH)
+    get_filename_component(include_file "${header_file}" NAME)
+    
+    configure_file("${kmodule_this_module_dir}/try_compile_operation/${configured_source_name}"
+        ${source_file})
 
-    try_compile(result_tmp # Result variable(temporary)
+    kbuild_try_compile(result_tmp # Result variable(temporary)
         "${bindir}" # Binary directory
-        "${kmodule_this_module_dir}/try_compile_operation" # Source directory
-        "kmodule_try_compile_operation" # Project name
-         CMAKE_FLAGS # Flags to CMake:
-            "-DKERNELDIR:path=${Kbuild_BUILD_DIR}" # Kernel build directory
-            "-DHEADER_FILE:path=${header_file}"
-            "-DOPERATIONS_STRUCT:string=${operations_struct}"
-            "-DOPERATION_NAME:string=${operation_name}"
-            ${additional_cmake_flags}
-        )
+        "${source_file}"
+        CMAKE_FLAGS "-DKBUILD_INCLUDE_DIRECTORIES=${include_dir}"
+    )
     set(${RESULT_VAR} ${result_tmp} PARENT_SCOPE)
 endfunction(kmodule_try_compile_operation RESULT_VAR bindir
     header_file operations_struct operation_name)
@@ -303,7 +258,7 @@ macro(check_hlist_for_each_entry)
 "${check_hlist_for_each_entry_message} [cached] - done"
         )
     else ()
-        kmodule_try_compile(pos_only_impl
+        kbuild_try_compile(pos_only_impl
             "${CMAKE_BINARY_DIR}/check_hlist_for_each_entry"
             "${kmodule_test_sources_dir}/check_hlist_for_each_entry/module.c"
         )

@@ -6,16 +6,16 @@ MODULE_LICENSE("GPL");
 
 #include "@include_file@"
 
-@OPERATIONS_STRUCT@ ops =
+@operations_struct@ ops =
 {
-    .@OPERATION_NAME@ = NULL,
+    .@operation_name@ = NULL,
 };
 
 
 static int __init
 my_init(void)
 {
-    BUILD_BUG_ON(!__builtin_types_compatible_p(typeof(((@OPERATIONS_STRUCT@ *)0)->@OPERATION_NAME@), @OPERATION_TYPE@));
+    BUILD_BUG_ON(!__builtin_types_compatible_p(typeof(((@operations_struct@ *)0)->@operation_name@), @operation_type@));
     return 0;
 }
 

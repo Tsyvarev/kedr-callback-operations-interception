@@ -14,10 +14,6 @@
 #  Kbuild_VERSION_STRING_CLASSIC - classic representation of version,
 # where parts are delimited by dots.
 
-set(this_dir "${CMAKE_SOURCE_DIR}/cmake/modules")
-
-set(_kbuild_fail_message "DEFAULT_MSG")
-
 # User can control KBUILD_VERSION_STRING via CMAKE_SYSTEM_VERSION variable.
 # This will be interpreted by cmake as crosscompile.
 set(Kbuild_VERSION_STRING ${CMAKE_SYSTEM_VERSION})
@@ -83,46 +79,9 @@ else(ARCH)
 	string(REGEX REPLACE "aarch64.*" "arm64" KBuild_ARCH "${KBuild_ARCH}")
 endif(ARCH)
 
-# Check that modules can really be built
-if(NOT Kbuild_FIND_QUIET)
-	check_begin("Checking if kernel modules can be built on this system")
-endif(NOT Kbuild_FIND_QUIET)
-if (NOT Kbuild_MODULE_BUILD_SUPPORTED)
-	check_try()
-	set(additional_flags)
-	if(ARCH)
-		list(APPEND additional_flags "ARCH=${ARCH}")
-	endif(ARCH)
-	
-	try_compile(_module_build_result
-		"${CMAKE_BINARY_DIR}/check_module_build"
-		"${this_dir}/check_kmodule_build"
-		"test_module"
-		CMAKE_FLAGS "-DKERNELDIR=${Kbuild_BUILD_DIR}" ${additional_flags}
-	)
-	# Transform result to "yes"/"no" (instead of "TRUE"/"FALSE").
-	if(_module_build_result)
-		set(_module_build_result "yes")
-	else(_module_build_result)
-		set(_module_build_result "no")
-	endif(_module_build_result)
-	
-	set(Kbuild_MODULE_BUILD_SUPPORTED "${_module_build_result}" CACHE INTERNAL
-		"Can kernel modules be built on this system?"
-	)
-endif (NOT Kbuild_MODULE_BUILD_SUPPORTED)
-
-if(NOT Kbuild_FIND_QUIET)
-	check_end("${Kbuild_MODULE_BUILD_SUPPORTED}")
-endif(NOT Kbuild_FIND_QUIET)
-if(NOT Kbuild_MODULE_BUILD_SUPPORTED)
-	set(_kbuild_fail_message "Kernel modules cannot be built with given KBuild system.")
-endif(NOT Kbuild_MODULE_BUILD_SUPPORTED)
-
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(Kbuild
-    REQUIRED_VARS Kbuild_BUILD_DIR Kbuild_MODULE_BUILD_SUPPORTED
+    REQUIRED_VARS Kbuild_BUILD_DIR
     VERSION_VAR KBuild_VERSION_STRING_CLASSIC
-    FAIL_MESSAGE _kbuild_fail_message
 )

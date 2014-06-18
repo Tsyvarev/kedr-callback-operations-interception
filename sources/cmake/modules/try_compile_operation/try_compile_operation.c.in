@@ -6,9 +6,9 @@ MODULE_LICENSE("GPL");
 
 #include "@include_file@"
 
-@OPERATIONS_STRUCT@ ops =
+@operations_struct@ ops =
 {
-    .@OPERATION_NAME@ = NULL,
+    .@operation_name@ = NULL,
 };
 
 

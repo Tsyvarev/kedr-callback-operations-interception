@@ -7,14 +7,50 @@
 
 include(cmake_useful)
 
-# Location of this CMake module
-set(kbuild_this_module_dir "${CMAKE_SOURCE_DIR}/cmake/modules")
+# Compute path to the auxiliary files.
+get_filename_component(kbuild_this_module_dir ${CMAKE_CURRENT_LIST_FILE} PATH)
+set(kbuild_aux_dir "${kbuild_this_module_dir}/kbuild_system_files")
 
 # Include directories for building kernel modules
 set(kbuild_include_dirs)
 
 # Additional compiler flags for the module
 set(kbuild_cflags)
+
+# Parameters below are set externally only in try_compile() for subproject,
+# which include this file.
+#
+# We do not cache them, as native try_compile(..srcfile) implementation
+# also do not cache parameters to cmake subproject.
+
+# Real top-level source directory.
+if(NOT KBUILD_REAL_SOURCE_DIR)
+    set(KBUILD_REAL_SOURCE_DIR ${CMAKE_SOURCE_DIR})
+endif(NOT KBUILD_REAL_SOURCE_DIR)
+# Real top-level binary directory.
+if(NOT KBUILD_REAL_BINARY_DIR)
+    set(KBUILD_REAL_BINARY_DIR ${CMAKE_BINARY_DIR})
+endif(NOT KBUILD_REAL_BINARY_DIR)
+
+
+
+# These flags will be passed to the 'make' when compile kernel module.
+set(kbuild_additional_make_flags)
+# These CMake flags will be passed to try_compile() subproject.
+set(kbuild_try_compile_flags
+    "-DKBUILD_REAL_SOURCE_DIR=${KBUILD_REAL_SOURCE_DIR}"
+    "-DKBUILD_REAL_BINARY_DIR=${KBUILD_REAL_BINARY_DIR}"
+)
+
+if(ARCH)
+    list(APPEND kbuild_additional_make_flags "ARCH=${ARCH}")
+    list(APPEND kbuild_try_compile_flags "-DARCH=${ARCH}")
+endif(ARCH)
+if(CROSS_COMPILE)
+    list(APPEND kbuild_additional_make_flags "CROSS_COMPILE=${CROSS_COMPILE}")
+    list(APPEND kbuild_try_compile_flags "-DCROSS_COMPILE=${CROSS_COMPILE}")
+endif(CROSS_COMPILE)
+
 
 # Property prefixed with 'KMODULE_' is readonly for outer use,
 # unless explicitely noted in its description.
@@ -65,7 +101,7 @@ define_property(TARGET PROPERTY KMODULE_SYMVERS_LOCATION
     FULL_DOCS "Location of the symvers file of the kernel module."
 )
 
-# CMAKE_CURRENT_BINARY_DIR at the moment, when kbuil_add_module() is issued.
+# CMAKE_CURRENT_BINARY_DIR at the moment, when kbuild_add_module() is issued.
 #
 # This property is used for determine, whether kbuild_link_module()
 # command may be implemented as
@@ -185,26 +221,51 @@ set(_kbuild_symvers "Module.symvers")
 set(_kbuild_symvers_imported_near "Module.symvers_imported_near")
 set(_kbuild_symvers_imported_far "Module.symvers_imported_far")
 
-# Helper for the building kernel module.
-# 
-# Test whether given source file is inside source tree. If it is so,
-# create rule for copy file to same relative location in binary tree.
-# Output variable will contain file's absolute path in binary tree.
 
-function(copy_source_to_binary_tree source new_source_var)
-	is_path_inside_dir(is_in_source ${CMAKE_SOURCE_DIR} "${source}")
-	is_path_inside_dir(is_in_binary ${CMAKE_BINARY_DIR} "${source}")
-	if(is_in_source AND NOT is_in_binary)
-		#special process c-sources in source tree
-		file(RELATIVE_PATH source_rel "${CMAKE_SOURCE_DIR}" "${source}")
-		set(new_source "${CMAKE_BINARY_DIR}/${source_rel}")
-		#add rule for create duplicate..
+# Helper for the building kernel module.
+#
+# copy_source_to_binary_dir(<source> <new_source_var>)
+#
+# Make sure that given source file is inside current binary dir.
+# That place is writable and has some "uniqeness" garantee for generate
+# auxiliary files during build process.
+#
+# If <source> already inside current binary dir, do nothing and
+# set <new_source_var> variable to <source> itself.
+#
+# Otherwise create rule for copy source into "nice" place inside
+# current binary dir and set <new_source_var> pointed to that place.
+function(copy_source_to_binary_dir source new_source_var)
+    is_path_inside_dir(is_in_current_binary ${CMAKE_CURRENT_BINARY_DIR} "${source}")
+    if(is_in_current_binary)
+        # Source is already placed where we want.
+        set(${new_source_var} "${source}" PARENT_SCOPE)
+    else(is_in_current_binary)
+        # Base directory from which count relative source path.
+        # By default, it is root directory.
+        set(base_dir "/")
+        # Try "nicer" base directories.
+        foreach(d
+            ${KBUILD_REAL_BINARY_DIR}
+            ${CMAKE_CURRENT_SOURCE_DIR}
+            ${KBUILD_REAL_SOURCE_DIR}
+            )
+            is_path_inside_dir(is_in_d ${d} "${source}")
+            if(is_in_d)
+                set(base_dir ${d})
+                break()
+            endif(is_in_d)
+        endforeach(d)
+		# Copy source into same relativ dir, but inside current binary one.
+        file(RELATIVE_PATH source_rel "${base_dir}" "${source}")
+		set(new_source "${CMAKE_CURRENT_BINARY_DIR}/${source_rel}")
+        get_filename_component(new_source_dir ${new_source} PATH)
+        file(MAKE_DIRECTORY "${new_source_dir}")
 		rule_copy_file("${new_source}" "${source}")
-	else(is_in_source AND NOT is_in_binary)
-		set(new_source "${source}")
-	endif(is_in_source AND NOT is_in_binary)
-	set(${new_source_var} "${new_source}" PARENT_SCOPE)
-endfunction(copy_source_to_binary_tree source new_source_var)
+        # Return path to the new source.
+        set(${new_source_var} "${new_source}" PARENT_SCOPE)
+    endif(is_in_current_binary)
+endfunction(copy_source_to_binary_dir source new_source_var)
 
 # kbuild_add_module(<name> [EXCLUDE_FROM_ALL] [MODULE_NAME <module_name>] [<sources> ...])
 #
@@ -285,7 +346,7 @@ function(kbuild_add_module name)
         if(ext STREQUAL ".c" OR ext STREQUAL ".S" OR ext STREQUAL ".o_shipped")
 			# Real sources
 			# Move source into binary tree, if needed
-			copy_source_to_binary_tree("${source_abs}" source_abs)
+			copy_source_to_binary_dir("${source_abs}" source_abs)
             
             get_filename_component(source_noext "${source_abs}" NAME_WE)
             get_filename_component(source_dir "${source_abs}" PATH)
@@ -363,22 +424,14 @@ function(kbuild_add_module name)
                     ${CMAKE_CURRENT_BINARY_DIR}/Kbuild
                     )
     
-    set(additional_make_flags)
-    if(ARCH)
-        list(APPEND additional_make_flags "ARCH=${ARCH}")
-    endif(ARCH)
-    if(CROSS_COMPILE)
-        list(APPEND additional_make_flags "CROSS_COMPILE=${CROSS_COMPILE}")
-    endif(CROSS_COMPILE)
-
     # Target for create module.
     add_custom_target(${name} ALL
         DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${module_name}.ko"
                 "${CMAKE_CURRENT_BINARY_DIR}/${_kbuild_symvers}"
     )
 
-	# Create .cmd files for 'shipped' sources - gcc does not create them
-	# automatically for some reason
+	# Create .cmd files for 'shipped' sources.
+    # Gcc does not create them automatically for some reason.
 	if(shipped_sources_noext_abs)
 		set(cmd_create_command)
 		foreach(shipped_source_noext_abs ${shipped_source_noext_abs})
@@ -397,7 +450,7 @@ function(kbuild_add_module name)
     add_custom_command(
         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${module_name}.ko"
             "${CMAKE_CURRENT_BINARY_DIR}/${_kbuild_symvers}"
-        COMMAND $(MAKE) ${additional_make_flags} 
+        COMMAND $(MAKE) ${kbuild_additional_make_flags} 
             -C ${Kbuild_BUILD_DIR} M=${CMAKE_CURRENT_BINARY_DIR} modules
         DEPENDS ${depend_files}
             ${CMAKE_CURRENT_BINARY_DIR}/${_kbuild_symvers_imported_near}
@@ -465,7 +518,7 @@ function(kbuild_link_module name)
     get_property(kmodules_list GLOBAL PROPERTY KMODULE_TARGETS)
     list(FIND kmodules_list kmodule_index "${name}")
     if(kmodule_index EQUAL "-1")
-        message(FATAL_ERROR "kbuild_module_link: passed <name>\n\t""${name}""\n which is not target name for compiled kernel module.")
+        message(FATAL_ERROR "kbuild_module_link: passed <name>\n\t\"${name}\"\n which is not target name for compiled kernel module.")
     endif(kmodule_index EQUAL "-1")
     
     # List of imported symvers files
@@ -477,17 +530,17 @@ function(kbuild_link_module name)
         if(link_is_file)
             string(REGEX MATCH "^/" file_is_absolute ${l})
             if(NOT file_is_absolute)
-                message(FATAL_ERROR "kbuild_module_link: passed filename\n\t""${link}""\nwhich is not absolute as <link>.")
+                message(FATAL_ERROR "kbuild_module_link: passed filename\n\t\"${link}\"\nwhich is not absolute as <link>.")
             endif(NOT file_is_absolute)
             set(symvers_location "${l}")
             # Do not require symvers file to be already existed.
         else(link_is_file)
             if(NOT TARGET ${l})
-                message(FATAL_ERROR "kbuild_module_link: passed link\n\t""${l}""\n which is neither an absolute path to symvers file nor a target.")
+                message(FATAL_ERROR "kbuild_module_link: passed link\n\t\"${l}\"\n which is neither an absolute path to symvers file nor a target.")
             endif(NOT TARGET ${l})
             get_property(kmodule_type TARGET ${l} PROPERTY KMODULE_TYPE)
             if(NOT kmodule_type)
-                message(FATAL_ERROR "kbuild_module_link: passed target\n\t""${l}""\n which is not a target for kernel module as link.")
+                message(FATAL_ERROR "kbuild_module_link: passed target\n\t\"${l}\"\n which is not a target for kernel module as link.")
             endif(NOT kmodule_type)
             get_property(kmodule_imported TARGET ${l} PROPERTY KMODULE_IMPORTED)
             if(kmodule_imported)
@@ -571,6 +624,232 @@ macro(kbuild_add_definitions)
     list(APPEND kbuild_cflags ${ARGN})
 endmacro(kbuild_add_definitions)
 
+
+# kbuild_install(TARGETS <module_name> ...
+#    [[MODULE|SYMVERS]
+#      DESTINATION <dir>
+#      [CONFIGURATIONS [...]]
+#      [COMPONENT <component>]
+#    ]+)
+#
+# Install kernel module(s) and/or symvers file(s) into given directory.
+#
+# Almost all options means same as for install() cmake command.
+# 'MODULE' refers to kernel module itself, SYMVERS refers symvers file.
+#
+# Unlike to standard install() command, there is no default destination
+# directory neither for modules nor for symvers files.
+# So, at least one rule should be defined, and 'DESTINATION' option
+# should be set for every rule.
+#
+# TODO: support for 'EXPORT' mode.
+function(kbuild_install type)
+    if(NOT type STREQUAL "TARGETS")
+        message(FATAL_ERROR "Only 'TARGETS' mode is currently supported")
+    endif(NOT type STREQUAL "TARGETS")
+    
+    parse_install_arguments(kbuild_install
+        "MODULE;SYMVERS" # Section types
+        "" "DESTINATION;COMPONENT" "CONFIGURATIONS" # Section keywords classification.
+        ${ARGN}
+    )
+    
+    if(NOT kbuild_install_TARGETS)
+        message(FATAL_ERROR "No targets given for kbuild_install() command")
+    endif(NOT kbuild_install_TARGETS)
+    
+    if(NOT kbuild_install_sections)
+        message(FATAL_ERROR "There is no default destination for install kernel module components, but no section described it is given.")
+    endif(NOT kbuild_install_sections)
+
+    foreach(section_type ${kbuild_install_sections})
+        if(NOT kbuild_install_${section_type}_DESTINATION)
+            message(FATAL_ERROR "DESTINATION is not defined for section ${section_type}")
+        endif(NOT kbuild_install_${section_type}_DESTINATION)
+        # All additional arguments for given section.
+        set(install_args_${section_type}
+            DESTINATION "${kbuild_install_${section_type}_DESTINATION}")
+        if(kbuild_install_${section_type}_CONFIGURATION)
+            list(APPEND install_args_${section_type}
+                CONFIGURATION "${kbuild_install_${section_type}_CONFIGURATION}"
+            )
+        endif(kbuild_install_${section_type}_CONFIGURATION)
+        if(kbuild_install_${section_type}_COMPONENT)
+            list(APPEND install_args_${section_type}
+                COMPONENT "${kbuild_install_${section_type}_COMPONENT}"
+            )
+        endif(kbuild_install_${section_type}_COMPONENT)
+        # Module installation.
+        if(section_type STREQUAL "MODULE" OR section_type STREQUAL "ALL")
+            # Combine locations for all modules in one list.
+            set(module_locations)
+            foreach(t ${kbuild_install_TARGETS})
+                kbuild_get_module_location(module_location ${t})
+                list(APPEND module_locations ${module_location})
+            endforeach(t ${kbuild_install_TARGETS})
+            # .. and install them at once.
+            install(FILES ${module_locations} ${install_args_${section_type}})
+        endif(section_type STREQUAL "MODULE" OR section_type STREQUAL "ALL")
+        # Symvers installation.
+        if(section_type STREQUAL "SYMVERS" OR section_type STREQUAL "ALL")
+            # Because of renaming, symvers files should be installed separately.
+            foreach(t ${kbuild_install_TARGETS})
+                kbuild_get_symvers_location(symvers_location ${t})
+                get_property(module_name TARGET ${t} PROPERTY KMODULE_MODULE_NAME)
+                install(FILES ${symvers_location}
+                    RENAME "${module_name}.symvers"
+                    ${install_args_${section_type}}
+                )
+            endforeach(t ${kbuild_install_TARGETS})
+        endif(section_type STREQUAL "SYMVERS" OR section_type STREQUAL "ALL")
+    endforeach(section_type ${kbuild_install_sections})
+endfunction(kbuild_install type)
+
+
+# kbuild_try_compile(RESULT_VAR bindir srcfile|SOURCES src ...
+#           [CMAKE_FLAGS <Flags>]
+#           [KBUILD_COMPILE_DEFINITIONS flags ...]
+#           [OUTPUT_VARIABLE var])
+
+# Similar to try_module in simplified form, but compile srcfile as
+# kernel module, instead of user space program.
+#
+# KBUILD_COMPILE_DEFINITIONS contains compiler definition flags for
+# build kernel module.
+#
+# Possible CMAKE_FLAGS which has special semantic:
+#  KBUILD_INCLUDE_DIRECTORIES - include directories for build kernel module
+#  KBUILD_LINK_MODULE - symvers file(s) for link module with other modules.
+
+function(kbuild_try_compile RESULT_VAR bindir srcfile)
+    cmake_parse_arguments(kbuild_try_compile "" "OUTPUT_VARIABLE" "CMAKE_FLAGS;KBUILD_COMPILE_DEFINITIONS" ${ARGN})
+    if(srcfile STREQUAL "SOURCES")
+        set(srcfiles ${kbuild_try_compile_UNPARSED_ARGUMENTS})
+    else(srcfile STREQUAL "SOURCES")
+        set(srcfiles ${srcfile})
+    endif(srcfile STREQUAL "SOURCES")
+
+    # Collect parameters to try_compile() function
+    set(cmake_flags
+        "-DSOURCES:STRING=${srcfiles}" # Source file(s)
+        "-DCMAKE_MODULE_PATH:PATH=${CMAKE_MODULE_PATH}" # Path for search include files.
+        ${kbuild_try_compile_CMAKE_FLAGS}
+    )
+
+    # Parameters for compiler
+    if(kbuild_try_compile_KBUILD_COMPILE_DEFINITIONS)
+        list(APPEND cmake_flags
+            "-DKBUILD_COMPILE_DEFINITIONS:STRING=${kbuild_try_compile_KBUILD_COMPILE_DEFINITIONS}"
+        )
+    endif(kbuild_try_compile_KBUILD_COMPILE_DEFINITIONS)
+
+    # Other user-defined cmake flags
+    if(kbuild_try_compile_CMAKE_FLAGS)
+        
+    endif(kbuild_try_compile_CMAKE_FLAGS)
+
+    # Possible definition of output variable.
+    if(kbuild_try_compile_OUTPUT_VARIABLE)
+        set(output_variable_def "OUTPUT_VARIABLE" "output_tmp")
+    else(build_try_compile_OUTPUT_VARIABLE)
+        set(output_variable_def)
+    endif(kbuild_try_compile_OUTPUT_VARIABLE)
+
+    
+    try_compile(result_tmp # Result variable(temporary)
+        "${bindir}" # Binary directory
+        "${kbuild_aux_dir}/try_compile_project" # Source directory
+        "kmodule" # Project name
+         CMAKE_FLAGS # Flags to CMake:
+            ${cmake_flags}
+            ${kbuild_try_compile_flags}
+        ${output_variable_def}
+    )
+    
+    if(kbuild_try_compile_OUTPUT_VARIABLE)
+        # Set output variable for the caller
+        set("${kbuild_try_compile_OUTPUT_VARIABLE}" "${output_tmp}" PARENT_SCOPE)
+    endif(kbuild_try_compile_OUTPUT_VARIABLE)
+    # Set result variable for the caller
+    set("${RESULT_VAR}" "${result_tmp}" PARENT_SCOPE)
+endfunction(kbuild_try_compile RESULT_VAR bindir srcfile)
+
+########### Auxiliary functions for internal use #######################
+# _kbuild_module_clean_files(module_name
+# 	[C_SOURCE c_source_noext_abs ...]
+# 	[ASM_SOURCE asm_source_noext_abs ...]
+#	[SHIPPED_SOURCE shipped_source_noext_abs ...])
+#
+# Tell CMake that intermediate files, created by kbuild system,
+# should be cleaned with 'make clean'.
+function(_kbuild_module_clean_files module_name)
+    cmake_parse_arguments(kbuild_module_clean "" "" "C_SOURCE;ASM_SOURCE;SHIPPED_SOURCE" ${ARGN})
+    if(kbuild_module_clean_UNPARSED_ARGUMENTS)
+        message(FATAL_ERROR "Unparsed arguments")
+    endif(kbuild_module_clean_UNPARSED_ARGUMENTS)
+
+	# List common files (names only) for cleaning
+	set(common_files_names
+        ".tmp_versions" # Directory
+        "modules.order"
+		"Module.markers"
+    )
+	# List module name-depending files (extensions only) for cleaning
+	set(name_files_ext
+		".o"
+		".mod.c"
+		".mod.o"
+    )
+	# Same but for the files with names starting with a dot ('.').
+	set(name_files_dot_ext
+		".ko.cmd"
+		".mod.o.cmd"
+		".o.cmd"
+    )
+	# List source name-depending files (extensions only) for cleaning
+	set(source_name_files_ext
+		".o"
+    )
+	# Same but for the files with names starting with a dot ('.')
+	set(source_name_files_dot_ext
+		".o.cmd"
+		".o.d" # This file is created in case of unsuccessfull build
+    )
+	
+	# Now collect all sort of files into list
+	set(files_list)
+
+	foreach(name ${common_files_names})
+		list(APPEND files_list "${CMAKE_CURRENT_BINARY_DIR}/${name}")
+	endforeach(name ${common_files_names})
+	
+	foreach(ext ${name_files_ext})
+		list(APPEND files_list
+			"${CMAKE_CURRENT_BINARY_DIR}/${module_name}${ext}")
+	endforeach(ext ${name_files_ext})
+	
+	foreach(ext ${name_files_dot_ext})
+		list(APPEND files_list
+			"${CMAKE_CURRENT_BINARY_DIR}/.${module_name}${ext}")
+	endforeach(ext ${name_files_ext})
+	
+    # All the types of sources are processed in a similar way
+    foreach(obj_source_noext_abs ${kbuild_module_clean_C_SOURCE}
+        ${kbuild_module_clean_ASM_SOURCE} ${kbuild_module_clean_SHIPPED_SOURCE})
+
+        get_filename_component(dir ${obj_source_noext_abs} PATH)
+        get_filename_component(name ${obj_source_noext_abs} NAME)
+        foreach(ext ${source_name_files_ext})
+            list(APPEND files_list "${dir}/${name}${ext}")
+        endforeach(ext ${source_name_files_ext})
+        foreach(ext ${source_name_files_dot_ext})
+            list(APPEND files_list "${dir}/.${name}${ext}")
+        endforeach(ext ${source_name_files_ext})
+    endforeach(obj_source_noext_abs)
+	# Tell CMake that given files should be cleaned.
+	set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES "${files_list}")
+endfunction(_kbuild_module_clean_files module_name)
+
 # parse_install_arguments(prefix <section-type-keywords> <options> <one-value-keywords> <multiple-value-keywords> args..)
 #
 # Helper for parse arguments for install-like command.
@@ -595,6 +874,8 @@ endmacro(kbuild_add_definitions)
 # special generic section. Definitions for this section are stored as
 # for section of type ALL.
 # If such section exists, it should be the only section.
+#
+# Function is generic, but currently is used only there.
 function(parse_install_arguments prefix section_types options one_value_keywords multiple_value_keywords)
     set(all_keywords ${section_types} ${options} ${one_value_keywords} ${multiple_value_keywords})
     # Type of the currently parsed section('ALL' for ALL section).
@@ -688,158 +969,3 @@ function(parse_install_arguments prefix section_types options one_value_keywords
     endforeach(section_type "ALL" ${section_types})
     set("${prefix}_sections" ${${prefix}_sections} PARENT_SCOPE)
 endfunction(parse_install_arguments prefix section_types options one_value_keywords multiple_value_keywords)
-
-# kbuild_install(TARGETS <module_name> ...
-#    [[MODULE|SYMVERS]
-#      DESTINATION <dir>
-#      [CONFIGURATIONS [...]]
-#      [COMPONENT <component>]
-#    ]+)
-#
-# Install kernel module(s) and/or symvers file(s) into given directory.
-#
-# Almost all options means same as for install() cmake command.
-# 'MODULE' refers to kernel module itself, SYMVERS refers symvers file.
-#
-# Unlike to standard install() command, there is no default destination
-# directory neither for modules nor for symvers files.
-# So, at least one rule should be defined, and 'DESTINATION' option
-# should be set for every rule.
-#
-# TODO: support for 'EXPORT' mode.
-function(kbuild_install type)
-    if(NOT type STREQUAL "TARGETS")
-        message(FATAL_ERROR "Only 'TARGETS' mode is currently supported")
-    endif(NOT type STREQUAL "TARGETS")
-    
-    parse_install_arguments(kbuild_install
-        "MODULE;SYMVERS" # Section types
-        "" "DESTINATION;COMPONENT" "CONFIGURATIONS" # Section keywords classification.
-        ${ARGN}
-    )
-    
-    if(NOT kbuild_install_TARGETS)
-        message(FATAL_ERROR "No targets given for kbuild_install() command")
-    endif(NOT kbuild_install_TARGETS)
-    
-    if(NOT kbuild_install_sections)
-        message(FATAL_ERROR "There is no default destination for install kernel module components, but no section described it is given.")
-    endif(NOT kbuild_install_sections)
-
-    foreach(section_type ${kbuild_install_sections})
-        if(NOT kbuild_install_${section_type}_DESTINATION)
-            message(FATAL_ERROR "DESTINATION is not defined for section ${section_type}")
-        endif(NOT kbuild_install_${section_type}_DESTINATION)
-        # All additional arguments for given section.
-        set(install_args_${section_type}
-            DESTINATION "${kbuild_install_${section_type}_DESTINATION}")
-        if(kbuild_install_${section_type}_CONFIGURATION)
-            list(APPEND install_args_${section_type}
-                CONFIGURATION "${kbuild_install_${section_type}_CONFIGURATION}"
-            )
-        endif(kbuild_install_${section_type}_CONFIGURATION)
-        if(kbuild_install_${section_type}_COMPONENT)
-            list(APPEND install_args_${section_type}
-                COMPONENT "${kbuild_install_${section_type}_COMPONENT}"
-            )
-        endif(kbuild_install_${section_type}_COMPONENT)
-        # Module installation.
-        if(section_type STREQUAL "MODULE" OR section_type STREQUAL "ALL")
-            # Combine locations for all modules in one list.
-            set(module_locations)
-            foreach(t ${kbuild_install_TARGETS})
-                kbuild_get_module_location(module_location ${t})
-                list(APPEND module_locations ${module_location})
-            endforeach(t ${kbuild_install_TARGETS})
-            # .. and install them at once.
-            install(FILES ${module_locations} ${install_args_${section_type}})
-        endif(section_type STREQUAL "MODULE" OR section_type STREQUAL "ALL")
-        # Symvers installation.
-        if(section_type STREQUAL "SYMVERS" OR section_type STREQUAL "ALL")
-            # Because of renaming, symvers files should be installed separately.
-            foreach(t ${kbuild_install_TARGETS})
-                kbuild_get_symvers_location(symvers_location ${t})
-                get_property(module_name TARGET ${t} PROPERTY KMODULE_MODULE_NAME)
-                install(FILES ${symvers_location}
-                    RENAME "${module_name}.symvers"
-                    ${install_args_${section_type}}
-                )
-            endforeach(t ${kbuild_install_TARGETS})
-        endif(section_type STREQUAL "SYMVERS" OR section_type STREQUAL "ALL")
-    endforeach(section_type ${kbuild_install_sections})
-endfunction(kbuild_install type)
-
-# _kbuild_module_clean_files(module_name
-# 	[C_SOURCE c_source_noext_abs ...]
-# 	[ASM_SOURCE asm_source_noext_abs ...]
-#	[SHIPPED_SOURCE shipped_source_noext_abs ...])
-#
-# Tell CMake that intermediate files, created by kbuild system,
-# should be cleaned with 'make clean'.
-function(_kbuild_module_clean_files module_name)
-    cmake_parse_arguments(kbuild_module_clean "" "" "C_SOURCE;ASM_SOURCE;SHIPPED_SOURCE" ${ARGN})
-    if(kbuild_module_clean_UNPARSED_ARGUMENTS)
-        message(FATAL_ERROR "Unparsed arguments")
-    endif(kbuild_module_clean_UNPARSED_ARGUMENTS)
-
-	# List common files (names only) for cleaning
-	set(common_files_names
-        ".tmp_versions" # Directory
-        "modules.order"
-		"Module.markers"
-    )
-	# List module name-depending files (extensions only) for cleaning
-	set(name_files_ext
-		".o"
-		".mod.c"
-		".mod.o"
-    )
-	# Same but for the files with names starting with a dot ('.').
-	set(name_files_dot_ext
-		".ko.cmd"
-		".mod.o.cmd"
-		".o.cmd"
-    )
-	# List source name-depending files (extensions only) for cleaning
-	set(source_name_files_ext
-		".o"
-    )
-	# Same but for the files with names starting with a dot ('.')
-	set(source_name_files_dot_ext
-		".o.cmd"
-		".o.d" # This file is created in case of unsuccessfull build
-    )
-	
-	# Now collect all sort of files into list
-	set(files_list)
-
-	foreach(name ${common_files_names})
-		list(APPEND files_list "${CMAKE_CURRENT_BINARY_DIR}/${name}")
-	endforeach(name ${common_files_names})
-	
-	foreach(ext ${name_files_ext})
-		list(APPEND files_list
-			"${CMAKE_CURRENT_BINARY_DIR}/${module_name}${ext}")
-	endforeach(ext ${name_files_ext})
-	
-	foreach(ext ${name_files_dot_ext})
-		list(APPEND files_list
-			"${CMAKE_CURRENT_BINARY_DIR}/.${module_name}${ext}")
-	endforeach(ext ${name_files_ext})
-	
-    # All the types of sources are processed in a similar way
-    foreach(obj_source_noext_abs ${kbuild_module_clean_C_SOURCE}
-        ${kbuild_module_clean_ASM_SOURCE} ${kbuild_module_clean_SHIPPED_SOURCE})
-
-        get_filename_component(dir ${obj_source_noext_abs} PATH)
-        get_filename_component(name ${obj_source_noext_abs} NAME)
-        foreach(ext ${source_name_files_ext})
-            list(APPEND files_list "${dir}${name}${ext}")
-        endforeach(ext ${source_name_files_ext})
-        foreach(ext ${source_name_files_dot_ext})
-            list(APPEND files_list "${dir}.${name}${ext}")
-        endforeach(ext ${source_name_files_ext})
-    endforeach(obj_source_noext_abs)
-	# Tell CMake that given files should be cleaned.
-	set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES "${files_list}")
-endfunction(_kbuild_module_clean_files module_name)

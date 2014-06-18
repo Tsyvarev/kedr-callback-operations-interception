@@ -164,6 +164,8 @@ endif()
 
 #######################################################################
 if(KERNEL_PART)
+    # Check whether Kbuild really can build modules.
+    check_module_build()
     # Determine way of hlist_for_each_* macros usage
     check_hlist_for_each_entry()
 endif(KERNEL_PART)
