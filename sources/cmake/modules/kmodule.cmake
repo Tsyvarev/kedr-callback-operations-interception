@@ -1,18 +1,7 @@
+# Project-specific kernel module-related operations.
+
 set(kmodule_this_module_dir "${CMAKE_SOURCE_DIR}/cmake/modules/")
 set(kmodule_test_sources_dir "${CMAKE_SOURCE_DIR}/cmake/kmodule_sources")
-
-set(kmodule_function_map_file "")
-if (CMAKE_CROSSCOMPILING)
-    if (KEDR_COI_SYSTEM_MAP_FILE)
-        set (kmodule_function_map_file "${KEDR_COI_SYSTEM_MAP_FILE}")
-    else (KEDR_COI_SYSTEM_MAP_FILE)
-# KEDR_COI_SYSTEM_MAP_FILE is not specified, construct the default path 
-# to the symbol map file.
-        set (kmodule_function_map_file 
-    "${KEDR_COI_ROOT_DIR}/boot/System.map-${KBUILD_VERSION_STRING}"
-        )
-    endif (KEDR_COI_SYSTEM_MAP_FILE)
-endif (CMAKE_CROSSCOMPILING)
 
 # Check that modules can really be built
 function(check_module_build)

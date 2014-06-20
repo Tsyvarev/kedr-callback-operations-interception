@@ -4,6 +4,12 @@
 # NB: At the end of the whole configuration stage
 #   kbuild_finalize_linking()
 # should be executed.
+#
+# Should be included after:
+#  find_package(Kbuild)
+#
+# Cached variables(ADVANCED), which affects on definitions below:
+#  CROSS_COMPILE - corresponded parameter for 'make' to build kernel objects.
 
 include(cmake_useful)
 
@@ -19,9 +25,7 @@ set(kbuild_cflags)
 
 # Parameters below are set externally only in try_compile() for subproject,
 # which include this file.
-#
-# We do not cache them, as native try_compile(..srcfile) implementation
-# also do not cache parameters to cmake subproject.
+# No need to cache them as try_compile() project is not configured by the user.
 
 # Real top-level source directory.
 if(NOT KBUILD_REAL_SOURCE_DIR)
@@ -32,9 +36,10 @@ if(NOT KBUILD_REAL_BINARY_DIR)
     set(KBUILD_REAL_BINARY_DIR ${CMAKE_BINARY_DIR})
 endif(NOT KBUILD_REAL_BINARY_DIR)
 
+set(CROSS_COMPILE "" CACHE STRING "Cross compilation prefix for build linux kernel objects.")
+mark_as_advanced(CROSS_COMPILE)
 
-
-# These flags will be passed to the 'make' when compile kernel module.
+# These flags are passed to the 'make' when compile kernel module.
 set(kbuild_additional_make_flags)
 # These CMake flags will be passed to try_compile() subproject.
 set(kbuild_try_compile_flags
@@ -42,10 +47,15 @@ set(kbuild_try_compile_flags
     "-DKBUILD_REAL_BINARY_DIR=${KBUILD_REAL_BINARY_DIR}"
 )
 
-if(ARCH)
+# As ARCH is explicitely cached in FindKBuild, it is already defined,
+# so 'if' below is always triggered.
+#
+# TODO: Who to distinguish case when ARCH is autodetected and need not to
+# be explicitely passed to make?
+if(DEFINED ARCH)
     list(APPEND kbuild_additional_make_flags "ARCH=${ARCH}")
     list(APPEND kbuild_try_compile_flags "-DARCH=${ARCH}")
-endif(ARCH)
+endif(DEFINED ARCH)
 if(CROSS_COMPILE)
     list(APPEND kbuild_additional_make_flags "CROSS_COMPILE=${CROSS_COMPILE}")
     list(APPEND kbuild_try_compile_flags "-DCROSS_COMPILE=${CROSS_COMPILE}")
