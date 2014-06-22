@@ -2,8 +2,8 @@
 cmake_minimum_required(VERSION 2.8.3)
 
 enable_language(C)
-enable_language(CXX)
-include(CMakeParseArguments)
+
+project(KEDR_COI)
 
 #######################################################################
 # Prohibit a common type of an in-source build.
@@ -34,9 +34,10 @@ set(KEDR_COI_VERSION
 #######################################################################
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
 
-include(uninstall_target)
-
+include(CMakeParseArguments)
 include(cmake_useful)
+
+include(uninstall_target)
 
 # Because Kbuild should be configured before multi_kernel,
 # use user-defined parameter as guard for configure it.
@@ -83,6 +84,17 @@ kernel_build_test_make_path(KEDR_COI_TEST_MAKE_INCLUDE_KERNEL_DIR)
 add_testable_path (KEDR_COI_MAKE_INCLUDE_KERNEL_DIR)
 
 if(KERNEL_PART)
+    # Redefine some default kbuild compiler flags before including 'kbuild_system'.
+    set(KBUILD_C_FLAGS
+	"-Wall"
+	CACHE STRING "Compiler flags used by Kbuild system during all builds."
+    )
+    
+    set(KBUILD_C_FLAGS_DEBUG
+	"-Wextra -Wno-unused-parameter -DKEDR_COI_DEBUG -g"
+	CACHE STRING "Compiler flags used by Kbuild system during debug builds."
+    )
+
     include(kbuild_system)
     include(kmodule)
 endif(KERNEL_PART)
@@ -135,33 +147,10 @@ kbuild_include_directories("${CMAKE_BINARY_DIR}")
 # Make "Release" the default build type
 if (NOT CMAKE_BUILD_TYPE)
     set (CMAKE_BUILD_TYPE "Release" CACHE STRING
-      "Choose the type of build, options are: Debug Release RelWithDebInfo."
+      "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel."
       FORCE)
 endif ()
 message (STATUS "Build type is \"${CMAKE_BUILD_TYPE}\"")
-
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    if(KERNEL_PART)
-	kbuild_add_definitions(
-	    "-Wall -Wextra -Wno-unused-parameter -DKEDR_COI_DEBUG -g"
-	)
-    endif(KERNEL_PART)
-elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
-    if(KERNEL_PART)
-	kbuild_add_definitions(
-	    "-Wall"
-	)
-    endif(KERNEL_PART)
-elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-    if(KERNEL_PART)
-	kbuild_add_definitions(
-	    "-Wall -g"
-	)
-    endif(KERNEL_PART)
-else (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    message(FATAL_ERROR "Incorrect build type: ${CMAKE_BUILD_TYPE}. Should be one of 'Debug', 'Release' or 'RelWithDebInfo'")
-endif()
-
 #######################################################################
 if(KERNEL_PART)
     # Check whether Kbuild really can build modules.
@@ -238,8 +227,6 @@ if(KERNEL_PART)
 
     add_subdirectory(interceptors)
 endif(KERNEL_PART)
-
-
 
 # Common tests.
 if(USER_PART)

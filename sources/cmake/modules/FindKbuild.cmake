@@ -16,7 +16,7 @@
 # Also, setting CMAKE_SYSTEM_VERSION will be interpreted by cmake as crosscompile.
 #
 # Cache variables(ADVANCED) which affect on this package:
-#  ARCH - change Kbuild_ARCH
+#  ARCH - if not empty, change Kbuild_ARCH
 #  KBUILD_DIR - change Kbuild_BUILD_DIR
 
 set(Kbuild_VERSION_STRING ${CMAKE_SYSTEM_VERSION})
@@ -38,59 +38,64 @@ set(Kbuild_VERSION_TWEAK ${CMAKE_MATCH_3})
 set(Kbuild_VERSION_STRING_CLASSIC "${Kbuild_VERSION_MAJOR}.${Kbuild_VERSION_MINOR}.${Kbuild_VERSION_TWEAK}")
 
 set(KBUILD_DIR "/lib/modules/${Kbuild_VERSION_STRING}/build" CACHE PATH
-	"Directory for build linux kernel and/or its components."
+    "Directory for build linux kernel and/or its components."
 )
 mark_as_advanced(KBUILD_DIR)
 
-set(Kbuild_BUILD_DIR "/lib/modules/${Kbuild_VERSION_STRING}/build")
+set(Kbuild_BUILD_DIR "${KBUILD_DIR}")
 
-# Autodetect default arch in any case.
-# Linux kernel's ./Makefile also do that.
-execute_process(COMMAND uname -m
-	RESULT_VARIABLE uname_m_result
-	OUTPUT_VARIABLE ARCH_DEFAULT
-)
-if(NOT uname_m_result EQUAL 0)
-	message("'uname -r' failed:")
-	message("${ARCH_DEFAULT}")
-	message(FATAL_ERROR "Failed to determine system architecture.")
-endif(NOT uname_m_result EQUAL 0)
-
-string(REGEX REPLACE "\n$" "" ARCH_DEFAULT "${ARCH_DEFAULT}")
-
-# Pairs of pattern-replace for postprocess architecture string from
-# 'uname -m'.
-# Taken from ./Makefile of the kernel build.
-set(_kbuild_arch_replacers
-	"i.86" "x86"
-	"x86_64" "x86"
-	"sun4u" "sparc64"
-	"arm.*" "arm"
-	"sa110" "arm"
-	"s390x" "s390"
-	"parisc64" "parisc"
-	"ppc.*" "powerpc"
-	"mips.*" "mips"
-	"sh[234].*" "sh"
-	"aarch64.*" "arm64"
-)
-
-set(_current_pattern)
-foreach(p ${_kbuild_arch_replacers})
-	if(_current_pattern)
-		string(REGEX REPLACE "${_current_pattern}" "${p}" ARCH_DEFAULT "${ARCH_DEFAULT}")
-		set(_current_pattern)
-	else(_current_pattern)
-		set(_current_pattern "${p}")
-	endif(_current_pattern)
-endforeach(p ${_kbuild_arch_replacers})
-
-set(ARCH "${ARCH_DEFAULT}" CACHE STRING
-	"Architecture for build linux kernel components for."
+set(ARCH "" CACHE STRING
+    "Architecture for build linux kernel components for, empty string means autodetect."
 )
 mark_as_advanced(ARCH)
 
-set(Kbuild_ARCH "${ARCH}")
+if(NOT ARCH)
+    # Autodetect arch.
+    execute_process(COMMAND uname -m
+        RESULT_VARIABLE uname_m_result
+        OUTPUT_VARIABLE ARCH_DEFAULT
+    )
+    if(NOT uname_m_result EQUAL 0)
+        message("'uname -r' failed:")
+        message("${ARCH_DEFAULT}")
+        message(FATAL_ERROR "Failed to determine system architecture.")
+    endif(NOT uname_m_result EQUAL 0)
+
+    string(REGEX REPLACE "\n$" "" ARCH_DEFAULT "${ARCH_DEFAULT}")
+
+    # Pairs of pattern-replace for postprocess architecture string from
+    # 'uname -m'.
+    # Taken from ./Makefile of the kernel build.
+    set(_kbuild_arch_replacers
+        "i.86" "x86"
+        "x86_64" "x86"
+        "sun4u" "sparc64"
+        "arm.*" "arm"
+        "sa110" "arm"
+        "s390x" "s390"
+        "parisc64" "parisc"
+        "ppc.*" "powerpc"
+        "mips.*" "mips"
+        "sh[234].*" "sh"
+        "aarch64.*" "arm64"
+    )
+
+    set(_current_pattern)
+    foreach(p ${_kbuild_arch_replacers})
+        if(_current_pattern)
+            string(REGEX REPLACE "${_current_pattern}" "${p}" ARCH_DEFAULT "${ARCH_DEFAULT}")
+            set(_current_pattern)
+        else(_current_pattern)
+            set(_current_pattern "${p}")
+        endif(_current_pattern)
+    endforeach(p ${_kbuild_arch_replacers})
+
+    set(Kbuild_ARCH "${ARCH_DEFAULT}")
+else(NOT ARCH)
+    # User-provided value is used.
+    set(Kbuild_ARCH "${ARCH}")
+endif(NOT ARCH)
+
 
 
 include(FindPackageHandleStandardArgs)

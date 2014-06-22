@@ -10,6 +10,8 @@
 #
 # Cached variables(ADVANCED), which affects on definitions below:
 #  CROSS_COMPILE - corresponded parameter for 'make' to build kernel objects.
+#  KBUILD_C_FLAGS - Additional kbuild flags for all builds
+#  KBUILD_C_FLAGS{DEBUG|RELEASE|RELWITHDEBINFO|MINSIZEREL} - per-configuration flags.
 
 include(cmake_useful)
 
@@ -17,11 +19,109 @@ include(cmake_useful)
 get_filename_component(kbuild_this_module_dir ${CMAKE_CURRENT_LIST_FILE} PATH)
 set(kbuild_aux_dir "${kbuild_this_module_dir}/kbuild_system_files")
 
-# Include directories for building kernel modules
-set(kbuild_include_dirs)
+# _declare_per_build_vars(<variable> <doc-pattern>)
+#
+# Per-build type definitions for given <variable>.
+# 
+# Create CACHE STRING variables <variable>_{DEBUG|RELEASE|RELWITHDEBINFO|MINSIZEREL}
+# with documentation string <doc-pattern> where %build% is replaced
+# with corresponded build type description.
+#
+# Default value for variable <variable>_<type> is taken from <variable>_<type>_init.
+macro(_declare_per_build_vars variable doc_pattern)
+    set(_build_type)
+    foreach(t
+        RELEASE "release"
+        DEBUG "debug"
+        RELWITHDEBINFO "Release With Debug Info"
+        MINSIZEREL "release minsize"
+    )
+        if(_build_type)
+            string(REPLACE "%build%" "${t}" _docstring ${doc_pattern})
+            set("${variable}_${_build_type}" "${${variable}_${_build_type}_INIT}"
+                CACHE STRING "${_docstring}")
+            set(_build_type)
+        else(_build_type)
+            set(_build_type "${t}")
+        endif(_build_type)
+    endforeach(t)
+endmacro(_declare_per_build_vars variable doc_pattern)
 
-# Additional compiler flags for the module
-set(kbuild_cflags)
+
+# Default compiler flags.
+#
+# These flags are used directly when configuring 'Kbuild', so them should be
+# expressed as single-string, where different flags are joinged using ' '.
+set(KBUILD_C_FLAGS "" CACHE STRING
+    "Compiler flags used by Kbuild system during all builds."
+)
+
+# Additional default compiler flags per build type.
+set(KBUILD_C_FLAGS_DEBUG_INIT "-g")
+set(KBUILD_C_FLAGS_RELWITHDEBINFO_INIT "-g")
+
+_declare_per_build_vars(KBUILD_C_FLAGS
+    "Compiler flags used by Kbuild system during %build% builds."
+)
+mark_as_advanced(
+    KBUILD_C_FLAGS
+    KBUILD_C_FLAGS_DEBUG
+    KBUILD_C_FLAGS_RELEASE
+    KBUILD_C_FLAGS_RELWITHDEBINFO
+    KBUILD_C_FLAGS_MINSIZEREL
+)
+
+
+# Additional definitions which are passed directly to 'make' for
+# kbuild process.
+#
+# Unlike to compiler flags, these ones are expressed using cmake list.
+set(KBUILD_MAKE_FLAGS "" CACHE STRING
+    "Make flags used by Kbuild system during all builds."
+)
+
+_declare_per_build_vars(KBUILD_MAKE_FLAGS
+    "Make flags used by Kbuild system during %build% builds."
+)
+
+mark_as_advanced(
+    KBUILD_MAKE_FLAGS
+    KBUILD_MAKE_FLAGS_DEBUG
+    KBUILD_MAKE_FLAGS_RELEASE
+    KBUILD_MAKE_FLAGS_RELWITHDEBINFO
+    KBUILD_MAKE_FLAGS_MINSIZEREL
+)
+
+
+# Per-directory tracking for kbuild compiler flags.
+#
+# Unlike to standard COMPILE_FLAGS, these flags do not include values
+# set for parent directories.
+# (There is no generic "fill-with-parent's values" mechanism exists
+# in cmake).
+#
+# So, this property has a little sence for the user.
+# It exists only for make effect of kbuild_add_definitions() to 
+# cross "function", "foreach" and other non-directory scopes.
+define_property(DIRECTORY PROPERTY KBUILD_COMPILE_FLAGS
+    BRIEF_DOCS "Compiler flags used by Kbuild system added in this directory."
+    FULL_DOCS "Compiler flags used by Kbuild system added in this directory."
+)
+
+# Per-directory tracking for kbuild include directories.
+#
+# Unlike to standard INCLUDE_DIRECTORIES, these ones do not include values
+# set for parent directories.
+# (There is no generic "fill-with-parent's values" mechanism exists
+# in cmake).
+#
+# So, this property has a little sence for the user.
+# It exists only for make effect of kbuild_add_definitions() to 
+# cross "function", "foreach" and other non-directory scopes.
+define_property(DIRECTORY PROPERTY KBUILD_INCLUDE_DIRECTORIES
+    BRIEF_DOCS "Include directories used by Kbuild system; added in this directory."
+    FULL_DOCS "Include directories used by Kbuild system; added in this directory."
+)
 
 # Parameters below are set externally only in try_compile() for subproject,
 # which include this file.
@@ -47,15 +147,11 @@ set(kbuild_try_compile_flags
     "-DKBUILD_REAL_BINARY_DIR=${KBUILD_REAL_BINARY_DIR}"
 )
 
-# As ARCH is explicitely cached in FindKBuild, it is already defined,
-# so 'if' below is always triggered.
-#
-# TODO: Who to distinguish case when ARCH is autodetected and need not to
-# be explicitely passed to make?
-if(DEFINED ARCH)
+# As ARCH and CROSS_COMPILE are passed to submake only when non-empty.
+if(ARCH)
     list(APPEND kbuild_additional_make_flags "ARCH=${ARCH}")
     list(APPEND kbuild_try_compile_flags "-DARCH=${ARCH}")
-endif(DEFINED ARCH)
+endif(ARCH)
 if(CROSS_COMPILE)
     list(APPEND kbuild_additional_make_flags "CROSS_COMPILE=${CROSS_COMPILE}")
     list(APPEND kbuild_try_compile_flags "-DCROSS_COMPILE=${CROSS_COMPILE}")
@@ -415,19 +511,13 @@ function(kbuild_add_module name)
     endif(is_build_simple)
 
     # Build kbuild file - compiler flags
+    _kbuild_get_compile_flags(ccflags)
+    # Append include directories definitions to the flags
+    _kbuild_get_include_directories(include_dirs)
 
-    # Cmake list of flags.
-    set(ccflags_list)
-    # Add user-defined flags
-    list(APPEND ccflags_list ${kbuild_cflags})
-
-    # Add compiler flags - directories
-    foreach(dir ${kbuild_include_dirs})
-        list(APPEND ccflags_list "-I${dir}")
-    endforeach(dir ${kmodule_include_dirs})
-    
-    # Space-separated ccflags list for makefile.
-    string(REPLACE ";" " " ccflags "${ccflags_list}")
+    foreach(dir ${include_dirs})
+        _string_join(" " ccflags "${ccflags}" "-I${dir}")
+    endforeach(dir ${include_dirs})
 
     # Configure kbuild file
     configure_file(${kbuild_this_module_dir}/kbuild_system_files/Kbuild.in
@@ -456,11 +546,16 @@ function(kbuild_add_module name)
 		endforeach(shipped_source_noext_abs ${shipped_source_noext_abs})
 	endif(shipped_sources_noext_abs)
     
+    # User-defined parameters for 'make'
+    set(make_flags ${KBUILD_MAKE_FLAGS})
+    _get_per_build_var(make_flags_per_build KBUILD_MAKE_FLAGS)
+    list(APPEND make_flags ${make_flags_per_build})
+    
     # Rule for create module(and symvers file).
     add_custom_command(
         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${module_name}.ko"
             "${CMAKE_CURRENT_BINARY_DIR}/${_kbuild_symvers}"
-        COMMAND $(MAKE) ${kbuild_additional_make_flags} 
+        COMMAND $(MAKE) ${make_flags} ${kbuild_additional_make_flags} 
             -C ${Kbuild_BUILD_DIR} M=${CMAKE_CURRENT_BINARY_DIR} modules
         DEPENDS ${depend_files}
             ${CMAKE_CURRENT_BINARY_DIR}/${_kbuild_symvers_imported_near}
@@ -508,8 +603,21 @@ endfunction(kbuild_add_module name)
 
 # kbuild_include_directories(dir1 .. dirn)
 macro(kbuild_include_directories)
-    list(APPEND kbuild_include_dirs ${ARGN})
+    set_property(DIRECTORY APPEND PROPERTY KBUILD_INCLUDE_DIRECTORIES ${ARGN})
 endmacro(kbuild_include_directories)
+
+# kbuild_add_definitions (flags)
+#
+# Specify additional compiler flags for the module.
+function(kbuild_add_definitions flags)
+    get_property(current_flags DIRECTORY PROPERTY KBUILD_COMPILE_DEFINITIONS)
+    _string_join(" " current_flags "${current_flags}" "${flags}")
+    set_property(DIRECTORY PROPERTY KBUILD_COMPILE_DEFINITIONS "${current_flags}")
+endfunction(kbuild_add_definitions flags)
+
+# Flags for make has no control except default values.
+# Support for kbuild_add_make_definitions may be added if needed.
+
 
 # kbuild_module_link(<name> [<link> ...])
 #
@@ -628,13 +736,6 @@ function(kbuild_finalize_linking)
     endforeach(m ${kmodule_targets})
 endfunction(kbuild_finalize_linking)
 
-# kbuild_add_definitions (flag1 ... flagN)
-# Specify additional compiler flags for the module.
-macro(kbuild_add_definitions)
-    list(APPEND kbuild_cflags ${ARGN})
-endmacro(kbuild_add_definitions)
-
-
 # kbuild_install(TARGETS <module_name> ...
 #    [[MODULE|SYMVERS]
 #      DESTINATION <dir>
@@ -720,7 +821,7 @@ endfunction(kbuild_install type)
 #           [CMAKE_FLAGS <Flags>]
 #           [KBUILD_COMPILE_DEFINITIONS flags ...]
 #           [OUTPUT_VARIABLE var])
-
+#
 # Similar to try_module in simplified form, but compile srcfile as
 # kernel module, instead of user space program.
 #
@@ -730,7 +831,6 @@ endfunction(kbuild_install type)
 # Possible CMAKE_FLAGS which has special semantic:
 #  KBUILD_INCLUDE_DIRECTORIES - include directories for build kernel module
 #  KBUILD_LINK_MODULE - symvers file(s) for link module with other modules.
-
 function(kbuild_try_compile RESULT_VAR bindir srcfile)
     cmake_parse_arguments(kbuild_try_compile "" "OUTPUT_VARIABLE" "CMAKE_FLAGS;KBUILD_COMPILE_DEFINITIONS" ${ARGN})
     if(srcfile STREQUAL "SOURCES")
@@ -785,6 +885,79 @@ function(kbuild_try_compile RESULT_VAR bindir srcfile)
 endfunction(kbuild_try_compile RESULT_VAR bindir srcfile)
 
 ########### Auxiliary functions for internal use #######################
+
+# _get_per_build_var(RESULT_VAR variable)
+#
+# Return value of per-build variable.
+macro(_get_per_build_var RESULT_VAR variable)
+    if(CMAKE_BUILD_TYPE)
+        string(TOUPPER "${CMAKE_BUILD_TYPE}" _build_type_uppercase)
+        set(${RESULT_VAR} "${${variable}_${_build_type_uppercase}}")
+    else(CMAKE_BUILD_TYPE)
+        set(${RESULT_VAR})
+    endif(CMAKE_BUILD_TYPE)
+endmacro(_get_per_build_var RESULT_VAR variable)
+
+#
+# _string_join(sep RESULT_VAR str1 str2)
+# Join strings <str1> and <str2> using <sep> as glue.
+#
+# Note, that precisely 2 string are joined, not a list of strings.
+# This prevents automatic replacing of ';' inside strings while parsing arguments.
+macro(_string_join sep RESULT_VAR str1 str2)
+    if("${str1}" STREQUAL "")
+        set("${RESULT_VAR}" "${str2}")
+    elseif("${str2}" STREQUAL "")
+        set("${RESULT_VAR}" "${str1}")
+    else("${str1}" STREQUAL "")
+        set("${RESULT_VAR}" "${str1}${sep}${str2}")
+    endif("${str1}" STREQUAL "")
+endmacro(_string_join sep RESULT_VAR str1 str2)
+# _build_get_directory_property_chained(RESULT_VAR <propert_name> [<separator>])
+#
+# Return list of all values for given property in the current directory
+# and all parent directories.
+#
+# If <separator> is given, it is used as glue for join values.
+# By default, cmake list separator (';') is used.
+function(_get_directory_property_chained RESULT_VAR property_name)
+    set(sep ";")
+    foreach(arg ${ARGN})
+        set(sep "${arg}")
+    endforeach(arg ${ARGN})
+    set(result "")
+    set(d "${CMAKE_CURRENT_SOURCE_DIR}")
+    while(NOT "${d}" STREQUAL "")
+        get_property(p DIRECTORY "${d}" PROPERTY "${property_name}")
+        # debug
+        # message("Property ${property_name} for directory ${d}: '${p}'")
+        _string_join("${sep}" result "${p}" "${result}")
+        # message("Intermediate result: '${result}'")
+        get_property(d DIRECTORY "${d}" PROPERTY PARENT_DIRECTORY)
+    endwhile(NOT "${d}" STREQUAL "")
+    set("${RESULT_VAR}" "${result}" PARENT_SCOPE)
+endfunction(_get_directory_property_chained RESULT_VAR property_name)
+
+# Collect all compile flags for given scope.
+function(_kbuild_get_compile_flags RESULT_VAR)
+    _get_directory_property_chained(compile_flags KBUILD_COMPILE_DEFINITIONS " ")
+    # Common flags comes first.
+    _string_join(" " compile_flags "${KBUILD_C_FLAGS}" "${compile_flags}")
+    # But per-build flags are appended after all.
+    _get_per_build_var(compile_flags_per_build KBUILD_C_FLAGS)
+    _string_join(" " compile_flags "${compile_flags}" "${compile_flags_per_build}")
+
+    set("${RESULT_VAR}" "${compile_flags}" PARENT_SCOPE)
+endfunction(_kbuild_get_compile_flags RESULT_VAR)
+
+# Collect all include directories for given scope
+function(_kbuild_get_include_directories RESULT_VAR)
+    _get_directory_property_chained(dirs KBUILD_INCLUDE_DIRECTORIES)
+    # debug
+    # message("dirs: '${dirs}'")
+    set("${RESULT_VAR}" "${dirs}" PARENT_SCOPE)
+endfunction(_kbuild_get_include_directories RESULT_VAR)
+
 # _kbuild_module_clean_files(module_name
 # 	[C_SOURCE c_source_noext_abs ...]
 # 	[ASM_SOURCE asm_source_noext_abs ...]
