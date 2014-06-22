@@ -39,6 +39,9 @@ include(cmake_useful)
 
 include(uninstall_target)
 
+include(path_prefixes)
+include(build_testing)
+
 # Because Kbuild should be configured before multi_kernel,
 # use user-defined parameter as guard for configure it.
 if(NOT USER_PART_ONLY)
@@ -47,8 +50,13 @@ endif(NOT USER_PART_ONLY)
 
 include(multi_kernel)
 
-# NB: 'path_prefixes' uses 'multi_kernel'
-include(path_prefixes)
+if(KERNEL_PART)
+    set(kernel_opt "KERNEL")
+else(KERNEL_PART)
+    set(kernel_opt)
+endif(KERNEL_PART)
+
+fill_install_prefixes("${KEDR_COI_PACKAGE_NAME}" KEDR_COI ${kernel_opt})
 #######################################################################
 # Kernel-specific path definitions.
 if(KERNEL_PART)
@@ -83,6 +91,44 @@ kernel_make_path(KEDR_COI_TEST_MAKE_INCLUDE_KERNEL_DIR
 kernel_build_test_make_path(KEDR_COI_TEST_MAKE_INCLUDE_KERNEL_DIR)
 add_testable_path (KEDR_COI_MAKE_INCLUDE_KERNEL_DIR)
 
+#######################################################################
+# [NB] All the "prefix" directories ending with ${KEDR_COI_PACKAGE_NAME}
+# should be removed when uninstalling the package.
+if(USER_PART)
+    add_uninstall_dir(
+	"${KEDR_COI_INSTALL_PREFIX_EXEC_AUX}"
+	"${KEDR_COI_INSTALL_PREFIX_READONLY}"
+	"${KEDR_COI_INSTALL_PREFIX_GLOBAL_CONF}"
+	"${KEDR_COI_INSTALL_PREFIX_LIB_AUX}"
+	"${KEDR_COI_INSTALL_PREFIX_INCLUDE}"
+	"${KEDR_COI_INSTALL_PREFIX_TEMP_SESSION}"
+	"${KEDR_COI_INSTALL_PREFIX_TEMP}"
+	"${KEDR_COI_INSTALL_PREFIX_STATE}"
+	"${KEDR_COI_INSTALL_PREFIX_CACHE}"
+	"${KEDR_COI_INSTALL_PREFIX_VAR}"
+	"${KEDR_COI_INSTALL_PREFIX_DOC}"
+    )
+endif(USER_PART)
+if(KERNEL_PART)
+    add_uninstall_dir(
+	"${KEDR_COI_INSTALL_PREFIX_INCLUDE_KERNEL}"
+    )
+endif(KERNEL_PART)
+
+# Test directory is build-dependent, so remove it for any configuration.
+add_uninstall_dir(
+    "${KEDR_COI_TEST_COMMON_PREFIX}"
+)
+#######################################################################
+set(KEDR_INSTALL_DIR "" CACHE PATH "Directory where KEDR is installed(optional)")
+if(KEDR_INSTALL_DIR)
+    # Also fill install prefixes for KEDR package.
+    fill_install_prefixes("kedr" "KEDR" BASE_INSTALL_PREFIX "${KEDR_INSTALL_DIR}" KERNEL)
+    
+    kernel_make_path(KEDR_INSTALL_MAKE_PREFIX_KSYMVERS
+	"${KEDR_KERNEL_INSTALL_PREFIX_KSYMVERS}")
+endif(KEDR_INSTALL_DIR)
+#######################################################################
 if(KERNEL_PART)
     # Redefine some default kbuild compiler flags before including 'kbuild_system'.
     set(KBUILD_C_FLAGS

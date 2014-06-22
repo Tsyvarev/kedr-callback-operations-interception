@@ -5,7 +5,7 @@ jy_tool := @KEDR_COI_MAKE_JY_TOOL@
 
 @multi_kernel_KERNEL_VAR_MAKE_DEFINITION@
 
-kedr_core_symbols=@KEDR_INSTALL_DIR@/lib/modules/$(@multi_kernel_KERNEL_VAR@)/symvers/kedr.symvers
+kedr_core_symbols=@KEDR_INSTALL_MAKE_PREFIX_KSYMVERS@/kedr.symvers
 kedr_coi_core_symbols=@KEDR_COI_MAKE_CORE_SYMBOLS@
 
 kedr_coi_interceptors_dir := @KEDR_COI_MAKE_PREFIX_INTERCEPTORS@
