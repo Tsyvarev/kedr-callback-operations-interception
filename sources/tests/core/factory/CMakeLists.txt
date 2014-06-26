@@ -11,18 +11,23 @@
 # for indirect interceptor for distinguish cases.
 
 if(DEFINED indirect_use_copy)
-    kedr_coi_test_add_prefix("factory_use_copy")
     set(indirect_suffix "_use_copy")
-    kbuild_add_definitions("-DINDIRECT_CONSTRUCTOR=kedr_coi_interceptor_create_use_copy")
+    if(KERNEL_PART)
+        kbuild_add_definitions("-DINDIRECT_CONSTRUCTOR=kedr_coi_interceptor_create_use_copy")
+    endif(KERNEL_PART)
 else(DEFINED indirect_use_copy)
-    kedr_coi_test_add_prefix("factory")
     set(indirect_suffix)
-    kbuild_add_definitions("-DINDIRECT_CONSTRUCTOR=kedr_coi_interceptor_create_at_place")
+    if(KERNEL_PART)
+        kbuild_add_definitions("-DINDIRECT_CONSTRUCTOR=kedr_coi_interceptor_create_at_place")
+    endif(KERNEL_PART)
 endif(DEFINED indirect_use_copy)
 
-# For include 'test_harness_factory.h'
-kbuild_include_directories("${CMAKE_CURRENT_SOURCE_DIR}")
-set(__test_harness_factory_header "${CMAKE_CURRENT_SOURCE_DIR}/test_harness_factory.h")
+if(USER_PART)
+    set(test_name_prefix "${test_name_prefix}factory${indirect_suffix}.")
+    # Notify ictest, that binary and source subdirs differ.
+    ictest_add_current_dir()
+endif(USER_PART)
+
 # Common way for add test in that category.
 # Automatically assign target name for module built and dependence
 # on 'test_harness_factory.h'
@@ -31,7 +36,7 @@ function(add_test_interceptor_factory test_name source)
         "test_interceptor_factory${indirect_suffix}_${test_name}"
         ${source}
         ${ARGN}
-        ${__test_harness_factory_header}
+        ${__test_harness_header_factory}
     )
 endfunction(add_test_interceptor_factory test_name source)
 

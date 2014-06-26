@@ -1,14 +1,14 @@
 module_name=@module_name@
 
-kedr_coi_templates_dir := @KEDR_COI_PREFIX_TEMPLATES@
-jy_tool := @KEDR_COI_MAKE_JY_TOOL@
+kedr_coi_templates_dir := @KEDR_COI_INSTALL_PREFIX_TEMPLATES@
+jy_tool := @KEDR_COI_INSTALL_MAKE_JY_TOOL@
 
 @multi_kernel_KERNEL_VAR_MAKE_DEFINITION@
 
 kedr_core_symbols=@KEDR_INSTALL_MAKE_PREFIX_KSYMVERS@/kedr.symvers
-kedr_coi_core_symbols=@KEDR_COI_MAKE_CORE_SYMBOLS@
+kedr_coi_core_symbols=@KEDR_COI_INSTALL_MAKE_CORE_SYMBOLS@
 
-kedr_coi_interceptors_dir := @KEDR_COI_MAKE_PREFIX_INTERCEPTORS@
+kedr_coi_interceptors_dir := @KEDR_COI_INSTALL_MAKE_PREFIX_INTERCEPTORS@
 
 KBUILD_DIR=/lib/modules/$(@multi_kernel_KERNEL_VAR@)/build
 PWD=`pwd`

@@ -79,22 +79,72 @@ endmacro(is_path_inside_dir output_var dir path)
 #
 # If file is already exists and its content is same as written one, file
 # is not rewritten, so its write timestamp remains unchanged.
-function(write_or_update_file filename content)
+function(file_update filename content)
     if(EXISTS "${filename}")
-    file(READ "${filename}" old_content)
+	file(READ "${filename}" old_content)
         if(old_content STREQUAL "${content}")
             return()
         endif(old_content STREQUAL "${content}")
     endif(EXISTS "${filename}")
     # File doesn't exists or its content differ.
     file(WRITE "${filename}" "${content}")
-endfunction(write_or_update_file filename content)
+endfunction(file_update filename content)
+
+
+# Write given content to the file in APPEND mode.
+#
+# For append we use position variable <pos> which should be initialized
+# to 0 for every new build process and which is updated every time when
+# this function is called.
+# If file is already exists and its content at given <pos> is same as
+# written one, file is not rewritten, so its write timestamp remains unchanged.
+#
+# Note, that file will not be rewritten if new build process issues less
+# APPEND actions than one which create file.
+# But similar problem exists for file_update() and even for built-in
+# configure_file() command: file will not be removed if new build process
+# do not call configure_file() for it.
+function(file_update_append filename content POS)
+    set(pos "${${POS}}")
+    string(LENGTH "${content}" len)
+    # Update output variable first.
+    # This allows to use return() when need not to do anything
+    math(EXPR pos_new "${pos}+${len}")
+    set(${POS} "${pos_new}" PARENT_SCOPE)
+    if(EXISTS "${filename}")
+	file(READ "${filename}" old_content LIMIT "${len}" OFFSET "${pos}")
+        if(old_content STREQUAL "${content}")
+            return()
+	elseif(old_content STREQUAL "")
+	    file(APPEND "${filename}" "${content}")
+	    return()
+        endif(old_content STREQUAL "${content}")
+    else(EXISTS "${filename}")
+	if(NOT pos EQUAL 0)
+	    message(FATAL_ERROR "Appending to non-zero position to non-existent file.")
+	endif(NOT pos EQUAL 0)
+    endif(EXISTS "${filename}")
+    # File doesn't exists or its content differ.
+    if(NOT pos EQUAL 0)
+	file(READ "${filename}" prefix LIMIT "${pos}")
+    else(NOT pos EQUAL 0)
+	set(prefix)
+    endif(NOT pos EQUAL 0)
+    file(WRITE "${filename}" "${prefix}${content}")
+endfunction(file_update_append filename content POS)
 
 
 # Common mechanism for output status message
 # when checking different aspects.
 #
+# Normal using:
 #
+#  check_begin("Checking <...>")
+#  if(NOT <check-already-has-been-done>)
+#     check_try() # Here message is printed
+#     # Perform check(try_compile(), etc.)
+#  endif(NOT <check-already-has-been-done>)
+#  check_end("<check-result>") # Here message is printed with result.
 
 # Should be called (unconditionally) when new cheking is issued.
 # Note, that given @status_msg is not printed at that step.

@@ -1,0 +1,25 @@
+#!/bin/sh
+
+example_files="@shell_example_files@"
+example_location=@example_location@
+
+# Only check that example can be built.
+
+# Clean directory with example
+if ! rm -rf @example_dir@; then
+    printf "Failed to remove directory with example copy.\n"
+    exit 1
+fi
+if ! mkdir -p @example_dir@; then
+    printf "Failed to create directory for example copy.\n"
+    exit 1
+fi
+
+for example_file in ${example_files}; do
+    cp -p ${example_location}/${example_file} @example_dir@
+done
+
+if ! make -C @example_dir@; then
+    printf "Failed to build example.\n"
+    exit 1
+fi

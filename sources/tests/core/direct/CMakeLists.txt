@@ -1,4 +1,6 @@
-kedr_coi_test_add_prefix("direct")
+if(USER_PART)
+    set(test_name_prefix "${test_name_prefix}direct.")
+endif(USER_PART)
 
 # Common way for add test in that category.
 # Automatically assign target name for module built.

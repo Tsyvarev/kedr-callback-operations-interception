@@ -50,13 +50,7 @@ endif(NOT USER_PART_ONLY)
 
 include(multi_kernel)
 
-if(KERNEL_PART)
-    set(kernel_opt "KERNEL")
-else(KERNEL_PART)
-    set(kernel_opt)
-endif(KERNEL_PART)
-
-fill_install_prefixes("${KEDR_COI_PACKAGE_NAME}" KEDR_COI ${kernel_opt})
+fill_install_prefixes("${KEDR_COI_PACKAGE_NAME}" KEDR_COI KERNEL)
 #######################################################################
 # Kernel-specific path definitions.
 if(KERNEL_PART)
@@ -71,25 +65,15 @@ if(KERNEL_PART)
     # Per-kernel includes
     kernel_part_path(KEDR_COI_INSTALL_INCLUDE_KERNEL_DIR
 	"${KEDR_COI_KERNEL_INSTALL_INCLUDE_KERNEL_DIR}")
-    kernel_part_path(KEDR_COI_TEST_INCLUDE_KERNEL_DIR
-	"${KEDR_COI_KERNEL_TEST_INCLUDE_KERNEL_DIR}")
-    add_testable_path (KEDR_COI_INCLUDE_KERNEL_DIR)
-    
+
     kernel_part_path(KEDR_COI_INSTALL_PREFIX_INCLUDE_KERNEL
 	"${KEDR_COI_KERNEL_INSTALL_PREFIX_INCLUDE_KERNEL}")
-    kernel_part_path(KEDR_COI_TEST_PREFIX_INCLUDE_KERNEL
-	"${KEDR_COI_KERNEL_TEST_PREFIX_INCLUDE_KERNEL}")
-    add_testable_path (KEDR_COI_PREFIX_INCLUDE_KERNEL)
 endif(KERNEL_PART)
 
 kernel_make_path(KEDR_COI_INSTALL_MAKE_INCLUDE_KERNEL_DIR
     "${KEDR_COI_KERNEL_INSTALL_INCLUDE_KERNEL_DIR}"
 )
-kernel_make_path(KEDR_COI_TEST_MAKE_INCLUDE_KERNEL_DIR
-    "${KEDR_COI_KERNEL_TEST_INCLUDE_KERNEL_DIR}"
-)
-kernel_build_test_make_path(KEDR_COI_TEST_MAKE_INCLUDE_KERNEL_DIR)
-add_testable_path (KEDR_COI_MAKE_INCLUDE_KERNEL_DIR)
+
 
 #######################################################################
 # [NB] All the "prefix" directories ending with ${KEDR_COI_PACKAGE_NAME}
@@ -114,11 +98,6 @@ if(KERNEL_PART)
 	"${KEDR_COI_INSTALL_PREFIX_INCLUDE_KERNEL}"
     )
 endif(KERNEL_PART)
-
-# Test directory is build-dependent, so remove it for any configuration.
-add_uninstall_dir(
-    "${KEDR_COI_TEST_COMMON_PREFIX}"
-)
 #######################################################################
 set(KEDR_INSTALL_DIR "" CACHE PATH "Directory where KEDR is installed(optional)")
 if(KEDR_INSTALL_DIR)
@@ -146,13 +125,6 @@ if(KERNEL_PART)
 endif(KERNEL_PART)
 
 include(template_generation)
-
-include(kedr_coi_testing)
-#######################################################################
-#######################################################################
-# Initialize test-related stuff
-kedr_coi_test_init()
-kedr_coi_test_add_prefix("kedr_coi")
 #######################################################################
 #kedr_coi_install_library(library_name)
 function(kedr_coi_install_library library_name)
@@ -182,13 +154,12 @@ endif(KERNEL_PART)
 
 #######################################################################
 #${CMAKE_SOURCE_DIR}/include - root of the include tree (see conventions).
-#include_directories("${CMAKE_SOURCE_DIR}/include")
-#kbuild_include_directories("${CMAKE_SOURCE_DIR}/include")
-include_directories("${CMAKE_BINARY_DIR}/include")
-kbuild_include_directories("${CMAKE_BINARY_DIR}/include")
+if(KERNEL_PART)
+    kbuild_include_directories("${CMAKE_SOURCE_DIR}/include")
 
-#For configuration file
-kbuild_include_directories("${CMAKE_BINARY_DIR}")
+    #For configuration file
+    kbuild_include_directories("${CMAKE_BINARY_DIR}")
+endif(KERNEL_PART)
 #######################################################################
 # Make "Release" the default build type
 if (NOT CMAKE_BUILD_TYPE)
@@ -209,7 +180,6 @@ endif(KERNEL_PART)
 set(COI_TEMPLATES_DIR "${CMAKE_SOURCE_DIR}/templates/") 
 #######################################################################
 
-user_build_path(KEDR_COI_TEST_INCLUDE_DIR)
 if(USER_PART)
     # Only common includes are processed here.
     add_subdirectory(include)
@@ -219,16 +189,12 @@ if(KERNEL_PART)
     add_subdirectory(core)
 endif(KERNEL_PART)
 
-# For tests only.
-kbuild_get_module_location(KEDR_COI_TEST_SHELL_CORE_MODULE "kedr_coi")
-kernel_build_test_shell_path(KEDR_COI_TEST_SHELL_CORE_MODULE)
-
 kernel_make_path(KEDR_COI_INSTALL_MAKE_CORE_SYMBOLS
-    "${KEDR_COI_KERNEL_INSTALL_PREFIX_KSYMVERS}/kedr_coi.symvers"
-)
-kbuild_get_symvers_location(KEDR_COI_TEST_MAKE_CORE_SYMBOLS "kedr_coi")
-kernel_build_test_make_path(KEDR_COI_TEST_MAKE_CORE_SYMBOLS)
-add_testable_path(KEDR_COI_MAKE_CORE_SYMBOLS)
+    "${KEDR_COI_KERNEL_INSTALL_PREFIX_KSYMVERS}/kedr_coi.symvers")
+
+kernel_shell_path(KEDR_COI_INSTALL_SHELL_CORE_MODULE
+    "${KEDR_COI_KERNEL_INSTALL_PREFIX_KMODULE}/kedr_coi.ko")
+
 
 # Tools may be used by anyone.
 add_subdirectory(tools)
@@ -236,23 +202,17 @@ add_subdirectory(tools)
 if (NOT CMAKE_CROSSCOMPILING)
     # jinja2-yaml will be installed, so it can be used, e.g. in examples.
     set(KEDR_COI_INSTALL_MAKE_JY_TOOL "${KEDR_COI_INSTALL_PREFIX_EXEC_AUX}/jinja2-yaml.py")
-    # For tests use same ${JY_TOOL}, as for build package itself
-    # (defined in the tools/CMakeLists.txt).
-    # But need to explicitely join elements with ' ' instead of ';'.
-    string(REPLACE ";" " " KEDR_COI_TEST_MAKE_JY_TOOL "${JY_TOOL}")
-    add_testable_path(KEDR_COI_MAKE_JY_TOOL)
 endif (NOT CMAKE_CROSSCOMPILING)
 
 # Templates are common.
+set(KEDR_COI_TEMPLATES_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/templates")
+
 set(KEDR_COI_INSTALL_PREFIX_TEMPLATES
     "${KEDR_COI_INSTALL_PREFIX_READONLY}/templates")
-set(KEDR_COI_TEST_PREFIX_TEMPLATES
-    "${CMAKE_SOURCE_DIR}/templates")
 if(USER_PART)
     add_subdirectory(templates)
 endif(USER_PART)
-add_testable_path("KEDR_COI_PREFIX_TEMPLATES")
-
 
 # But generated interceptors are per-kernel.
 set(KEDR_COI_KERNEL_INSTALL_PREFIX_INTERCEPTORS
@@ -263,9 +223,6 @@ set(KEDR_COI_TEST_PREFIX_INTERCEPTORS
 
 kernel_make_path(KEDR_COI_INSTALL_MAKE_PREFIX_INTERCEPTORS
     ${KEDR_COI_KERNEL_INSTALL_PREFIX_INTERCEPTORS})
-set(KEDR_COI_TEST_MAKE_PREFIX_INTERCEPTORS ${KEDR_COI_TEST_PREFIX_INTERCEPTORS})
-kernel_build_test_make_path(KEDR_COI_TEST_MAKE_PREFIX_INTERCEPTORS)
-add_testable_path (KEDR_COI_MAKE_PREFIX_INTERCEPTORS)
 
 if(KERNEL_PART)
     kernel_part_path(KEDR_COI_INSTALL_PREFIX_INTERCEPTORS
@@ -274,16 +231,11 @@ if(KERNEL_PART)
     add_subdirectory(interceptors)
 endif(KERNEL_PART)
 
-# Common tests.
-if(USER_PART)
-    add_subdirectory(tests)
-endif(USER_PART)
-
-
-# Examples, kernel and user division is inside.
-if (NOT CMAKE_CROSSCOMPILING)
+# Examples are common.
+if(USER_PART AND NOT CMAKE_CROSSCOMPILING)
+    include(examples_system)
     add_subdirectory(examples)
-endif (NOT CMAKE_CROSSCOMPILING)
+endif(USER_PART AND NOT CMAKE_CROSSCOMPILING)
 
 if(USER_PART)
     add_subdirectory(doc)
@@ -292,6 +244,13 @@ endif(USER_PART)
 if(KERNEL_PART)
     configure_file("${CMAKE_SOURCE_DIR}/config_kernel.h.in" "${CMAKE_BINARY_DIR}/config_kernel.h")
 endif(KERNEL_PART)
+
+#######################################################################
+option(BUILD_TESTS "Whether need to build tests" OFF)
+if(BUILD_TESTS)
+    add_subdirectory(tests)
+endif(BUILD_TESTS)
+#######################################################################
 
 if(KERNEL_PART)
     kbuild_finalize_linking()

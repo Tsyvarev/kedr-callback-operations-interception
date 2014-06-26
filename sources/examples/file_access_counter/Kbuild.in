@@ -2,7 +2,7 @@ module_name=@module_name@
 
 @multi_kernel_KERNEL_VAR_MAKE_DEFINITION@
 
-ccflags-y :=  -I@KEDR_COI_INCLUDE_DIR@ -I@KEDR_COI_MAKE_INCLUDE_KERNEL_DIR@ -I@KEDR_INSTALL_DIR@/include
+ccflags-y :=  -I@KEDR_COI_INSTALL_INCLUDE_DIR@ -I@KEDR_COI_INSTALL_MAKE_INCLUDE_KERNEL_DIR@ -I@KEDR_INSTALL_DIR@/include
 
 interceptors_normal = 
 interceptors_factory =

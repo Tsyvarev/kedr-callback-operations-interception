@@ -1,9 +1,14 @@
 #!/bin/sh
 
-sample_target_name="@module_name@"
-sample_target_script="sh @CMAKE_CURRENT_BINARY_DIR@/@example_dir@/kedr_sample_target"
+@multi_kernel_KERNEL_VAR_SHELL_DEFINITION@
 
-kedr_coi_module="@CMAKE_BINARY_DIR@/core/kedr_coi.ko"
+sample_target_name="kedr_sample_target"
+sample_target_script="sh @example_dir@/kedr_sample_target"
+
+example_files="@shell_example_files@"
+example_location=@example_location@
+
+kedr_coi_module="@KEDR_COI_INSTALL_SHELL_CORE_MODULE@"
 
 dev="/dev/cfake0"
 dev1="/dev/cfake1"
@@ -16,8 +21,22 @@ unload_all()
     /sbin/rmmod ${kedr_coi_module}
 }
 
-if ! make -C @example_dir@ clean all; then
-    printf "Failed to (re)build example.\n"
+# Clean directory with example
+if ! rm -rf @example_dir@; then
+    printf "Failed to remove directory with example copy.\n"
+    exit 1
+fi
+if ! mkdir -p @example_dir@; then
+    printf "Failed to create directory for example copy.\n"
+    exit 1
+fi
+
+for example_file in ${example_files}; do
+    cp -p ${example_location}/${example_file} @example_dir@
+done
+
+if ! make -C @example_dir@; then
+    printf "Failed to build example.\n"
     exit 1
 fi
 

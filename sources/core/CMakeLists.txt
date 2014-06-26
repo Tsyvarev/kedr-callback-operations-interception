@@ -31,4 +31,4 @@ kedr_coi_install_symvers(${kmodule_name})
 
 
 # The tests
-kedr_coi_test_add_subdirectory (tests)
+# kedr_coi_test_add_subdirectory (tests)

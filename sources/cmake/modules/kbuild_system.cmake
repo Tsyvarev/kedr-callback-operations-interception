@@ -731,7 +731,7 @@ function(kbuild_finalize_linking)
             endif(far_depend_targets)
         else(far_symvers)
             # Nor 'far' links? Just precreate empty file.
-            write_or_update_file("${module_binary_dir}/${_kbuild_symvers_imported_far}" "")
+            file_update("${module_binary_dir}/${_kbuild_symvers_imported_far}" "")
         endif(far_symvers)
     endforeach(m ${kmodule_targets})
 endfunction(kbuild_finalize_linking)
@@ -1033,7 +1033,7 @@ function(_kbuild_module_clean_files module_name)
 	set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES "${files_list}")
 endfunction(_kbuild_module_clean_files module_name)
 
-# parse_install_arguments(prefix <section-type-keywords> <options> <one-value-keywords> <multiple-value-keywords> args..)
+#  parse_install_arguments(prefix <section-type-keywords> <options> <one-value-keywords> <multiple-value-keywords> args..)
 #
 # Helper for parse arguments for install-like command.
 #

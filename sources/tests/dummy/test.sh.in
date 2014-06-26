@@ -1,7 +1,9 @@
 #!/bin/sh
 
+@multi_kernel_KERNEL_VAR_SHELL_DEFINITION@
+
 kedr_coi_module_name=kedr_coi
-kedr_coi_module=@KEDR_COI_TEST_SHELL_CORE_MODULE@
+kedr_coi_module=@KEDR_COI_INSTALL_SHELL_CORE_MODULE@
 
 if ! /sbin/insmod ${kedr_coi_module}; then
     printf "Failed to load ${kedr_coi_module_name} module into kernel.\n"
