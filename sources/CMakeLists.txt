@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 2.8.3)
 
 enable_language(C)
 
-project(KEDR_COI)
+project(kedr-coi)
 
 #######################################################################
 # Prohibit a common type of an in-source build.
@@ -126,27 +126,26 @@ endif(KERNEL_PART)
 
 include(template_generation)
 #######################################################################
-#kedr_coi_install_library(library_name)
-function(kedr_coi_install_library library_name)
-    install(TARGETS ${library_name} LIBRARY
-            DESTINATION ${KEDR_COI_INSTALL_PREFIX_LIB})
-endfunction(kedr_coi_install_library library_name)
 #kedr_coi_install_headers(install_subdir header_file [..])
 function(kedr_coi_install_headers install_subdir)
     install(FILES ${header_file} ${ARGN}
-            DESTINATION ${KEDR_COI_INSTALL_PREFIX_INCLUDE}/${install_subdir})
+	DESTINATION ${KEDR_COI_INSTALL_PREFIX_INCLUDE}/${install_subdir}
+	COMPONENT "devel"
+    )
 endfunction(kedr_coi_install_headers install_subdir)
 if(KERNEL_PART)
     #kedr_coi_install_kmodule(kmodule_name)
     function(kedr_coi_install_kmodule kmodule_name)
 	kbuild_install(TARGETS ${kmodule_name} MODULE
 	    DESTINATION "${KEDR_COI_INSTALL_PREFIX_KMODULE}"
+	    COMPONENT "core-kernel"
 	)
     endfunction(kedr_coi_install_kmodule kmodule_name)
     #kedr_coi_install_symvers(kmodule_name)
     function(kedr_coi_install_symvers kmodule_name)
 	kbuild_install(TARGETS ${kmodule_name} SYMVERS
 	    DESTINATION "${KEDR_COI_INSTALL_PREFIX_KSYMVERS}"
+	    COMPONENT "devel-kernel"
 	)
     endfunction(kedr_coi_install_symvers kmodule_name)
 endif(KERNEL_PART)
@@ -255,6 +254,76 @@ endif(BUILD_TESTS)
 if(KERNEL_PART)
     kbuild_finalize_linking()
 endif(KERNEL_PART)
+#######################################################################
+# CPack support
+# Variables set here are described at http://cmake.org/Wiki/CMake:CPackConfiguration.
+#
+# At this stage - this is a list of supported generators.
+set(CPACK_GENERATOR "RPM;DEB;TGZ;TZ")
+
+set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY "1")
+
+set(CPACK_PACKAGE_NAME ${KEDR_COI_PACKAGE_NAME})
+
+set(CPACK_PACKAGE_VERSION_MAJOR ${KEDR_COI_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${KEDR_COI_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${KEDR_COI_VERSION_PATCH})
+
+set(CPACK_PACKAGE_DESCRIPTION_FILE "${PROJECT_SOURCE_DIR}/README")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Callback Operations Interception for KEDR framework")
+
+# Generator-specific delcarations are here.
+set(CPACK_PROJECT_CONFIG_FILE "${PROJECT_SOURCE_DIR}/cpack/CPackOptions.cmake")
+
+
+# Components-related definitions.
+#
+# See http://www.cmake.org/Wiki/CMake:Component_Install_With_CPack.
+set(CPACK_COMPONENTS_ALL)
+if(USER_PART)
+    list(APPEND CPACK_COMPONENTS_ALL
+# There is not common files for 'core' component, like executables or scripts.
+	devel
+	docs
+    )
+    if(BUILD_TESTS)
+	list(APPEND CPACK_COMPONENTS_ALL tests)
+    endif(BUILD_TESTS)
+endif(USER_PART)
+if(KERNEL_PART)
+    list(APPEND CPACK_COMPONENTS_ALL
+	core-kernel
+	devel-kernel
+    )
+    if(BUILD_TESTS)
+	list(APPEND CPACK_COMPONENTS_ALL tests-kernel)
+    endif(BUILD_TESTS)
+endif(KERNEL_PART)
+
+# There is no group-division for components in the project.
+set(CPACK_COMPONENTS_IGNORE_GROUPS "1")
+
+set(CPACK_COMPONENT_DEVEL_DISPLAY_NAME "Development files")
+set(CPACK_COMPONENT_DEVEL_DESCRIPTION "Files for build software based on kedr coi.")
+
+set(CPACK_COMPONENT_DOCS_DISPLAY_NAME "Documentation")
+set(CPACK_COMPONENT_DOCS_DESCRIPTION "Documentation for kedr coi.")
+
+set(CPACK_COMPONENT_TESTS_DISPLAY_NAME "Tests")
+set(CPACK_COMPONENT_TESTS_DESCRIPTION "Tests for kedr coi.")
+
+set(CPACK_COMPONENT_CORE-KERNEL_DISPLAY_NAME "Main kernel module")
+set(CPACK_COMPONENT_CORE-KERNEL_DESCRIPTION "Kernel module which implements main functionality.")
+
+set(CPACK_COMPONENT_DEVEL-KERNEL_DISPLAY_NAME "Development files (kernel-dependent part)")
+set(CPACK_COMPONENT_DEVEL-KERNEL_DESCRIPTION "Files for build software based on kedr coi (kernel-dependent part).")
+
+set(CPACK_COMPONENT_TESTS-KERNEL_DISPLAY_NAME "Tests (kernel-dependent part")
+set(CPACK_COMPONENT_TESTS-KERNEL_DESCRIPTION "Tests for kedr coi (kernel-dependent part).")
+
+
+# CPack module is included after all needed variables are set.
+include(CPack)
 #######################################################################
 # TODO: Message should reflect KERNEL_PART_ONLY/ USER_PART_ONLY.
 message (STATUS "Configured ${KEDR_COI_PACKAGE_NAME} version ${KEDR_COI_VERSION}")

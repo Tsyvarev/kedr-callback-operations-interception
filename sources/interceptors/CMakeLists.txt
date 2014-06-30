@@ -35,9 +35,13 @@ function(add_interceptor name data_file)
     )
     
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${name}.h"
-	DESTINATION "${KEDR_COI_INSTALL_PREFIX_INCLUDE_KERNEL}/interceptors")
+	DESTINATION "${KEDR_COI_INSTALL_PREFIX_INCLUDE_KERNEL}/interceptors"
+	COMPONENT "devel-kernel"
+    )
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${name}.c"
-	DESTINATION "${KEDR_COI_INSTALL_PREFIX_INTERCEPTORS}")
+	DESTINATION "${KEDR_COI_INSTALL_PREFIX_INTERCEPTORS}"
+	COMPONENT "devel-kernel"
+    )
 endfunction(add_interceptor name data_file)
 
 # Concrete interceptors

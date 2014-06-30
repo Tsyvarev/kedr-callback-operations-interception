@@ -6,6 +6,7 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/test.sh.in"
 
 install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/test.sh"
     DESTINATION "${this_install_dir}"
+    COMPONENT "tests"
 )
 
 kedr_coi_test_add_script("dummy_test" "test.sh")

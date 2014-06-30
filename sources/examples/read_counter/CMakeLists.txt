@@ -26,6 +26,7 @@ add_example(${example_name}
 # Install example and export it for tests.
 install_example(TARGETS ${example_name} EXPORT read_counter_imported
     DESTINATION "${KEDR_COI_INSTALL_PREFIX_EXAMPLES}/read_counter"
+    COMPONENT "devel"
 )
 
 #install(FILES "kedr_sample_target"

@@ -9,4 +9,5 @@ set(templates
 
 install(DIRECTORY ${templates} 
         DESTINATION "${KEDR_COI_TEMPLATES_PATH}"
+        COMPONENT "devel"
 )

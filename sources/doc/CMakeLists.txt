@@ -186,6 +186,7 @@ endif (KEDR_COI_GENERATE_DOC)
 # itself.
 install (DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/html/"
     DESTINATION "${KEDR_COI_DOC_PATH}"
+    COMPONENT "docs"
 )
 
 #######################################################################

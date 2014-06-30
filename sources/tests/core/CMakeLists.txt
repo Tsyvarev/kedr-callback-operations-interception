@@ -32,6 +32,7 @@ function(add_test_interceptor test_name module_name source)
         kernel_part_path(test_module_install_dir "${test_module_kernel_install_dir}")
         kbuild_install(TARGETS ${module_name}
             MODULE DESTINATION ${test_module_install_dir}
+            COMPONENT "tests-kernel"
         )
     endif(KERNEL_PART)
     if(USER_PART)

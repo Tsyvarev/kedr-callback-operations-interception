@@ -8,7 +8,9 @@
 
 get_filename_component(_ictest_module_dir ${CMAKE_CURRENT_LIST_FILE} PATH)
 
-#  ictest_enable_testing(<install_dir>)
+include(CMakeParseArguments)
+
+#  ictest_enable_testing(<install_dir> [COMPONENT <component>])
 #
 # Activate testing infrastructure.
 # Without this function all other functions in this module do nothing.
@@ -18,7 +20,16 @@ get_filename_component(_ictest_module_dir ${CMAKE_CURRENT_LIST_FILE} PATH)
 # Directory(build one) where this function is called is used as
 # base build one for tests. When being installed, every test remains
 # path relative base binary/install directory.
+#
+# If COMPONENT options is given, it will be used in install() commands
+# for tests.
 macro(ictest_enable_testing install_dir)
+    cmake_parse_arguments(ictest_enable_testing "" "COMPONENT" "" ${ARGN})
+    set(_ictest_install_defs)
+    if(ictest_enable_testing_COMPONENT)
+        list(APPEND _ictest_install_defs COMPONENT "${ictest_enable_testing_COMPONENT}")
+    endif(ictest_enable_testing_COMPONENT)
+    
     set(_ictest_enabled "ON")
     set(_ictest_install_dir "${install_dir}")
     set(_ictest_source_dir "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -29,7 +40,9 @@ macro(ictest_enable_testing install_dir)
         "${CMAKE_CURRENT_BINARY_DIR}/run_tests.sh")
     
     install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/run_tests.sh"
-        DESTINATION ${install_dir})
+        DESTINATION ${install_dir}
+        ${_ictest_install_defs}
+    )
 endmacro(ictest_enable_testing install_dir)
 
 #  ictest_add_test(testname <executable> [args...])
@@ -132,6 +145,7 @@ function(_ictest_setup_dir dir bindir)
     file(RELATIVE_PATH bindir_rel ${_ictest_binary_dir} ${bindir})
     install(FILES "${bindir}/${_ictest_filename_build}"
         DESTINATION "${_ictest_install_dir}/${bindir_rel}"
+        ${_ictest_install_defs}
         RENAME "${_ictest_filename}"
     )
 endfunction(_ictest_setup_dir dir bindir)

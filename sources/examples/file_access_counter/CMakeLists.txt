@@ -25,5 +25,6 @@ add_example(${example_name}
 
 # Install example and export it for tests.
 install_example(TARGETS ${example_name} EXPORT file_access_counter_imported
+    COMPONENT "devel"
     DESTINATION "${KEDR_COI_INSTALL_PREFIX_EXAMPLES}/file_access_counter"
 )

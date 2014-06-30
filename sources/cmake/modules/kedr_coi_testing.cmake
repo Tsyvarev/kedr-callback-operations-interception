@@ -19,11 +19,12 @@ set(kedr_coi_testing_this_module_dir "${CMAKE_SOURCE_DIR}/cmake/modules")
 macro (kedr_coi_test_init test_install_dir)
     itesting_init(${test_install_dir})
     if(USER_PART)
-	ictest_enable_testing(${test_install_dir})
+	ictest_enable_testing(${test_install_dir} COMPONENT "tests")
 
 	# Install common script for run tests implemented as kernel modules.
 	install(PROGRAMS "${kedr_coi_testing_this_module_dir}/kedr_coi_testing_files/test_kernel_code.sh"
 	    DESTINATION "${test_install_dir}/scripts"
+	    COMPONENT "tests"
 	)
 	set(_test_kernel_code_script "${test_install_dir}/scripts/test_kernel_code.sh")
     endif(USER_PART)
