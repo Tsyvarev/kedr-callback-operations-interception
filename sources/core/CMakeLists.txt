@@ -26,7 +26,9 @@ kbuild_add_module(${kmodule_name}
     "kedr_coi_hash_table.h"
     )
 
-kedr_coi_install_kmodule(${kmodule_name})
+if(NOT DKMS)
+    kedr_coi_install_kmodule(${kmodule_name})
+endif(NOT DKMS)
 kedr_coi_install_symvers(${kmodule_name})
 
 

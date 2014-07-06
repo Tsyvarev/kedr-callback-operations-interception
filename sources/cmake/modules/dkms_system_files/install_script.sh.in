@@ -1,0 +1,69 @@
+#!/bin/sh
+
+# Install other files.
+#
+# NB: Project's build tree (build/) is absent at 'dkms install' action.
+# Moreover, dkms build tree for project may also be absent at this stage.
+
+if test $# -eq 0; then
+    print "Usage: install_script.sh install|remove <kernelversion>\n"
+    exit 1
+fi
+
+action=$1
+
+if test $# -eq 1; then
+    printf "Kernel version should be given\n"
+    exit 1
+fi
+
+KERNELVERSION=$2
+
+install_info_dir=@dkms_install_DESTINATION@/install/
+kernel_install_info_dir=$install_info_dir/${KERNELVERSION}
+manifest_file=$kernel_install_info_dir/install_manifest.txt
+install_tree=$kernel_install_info_dir/files
+
+if ! test -e $manifest_file; then
+    printf "Manifest file '$manifest_file' is absent.\n"
+    printf "Error: Cannot find list of files for (un)install."
+    exit 1
+fi
+
+IFS='
+'
+
+case $action in
+install)
+    for f in `cat $manifest_file`; do
+        # TODO: real installation
+        printf "Installing: $f\n"
+        dest_dir=`dirname $f`
+        mkdir -p $dest_dir
+        cp -p $install_tree/$f $dest_dir/
+    done
+    ;;
+remove)
+    # Uninstall part
+    for f in `cat $manifest_file`; do
+        # TODO: real uninstallation
+        printf "Uninstalling: $f\n"
+        # Output message in case of problem of uninstalling file, but continue process.
+        rm $f || /bin/true
+    done
+
+    # Remove install information
+    printf "Remove additional pre-built files for this kernel.\n"
+    rm -r $install_info_dir/${KERNELVERSION}
+
+    # If it was last information, also remove parent directory.
+    if test -z "`ls -A $install_info_dir`"; then
+        printf "There is no kernel with additional pre-built files, remove whole tree with pre-built files.\n"
+        rm -r $install_info_dir
+    fi
+    ;;
+*)
+    printf "Unknown action: $action. Should be 'install' or 'remove'.\n"
+    exit 1
+    ;;
+esac

@@ -1,0 +1,18 @@
+default: all
+
+KERNELVERSION_CURRENT := $(shell uname -r)
+
+all:
+	if test $(KERNELVERSION) != $(KERNELVERSION_CURRENT); then printf "Error: Only building for currently running kernel is supported\n"; /bin/false; fi
+	mkdir -p build
+	cd build && cmake @dkms_cmake_flags@ -DKBUILD_DIR=$(KERNELDIR) @dkms_install_SOURCES@
+	$(MAKE) -C build all
+
+install: all
+	$(MAKE) -C build DESTDIR=@dkms_install_DESTINATION@/install/$(KERNELVERSION)/files install
+	cp -p build/install_manifest.txt @dkms_install_DESTINATION@/install/$(KERNELVERSION)/
+
+clean:
+	rm -rf build
+
+.PHONY: default all install clean

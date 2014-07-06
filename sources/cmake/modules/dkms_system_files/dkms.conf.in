@@ -1,0 +1,12 @@
+PACKAGE_NAME=@package_name@
+PACKAGE_VERSION=@package_version@
+
+@hooks@
+# NB: POST_BUILD is more suitable for 'make install' target, but
+# Current implementation of dkms silently ignores POST_BUILD (known bug).
+MAKE[0]="make KERNELDIR=${kernel_source_dir} KERNELVERSION=${kernelver} -f makefile_dkms @build_target@"
+CLEAN="make -f makefile_dkms clean"
+
+@modules@
+
+UDEV_TRIGGER=no

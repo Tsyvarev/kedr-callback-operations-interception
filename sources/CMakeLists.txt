@@ -51,6 +51,12 @@ endif(NOT USER_PART_ONLY)
 include(multi_kernel)
 
 fill_install_prefixes("${KEDR_COI_PACKAGE_NAME}" KEDR_COI KERNEL)
+# Manually replace some prefixes for make all global installations consistent with DKMS.
+# In the future, these paths may be changed in path_prefixes.cmake module.
+if(KEDR_COI_INSTALL_TYPE MATCHES "GLOBAL")
+    set(KEDR_COI_KERNEL_INSTALL_PREFIX_KMODULE "/lib/modules/%kernel%/extra")
+    set(KEDR_COI_KERNEL_INSTALL_PREFIX_KSYMVERS "/lib/modules/%kernel%/symvers")
+endif(KEDR_COI_INSTALL_TYPE MATCHES "GLOBAL")
 #######################################################################
 # Kernel-specific path definitions.
 if(KERNEL_PART)
@@ -61,7 +67,10 @@ if(KERNEL_PART)
 	"${KEDR_COI_KERNEL_INSTALL_PREFIX_KSYMVERS}")
     # In the build tree both kmodules and symvers are placed in their own dirs,
     # so there is no needs for have test variants for these paths.
-
+    
+    # debug
+    message("KEDR_COI_INSTALL_PREFIX_KSYMVERS: ${KEDR_COI_INSTALL_PREFIX_KSYMVERS}")
+    
     # Per-kernel includes
     kernel_part_path(KEDR_COI_INSTALL_INCLUDE_KERNEL_DIR
 	"${KEDR_COI_KERNEL_INSTALL_INCLUDE_KERNEL_DIR}")
@@ -108,6 +117,33 @@ if(KEDR_INSTALL_DIR)
 	"${KEDR_KERNEL_INSTALL_PREFIX_KSYMVERS}")
 endif(KEDR_INSTALL_DIR)
 #######################################################################
+# Actually, 'DKMS' option has different meaning for USER_PART_ONLY and
+# KERNEL_PART_ONLY builds.
+option(DKMS "Integrate with DKMS" OFF)
+if(DKMS)
+    if(NOT KEDR_COI_INSTALL_TYPE MATCHES "GLOBAL")
+	message(FATAL_ERROR "'DKMS' options is allowed only with global installation.")
+    endif(NOT KEDR_COI_INSTALL_TYPE MATCHES "GLOBAL")
+
+    if(USER_PART_ONLY)
+	# For USER_PART_ONLY 'DKMS=on' means that need to additionally
+	# install source files for future 'dkms add' call.
+	include(dkms_system)
+	
+	dkms_add(dkms_common ${KEDR_COI_PACKAGE_NAME} ${KEDR_COI_VERSION})
+	set_property(TARGET dkms_common PROPERTY DKMS_CMAKE_FLAGS
+	    "-DDKMS=on"
+	    "-DKERNEL_PART_ONLY=on"
+	    "-DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}"
+	)
+    elseif(KERNEL_PART_ONLY)
+	# For KERNEL_PART_ONLY 'DKMS=on' means that project is built by
+	# DKMS, and core modules shouldn't be installed with cmake.
+    else()
+	message(FATAL_ERROR "DKMS option is allowed only for USER_PART_ONLY or KERNEL_PART_ONLY builds")
+    endif(USER_PART_ONLY)
+endif(DKMS)
+#######################################################################
 if(KERNEL_PART)
     # Redefine some default kbuild compiler flags before including 'kbuild_system'.
     set(KBUILD_C_FLAGS
@@ -148,6 +184,9 @@ if(KERNEL_PART)
 	    COMPONENT "devel-kernel"
 	)
     endfunction(kedr_coi_install_symvers kmodule_name)
+elseif(DKMS)
+    # Common destination dir for DKMS modules.
+    set(dkms_module_install_dir "extra")
 endif(KERNEL_PART)
 #######################################################################
 
@@ -186,6 +225,8 @@ endif(USER_PART)
 
 if(KERNEL_PART)
     add_subdirectory(core)
+elseif(DKMS)
+    dkms_add_module(dkms_common "kedr_coi" "core/" "${dkms_module_install_dir}")
 endif(KERNEL_PART)
 
 kernel_make_path(KEDR_COI_INSTALL_MAKE_CORE_SYMBOLS
@@ -226,7 +267,6 @@ kernel_make_path(KEDR_COI_INSTALL_MAKE_PREFIX_INTERCEPTORS
 if(KERNEL_PART)
     kernel_part_path(KEDR_COI_INSTALL_PREFIX_INTERCEPTORS
 	"${KEDR_COI_KERNEL_INSTALL_PREFIX_INTERCEPTORS}")
-
     add_subdirectory(interceptors)
 endif(KERNEL_PART)
 
@@ -254,6 +294,18 @@ endif(BUILD_TESTS)
 if(KERNEL_PART)
     kbuild_finalize_linking()
 endif(KERNEL_PART)
+#######################################################################
+if(USER_PART_ONLY AND DKMS)
+    set(dkms_sources_tree ${KEDR_COI_INSTALL_PREFIX_VAR}/dkms)
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/" # Tail '/' means do not create 'sources' directory.
+	DESTINATION ${dkms_sources_tree}
+	COMPONENT dkms-common
+    )
+    dkms_install(dkms_common
+	SOURCES ${dkms_sources_tree}
+	COMPONENT dkms-common
+    )
+endif(USER_PART_ONLY AND DKMS)
 #######################################################################
 # CPack support
 # Variables set here are described at http://cmake.org/Wiki/CMake:CPackConfiguration.
@@ -289,6 +341,9 @@ if(USER_PART)
     if(BUILD_TESTS)
 	list(APPEND CPACK_COMPONENTS_ALL tests)
     endif(BUILD_TESTS)
+    if(DKMS)
+	list(APPEND CPACK_COMPONENTS_ALL dkms-common)
+    endif(DKMS)
 endif(USER_PART)
 if(KERNEL_PART)
     list(APPEND CPACK_COMPONENTS_ALL
