@@ -362,7 +362,7 @@ static int operation_payloads_check_payload(
      */
     if(payload->pre_handlers)
     {
-        struct kedr_coi_pre_handler* pre_handler;
+        struct kedr_coi_handler* pre_handler;
         for(pre_handler = payload->pre_handlers;
             pre_handler->operation_offset != -1;
             pre_handler++)
@@ -391,7 +391,7 @@ static int operation_payloads_check_payload(
     
     if(payload->post_handlers)
     {
-        struct kedr_coi_post_handler* post_handler;
+        struct kedr_coi_handler* post_handler;
         for(post_handler = payload->post_handlers;
             post_handler->operation_offset != -1;
             post_handler++)
@@ -460,7 +460,7 @@ static int operation_payloads_use_elem(
     
     if(payload->pre_handlers)
     {
-        struct kedr_coi_pre_handler* pre_handler;
+        struct kedr_coi_handler* pre_handler;
         for(pre_handler = payload->pre_handlers;
             pre_handler->operation_offset != -1;
             pre_handler++)
@@ -479,7 +479,7 @@ static int operation_payloads_use_elem(
     
     if(payload->post_handlers)
     {
-        struct kedr_coi_post_handler* post_handler;
+        struct kedr_coi_handler* post_handler;
         for(post_handler = payload->post_handlers;
             post_handler->operation_offset != -1;
             post_handler++)

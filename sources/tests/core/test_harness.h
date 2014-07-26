@@ -24,31 +24,17 @@ typedef void (*kedr_coi_test_op_t)(void* object, void* another_object);
 
 #define HANDLER_FUNC_CHECKED(handler_func, type) BUILD_BUG_ON_ZERO(!__builtin_types_compatible_p(typeof(&handler_func), type)) + (char*)&handler_func
 
-typedef void (*kedr_coi_test_pre_handler_t)(void*, void*, struct kedr_coi_operation_call_info*, int);
-#define PRE_HANDLER_FUNC_CHECKED(handler_func) HANDLER_FUNC_CHECKED(handler_func, kedr_coi_test_pre_handler_t)
+typedef void (*kedr_coi_test_handler_t)(void*, void*, struct kedr_coi_operation_call_info*, int);
+#define TEST_HANDLER_FUNC_CHECKED(handler_func) HANDLER_FUNC_CHECKED(handler_func, kedr_coi_test_handler_t)
 
-typedef void (*kedr_coi_test_post_handler_t)(void*, void*, struct kedr_coi_operation_call_info*);
-#define POST_HANDLER_FUNC_CHECKED(handler_func) HANDLER_FUNC_CHECKED(handler_func, kedr_coi_test_post_handler_t)
-
-#define PRE_HANDLER(op_name, handler_func){\
+#define HANDLER(op_name, handler_func){\
     .operation_offset = OPERATION_OFFSET(op_name),\
-    .func = PRE_HANDLER_FUNC_CHECKED(handler_func)\
+    .func = TEST_HANDLER_FUNC_CHECKED(handler_func)\
 }
 
-#define POST_HANDLER(op_name, handler_func){\
+#define HANDLER_EXTERNAL(op_name, handler_func){\
     .operation_offset = OPERATION_OFFSET(op_name),\
-    .func = POST_HANDLER_FUNC_CHECKED(handler_func)\
-}
-
-#define PRE_HANDLER_EXTERNAL(op_name, handler_func){\
-    .operation_offset = OPERATION_OFFSET(op_name),\
-    .func = PRE_HANDLER_FUNC_CHECKED(handler_func),\
-    .external = true\
-}
-
-#define POST_HANDLER_EXTERNAL(op_name, handler_func){\
-    .operation_offset = OPERATION_OFFSET(op_name),\
-    .func = POST_HANDLER_FUNC_CHECKED(handler_func),\
+    .func = TEST_HANDLER_FUNC_CHECKED(handler_func),\
     .external = true\
 }
 
@@ -99,15 +85,8 @@ void func_name(void* object, void* data) \
 }
 
 
-#define KEDR_COI_TEST_DEFINE_PRE_HANDLER_FUNC(func_name, counter) \
+#define KEDR_COI_TEST_DEFINE_HANDLER_FUNC(func_name, counter) \
 void func_name(void* object, void* data, struct kedr_coi_operation_call_info* info, int unused)\
-{\
-    counter++;\
-}
-
-
-#define KEDR_COI_TEST_DEFINE_POST_HANDLER_FUNC(func_name, counter) \
-void func_name(void* object, void* data, struct kedr_coi_operation_call_info* info)\
 {\
     counter++;\
 }

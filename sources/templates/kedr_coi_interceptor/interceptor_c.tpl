@@ -73,7 +73,10 @@ static <$if operation.returnType$>{{operation.returnType}}<$else$>void<$endif$> 
 <$ endblock fill_info$>
     call_info.return_address = __builtin_return_address(0);
     call_info.op_orig = intermediate_info.op_orig;
-    
+<$if operation.returnType$>
+    call_info.return_value = &returnValue;
+<$endif$>
+
     if(intermediate_info.pre != NULL)
     {
         void (**pre_function)(<$include 'argumentTypeSpec_comma'$>struct kedr_coi_operation_call_info*);
@@ -92,12 +95,12 @@ static <$if operation.returnType$>{{operation.returnType}}<$else$>void<$endif$> 
 
     if(intermediate_info.post != NULL)
     {
-        void (**post_function)(<$include 'argumentTypeSpec_comma'$><$if operation.returnType$>{{operation.returnType}}, <$endif$>struct kedr_coi_operation_call_info*);
+        void (**post_function)(<$include 'argumentTypeSpec_comma'$>struct kedr_coi_operation_call_info*);
         
         for(post_function = (typeof(post_function))intermediate_info.post;
             *post_function != NULL;
             post_function++)
-            (*post_function)(<$include 'argumentList_comma'$><$if operation.returnType$>returnValue, <$endif$>&call_info);
+            (*post_function)(<$include 'argumentList_comma'$>&call_info);
     }
 
 <$if operation.returnType$>

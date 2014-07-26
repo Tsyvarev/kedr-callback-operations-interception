@@ -61,22 +61,22 @@ static struct kedr_coi_intermediate intermediate_operations[] =
 
 // First payload with 2 handlers
 int op1_pre1_call_counter;
-KEDR_COI_TEST_DEFINE_PRE_HANDLER_FUNC(op1_pre1, op1_pre1_call_counter)
+KEDR_COI_TEST_DEFINE_HANDLER_FUNC(op1_pre1, op1_pre1_call_counter)
 
 int op4_post1_call_counter;
-KEDR_COI_TEST_DEFINE_POST_HANDLER_FUNC(op4_post1, op4_post1_call_counter)
+KEDR_COI_TEST_DEFINE_HANDLER_FUNC(op4_post1, op4_post1_call_counter)
 
 
-static struct kedr_coi_pre_handler pre_handlers1[] =
+static struct kedr_coi_handler pre_handlers1[] =
 {
-    PRE_HANDLER_EXTERNAL(op1, op1_pre1),
-    kedr_coi_pre_handler_end
+    HANDLER_EXTERNAL(op1, op1_pre1),
+    kedr_coi_handler_end
 };
 
-static struct kedr_coi_post_handler post_handlers1[] =
+static struct kedr_coi_handler post_handlers1[] =
 {
-    POST_HANDLER_EXTERNAL(op4, op4_post1),
-    kedr_coi_post_handler_end
+    HANDLER_EXTERNAL(op4, op4_post1),
+    kedr_coi_handler_end
 };
 
 
@@ -88,29 +88,29 @@ static struct kedr_coi_payload payload1 =
 
 // Second payload with 4 handlers
 int op1_pre2_call_counter;
-KEDR_COI_TEST_DEFINE_PRE_HANDLER_FUNC(op1_pre2, op1_pre2_call_counter)
+KEDR_COI_TEST_DEFINE_HANDLER_FUNC(op1_pre2, op1_pre2_call_counter)
 
 int op3_pre2_call_counter;
-KEDR_COI_TEST_DEFINE_PRE_HANDLER_FUNC(op3_pre2, op3_pre2_call_counter)
+KEDR_COI_TEST_DEFINE_HANDLER_FUNC(op3_pre2, op3_pre2_call_counter)
 
 int op3_post2_call_counter;
-KEDR_COI_TEST_DEFINE_POST_HANDLER_FUNC(op3_post2, op3_post2_call_counter)
+KEDR_COI_TEST_DEFINE_HANDLER_FUNC(op3_post2, op3_post2_call_counter)
 
 int op3_post2_1_call_counter;
-KEDR_COI_TEST_DEFINE_POST_HANDLER_FUNC(op3_post2_1, op3_post2_1_call_counter)
+KEDR_COI_TEST_DEFINE_HANDLER_FUNC(op3_post2_1, op3_post2_1_call_counter)
 
-static struct kedr_coi_pre_handler pre_handlers2[] =
+static struct kedr_coi_handler pre_handlers2[] =
 {
-    PRE_HANDLER_EXTERNAL(op1, op1_pre2),
-    PRE_HANDLER_EXTERNAL(op3, op3_pre2),
-    kedr_coi_pre_handler_end
+    HANDLER_EXTERNAL(op1, op1_pre2),
+    HANDLER_EXTERNAL(op3, op3_pre2),
+    kedr_coi_handler_end
 };
 
-static struct kedr_coi_post_handler post_handlers2[] =
+static struct kedr_coi_handler post_handlers2[] =
 {
-    POST_HANDLER_EXTERNAL(op3, op3_post2),
-    POST_HANDLER_EXTERNAL(op3, op3_post2_1),
-    kedr_coi_post_handler_end
+    HANDLER_EXTERNAL(op3, op3_post2),
+    HANDLER_EXTERNAL(op3, op3_post2_1),
+    kedr_coi_handler_end
 };
 
 static struct kedr_coi_payload payload2 =

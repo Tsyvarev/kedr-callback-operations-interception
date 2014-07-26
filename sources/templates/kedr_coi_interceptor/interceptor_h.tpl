@@ -50,26 +50,17 @@ struct kedr_coi_creation_interceptor*
 <$ if operation.header $>
 {{ operation.header }}
 <$endif$>
-typedef void (*{{interceptor.operations_prefix}}_{{operation.name}}_pre_handler_t)(<$include 'argumentTypeSpec_comma'$>struct kedr_coi_operation_call_info*);
-typedef void (*{{interceptor.operations_prefix}}_{{operation.name}}_post_handler_t)(<$include 'argumentTypeSpec_comma'$><$if operation.returnType$>{{operation.returnType}}, <$endif$>struct kedr_coi_operation_call_info*);
+typedef void (*{{interceptor.operations_prefix}}_{{operation.name}}_handler_t)(<$include 'argumentTypeSpec_comma'$>struct kedr_coi_operation_call_info*);
 
-#define {{interceptor.operations_prefix}}_{{operation.name}}_pre(pre_handler) { \
+#define {{interceptor.operations_prefix}}_{{operation.name}}_handler(handler_func) { \
     .operation_offset = offsetof(<$include 'operations_type'$>, {{operation.name}}), \
-    .func = KEDR_COI_CALLBACK_CHECKED(pre_handler, {{interceptor.operations_prefix}}_{{operation.name}}_pre_handler_t) \
+    .func = KEDR_COI_CALLBACK_CHECKED(handler_func, {{interceptor.operations_prefix}}_{{operation.name}}_handler_t) \
 }
-#define {{interceptor.operations_prefix}}_{{operation.name}}_post(post_handler) { \
-    .operation_offset = offsetof(<$include 'operations_type'$>, {{operation.name}}), \
-    .func = KEDR_COI_CALLBACK_CHECKED(post_handler, {{interceptor.operations_prefix}}_{{operation.name}}_post_handler_t) \
-}
+
 <$if operation.default$>
-#define {{interceptor.operations_prefix}}_{{operation.name}}_pre_external(pre_handler) { \
+#define {{interceptor.operations_prefix}}_{{operation.name}}_handler_external(handler_func) { \
     .operation_offset = offsetof(<$include 'operations_type'$>, {{operation.name}}), \
-    .func = KEDR_COI_CALLBACK_CHECKED(pre_handler, {{interceptor.operations_prefix}}_{{operation.name}}_pre_handler_t), \
-    .external = true \
-}
-#define {{interceptor.operations_prefix}}_{{operation.name}}_post_external(post_handler) { \
-    .operation_offset = offsetof(<$include 'operations_type'$>, {{operation.name}}), \
-    .func = KEDR_COI_CALLBACK_CHECKED(post_handler, {{interceptor.operations_prefix}}_{{operation.name}}_post_handler_t), \
+    .func = KEDR_COI_CALLBACK_CHECKED(handler_func, {{interceptor.operations_prefix}}_{{operation.name}}_handler_t), \
     .external = true \
 }
 <$endif$>

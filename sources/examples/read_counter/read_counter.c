@@ -40,17 +40,18 @@ module_param(read_counter, uint, S_IRUGO);
 
 /* Counter update */
 static void file_operation_read_post_counter_update(struct file* filp,
-    char __user* buf, size_t count, loff_t* f_pos, ssize_t returnValue,
+    char __user* buf, size_t count, loff_t* f_pos,
     struct kedr_coi_operation_call_info* call_info)
 {
+    ssize_t kedr_coi_declare_return_value(call_info, returnValue);
     if(returnValue > 0) read_counter++;
 }
 
 /* Set watching for the file (file operations interceptor)*/
 static void file_operation_open_post_file_lifetime(struct inode* inode,
-    struct file* filp, int returnValue,
-    struct kedr_coi_operation_call_info* call_info)
+    struct file* filp, struct kedr_coi_operation_call_info* call_info)
 {
+    int kedr_coi_declare_return_value(call_info, returnValue);
     if(returnValue == 0)
     {
         //update
@@ -64,21 +65,21 @@ static void file_operation_open_post_file_lifetime(struct inode* inode,
 }
 
 static void file_operation_release_post_file_lifetime(struct inode* inode,
-    struct file* filp, int returnValue,
-    struct kedr_coi_operation_call_info* call_info)
+    struct file* filp, struct kedr_coi_operation_call_info* call_info)
 {
+    int kedr_coi_declare_return_value(call_info, returnValue);
     if(returnValue == 0)
     {
         file_operations_interceptor_forget(filp);
     }
 }
 
-static struct kedr_coi_post_handler file_operations_post_handlers[] =
+static struct kedr_coi_handler file_operations_post_handlers[] =
 {
-    file_operations_read_post(file_operation_read_post_counter_update),
-    file_operations_open_post(file_operation_open_post_file_lifetime),
-    file_operations_release_post_external(file_operation_release_post_file_lifetime),
-    kedr_coi_post_handler_end
+    file_operations_read_handler(file_operation_read_post_counter_update),
+    file_operations_open_handler(file_operation_open_post_file_lifetime),
+    file_operations_release_handler_external(file_operation_release_post_file_lifetime),
+    kedr_coi_handler_end
 };
 
 struct kedr_coi_payload file_operations_payload =

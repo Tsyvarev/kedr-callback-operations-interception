@@ -215,21 +215,34 @@ struct kedr_coi_operation_call_info
      * implement interception mechanizm.
      */
     void* op_orig;
+    
+    /*
+     *  Pointer to the value, returned by operation.
+     * 
+     * Only post handlers may use this pointer.
+     * 
+     * Normally, return value is readonly for handlers.
+     * 
+     * But it may be changed(via pointer). Return value modification
+     * affect on kernel behaviour.
+     * Some equivalent modifications, such as object copiing, do not break
+     * operation usage, but may break other operation's handlers behaviour.
+     */
+    void* return_value;
 };
 
-
 /*
- * Handler which should be executed before callback operation.
+ * Handler which should be executed with callback operation.
  * 
  * If original operation has signature
  * ret_type (*)(arg_type1,..., arg_typeN)
  * 
- * then function should have signature
+ * then handler's function should have signature
  * 
  * void (*)(arg_type1,..., arg_typeN, kedr_coi_operation_call_info*).
  */
 
-struct kedr_coi_pre_handler
+struct kedr_coi_handler
 {
     // offset of the operation, for which handler is should be used.
     size_t operation_offset;
@@ -239,40 +252,28 @@ struct kedr_coi_pre_handler
     bool external;
 };
 
-// End mark in pre-handlers array
-#define kedr_coi_pre_handler_end {.operation_offset = -1}
 
-/*
- * Handler which should be executed after callback operation.
+/* 
+ * Macro for define variable, contained return value of operation.
  * 
- * If original operation has signature
- * ret_type (*)(arg_type1,..., arg_typeN)
+ * For use in operation's handler.
  * 
- * and ret_type is not 'void', then function should have signature
+ * Usage example:
+ *   int kedr_coi_declare_return_value(call_info, ret);
  * 
- * void (*)(arg_type1,..., arg_typeN, ret_type, kedr_coi_operation_call_info*).
+ * where call_info - name of kedr_coi_operation_call_info* parameter,
+ * passed to the handler
  * 
- * If original operation has signature
- * void (*)(arg_type1,..., arg_typeN)
+ * This construction defines variable
  * 
- * then function should have signature
+ *    int ret
  * 
- * void (*)(arg_type1,..., arg_typeN, kedr_coi_operation_call_info*).
+ * and assign return value, contained in call_info structurue, to it.
  */
+#define kedr_coi_declare_return_value(call_info, var) var = *((typeof(&var))(call_info->return_value))
 
-struct kedr_coi_post_handler
-{
-    // offset of the operation, for which handler is should be used.
-    size_t operation_offset;
-    // function to execute
-    void* func;
-    // Whether need to intercept even default operation(NULL-pointer)
-    bool external;
-};
-
-// End mark in post-handlers array
-#define kedr_coi_post_handler_end {.operation_offset = -1}
-
+// End mark in handlers array
+#define kedr_coi_handler_end {.operation_offset = -1}
 
 /*
  * Contain information about what object's operations
@@ -287,9 +288,9 @@ struct kedr_coi_payload
     struct module* mod;
     
     /* Array of pre-handlers ended with mark */
-    struct kedr_coi_pre_handler* pre_handlers;
+    struct kedr_coi_handler* pre_handlers;
     /* Array of post-handlers ended with mark */
-    struct kedr_coi_post_handler* post_handlers;
+    struct kedr_coi_handler* post_handlers;
 };
 
 

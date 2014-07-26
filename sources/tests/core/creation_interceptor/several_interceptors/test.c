@@ -63,21 +63,21 @@ static struct kedr_coi_intermediate intermediate_operations[] =
 
 
 int op1_pre1_call_counter;
-KEDR_COI_TEST_DEFINE_PRE_HANDLER_FUNC(op1_pre1, op1_pre1_call_counter)
+KEDR_COI_TEST_DEFINE_HANDLER_FUNC(op1_pre1, op1_pre1_call_counter)
 
 int op2_post1_call_counter;
-KEDR_COI_TEST_DEFINE_POST_HANDLER_FUNC(op2_post1, op2_post1_call_counter)
+KEDR_COI_TEST_DEFINE_HANDLER_FUNC(op2_post1, op2_post1_call_counter)
 
-static struct kedr_coi_pre_handler pre_handlers[] =
+static struct kedr_coi_handler pre_handlers[] =
 {
-    PRE_HANDLER(op1, op1_pre1),
-    kedr_coi_pre_handler_end
+    HANDLER(op1, op1_pre1),
+    kedr_coi_handler_end
 };
 
-static struct kedr_coi_post_handler post_handlers[] =
+static struct kedr_coi_handler post_handlers[] =
 {
-    POST_HANDLER(op2, op2_post1),
-    kedr_coi_post_handler_end
+    HANDLER(op2, op2_post1),
+    kedr_coi_handler_end
 };
 
 static struct kedr_coi_payload payload =

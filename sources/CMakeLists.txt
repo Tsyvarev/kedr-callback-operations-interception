@@ -65,12 +65,7 @@ if(KERNEL_PART)
 
     kernel_part_path(KEDR_COI_INSTALL_PREFIX_KSYMVERS
 	"${KEDR_COI_KERNEL_INSTALL_PREFIX_KSYMVERS}")
-    # In the build tree both kmodules and symvers are placed in their own dirs,
-    # so there is no needs for have test variants for these paths.
-    
-    # debug
-    message("KEDR_COI_INSTALL_PREFIX_KSYMVERS: ${KEDR_COI_INSTALL_PREFIX_KSYMVERS}")
-    
+
     # Per-kernel includes
     kernel_part_path(KEDR_COI_INSTALL_INCLUDE_KERNEL_DIR
 	"${KEDR_COI_KERNEL_INSTALL_INCLUDE_KERNEL_DIR}")
