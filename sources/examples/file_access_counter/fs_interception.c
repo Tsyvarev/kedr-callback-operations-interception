@@ -148,13 +148,13 @@ static void fst_mount_post_root_lifetime(struct file_system_type* type,
 static struct kedr_coi_handler file_system_type_post_handlers[] =
 {
 #ifdef FILE_SYSTEM_TYPE_HAS_GET_SB
-    file_system_type_get_sb_post(fst_get_sb_post_super_lifetime),
-    file_system_type_get_sb_post(fst_get_sb_post_root_lifetime),
+    file_system_type_get_sb_handler(fst_get_sb_post_super_lifetime),
+    file_system_type_get_sb_handler(fst_get_sb_post_root_lifetime),
 #else
-    file_system_type_mount_post(fst_mount_post_super_lifetime),
-    file_system_type_mount_post(fst_mount_post_root_lifetime),
+    file_system_type_mount_handler(fst_mount_post_super_lifetime),
+    file_system_type_mount_handler(fst_mount_post_root_lifetime),
 #endif
-    file_system_type_kill_sb_post(fst_kill_sb_post_super_lifetime),
+    file_system_type_kill_sb_handler(fst_kill_sb_post_super_lifetime),
 
     kedr_coi_handler_end
 };
@@ -177,7 +177,7 @@ static void sops_destory_inode_pre_inode_lifetime(struct inode* inode,
 /* Combine all handler for super_operations together */
 static struct kedr_coi_handler super_operations_pre_handlers[] =
 {
-    super_operations_destroy_inode_pre_external(sops_destory_inode_pre_inode_lifetime),
+    super_operations_destroy_inode_handler_external(sops_destory_inode_pre_inode_lifetime),
     kedr_coi_handler_end
 };
 
@@ -394,7 +394,7 @@ static void fops_release_post_file_lifetime(struct inode* inode,
 
 /* Update interception information about inode(from file) */
 static void fops_release_post_inode_update(struct inode* inode,
-    struct file* filp, int returnValue,
+    struct file* filp,
     struct kedr_coi_operation_call_info* call_info)
 {
     // Temporary removed for do not conflict with file which created from character device

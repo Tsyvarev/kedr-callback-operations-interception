@@ -11,8 +11,8 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/makefile.in"
     @ONLY
 )
 
-add_example(${example_name}
-    "makefile"
+example_add(${example_name}
+    "makefile" SOURCE "example_makefile"
     "Kbuild"
     "read_counter.c"
     "read_counter.h"
@@ -24,9 +24,11 @@ add_example(${example_name}
 )
 
 # Install example and export it for tests.
-install_example(TARGETS ${example_name} EXPORT read_counter_imported
+example_install(TARGETS ${example_name} EXPORT read_counter_imported
     DESTINATION "${KEDR_COI_INSTALL_PREFIX_EXAMPLES}/read_counter"
     COMPONENT "devel"
+    REGEX kedr_sample_target
+        PERMISSIONS  OWNER_WRITE OWNER_READ GROUP_READ WORLD_READ OWNER_EXECUTE GROUP_EXECUTE WORLD_EXECUTE
 )
 
 #install(FILES "kedr_sample_target"

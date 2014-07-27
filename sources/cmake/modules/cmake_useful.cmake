@@ -1,12 +1,12 @@
 # Create rule for obtain one file by copying another one
 function(rule_copy_file target_file source_file)
     add_custom_command(OUTPUT ${target_file}
-                    COMMAND cp -p ${source_file} ${target_file}
-                    DEPENDS ${source_file}
-                    )
+        COMMAND cp -p ${source_file} ${target_file}
+        DEPENDS ${source_file}
+    )
 endfunction(rule_copy_file target_file source_file)
 
-# rule_copy_source([source_dir] file ...)
+#  rule_copy_source([source_dir] file ...)
 #
 # Create rule for obtain file(s) in binary tree by copiing it from source tree.
 #
@@ -18,24 +18,23 @@ endfunction(rule_copy_file target_file source_file)
 #
 # ${source_dir} should be absolute path(that is, starts from '/').
 # Otherwise first argument is treated as first file to copy.
-
 function(rule_copy_source file)
     string(REGEX MATCH "^/" is_abs_path ${file})
-	if(is_abs_path)
-		set(source_dir ${file})
-		set(files ${ARGN})
-	else(is_abs_path)
-		set(source_dir ${CMAKE_CURRENT_SOURCE_DIR})
-		set(files ${file} ${ARGN})
-	endif(is_abs_path)
-	
-	foreach(file_real ${files})
-		rule_copy_file("${CMAKE_CURRENT_BINARY_DIR}/${file_real}"
-			${source_dir}/${file_real})
-	endforeach(file_real ${files})
+    if(is_abs_path)
+        set(source_dir ${file})
+        set(files ${ARGN})
+    else(is_abs_path)
+        set(source_dir ${CMAKE_CURRENT_SOURCE_DIR})
+        set(files ${file} ${ARGN})
+    endif(is_abs_path)
+    
+    foreach(file_real ${files})
+        rule_copy_file("${CMAKE_CURRENT_BINARY_DIR}/${file_real}"
+            ${source_dir}/${file_real})
+    endforeach(file_real ${files})
 endfunction(rule_copy_source file)
 
-# to_abs_path(output_var path [...])
+#  to_abs_path(output_var path [...])
 #
 # Convert relative path of file to absolute path:
 # use path in source tree, if file already exist there.
@@ -60,7 +59,7 @@ function(to_abs_path output_var)
     set("${output_var}" ${result} PARENT_SCOPE)
 endfunction(to_abs_path output_var path)
 
-# is_path_inside_dir(output_var dir path)
+#  is_path_inside_dir(output_var dir path)
 #
 # Set output_var to true if path is absolute path inside given directory.
 # NOTE: Path should be absolute.
@@ -81,7 +80,7 @@ endmacro(is_path_inside_dir output_var dir path)
 # is not rewritten, so its write timestamp remains unchanged.
 function(file_update filename content)
     if(EXISTS "${filename}")
-	file(READ "${filename}" old_content)
+        file(READ "${filename}" old_content)
         if(old_content STREQUAL "${content}")
             return()
         endif(old_content STREQUAL "${content}")
@@ -112,23 +111,23 @@ function(file_update_append filename content POS)
     math(EXPR pos_new "${pos}+${len}")
     set(${POS} "${pos_new}" PARENT_SCOPE)
     if(EXISTS "${filename}")
-	file(READ "${filename}" old_content LIMIT "${len}" OFFSET "${pos}")
+        file(READ "${filename}" old_content LIMIT "${len}" OFFSET "${pos}")
         if(old_content STREQUAL "${content}")
             return()
-	elseif(old_content STREQUAL "")
-	    file(APPEND "${filename}" "${content}")
-	    return()
+        elseif(old_content STREQUAL "")
+            file(APPEND "${filename}" "${content}")
+            return()
         endif(old_content STREQUAL "${content}")
     else(EXISTS "${filename}")
-	if(NOT pos EQUAL 0)
-	    message(FATAL_ERROR "Appending to non-zero position to non-existent file.")
-	endif(NOT pos EQUAL 0)
+        if(NOT pos EQUAL 0)
+            message(FATAL_ERROR "Appending to non-zero position to non-existent file.")
+        endif(NOT pos EQUAL 0)
     endif(EXISTS "${filename}")
     # File doesn't exists or its content differ.
     if(NOT pos EQUAL 0)
-	file(READ "${filename}" prefix LIMIT "${pos}")
+        file(READ "${filename}" prefix LIMIT "${pos}")
     else(NOT pos EQUAL 0)
-	set(prefix)
+        set(prefix)
     endif(NOT pos EQUAL 0)
     file(WRITE "${filename}" "${prefix}${content}")
 endfunction(file_update_append filename content POS)
@@ -160,8 +159,8 @@ endfunction(check_begin status_msg)
 # passed to check_begin().
 function(check_try)
     if(NOT _check_has_tries)
-	message(STATUS "${_check_status_msg}")
-	set(_check_has_tries "1" PARENT_SCOPE)
+        message(STATUS "${_check_status_msg}")
+        set(_check_has_tries "1" PARENT_SCOPE)
     endif(NOT _check_has_tries)
 endfunction(check_try)
 
@@ -175,10 +174,56 @@ endfunction(check_try)
 # will be printed, at it will be the only message for that check.
 function(check_end result_msg)
     if(NOT _check_has_tries)
-	message(STATUS "${_check_status_msg} - [cached] ${result_msg}")
+        message(STATUS "${_check_status_msg} [cached] - ${result_msg}")
     else(NOT _check_has_tries)
-	message(STATUS "${_check_status_msg} - ${result_msg}")
+        message(STATUS "${_check_status_msg} - ${result_msg}")
     endif(NOT _check_has_tries)
     set(_check_status_msg PARENT_SCOPE)
     set(_check_has_tries PARENT_SCOPE)
 endfunction(check_end result_msg)
+
+#  set_bool_string(var true_string false_string value [CACHE ... | PARENT_SCOPE])
+#
+# Set variable to one of two string according to true property of some value.
+#
+# If 'value' is true-evaluated, 'var' will be set to 'true_string',
+# otherwise to 'var' will be set to 'false_string'.
+# Like standard set(), macro accept CACHE and PARENT_SCOPE modifiers.
+#
+# Useful for form meaningful value for cache variables, contained result
+# of some operation.
+# Also may be used for form message for check_end().
+macro(set_bool_string var true_string false_string value)
+    # Macro parameters are not a variables, so them cannot be tested
+    # using 'if(value)'.
+    # Usage 'if(${value})' leads to warnings since 2.6.4 when ${val}
+    # is boolean constant
+    # (because until 2.6.4 'if(value)' always dereference val).
+    # So copy 'value' to local variable for test it.
+    set(_set_bool_string_value ${value})
+    if(_set_bool_string_value)
+        set(${var} "${true_string}" ${ARGN})
+    else()
+        set(${var} "${false_string}" ${ARGN})
+    endif()
+endmacro(set_bool_string)
+
+#  set_zero_string(var true_string false_string value [CACHE ... | PARENT_SCOPE])
+#
+# Set variable to one of two string according to zero property of some value.
+#
+# If 'value' is '0' (presizely), 'var' will be set to 'zero_string',
+# otherwise to 'var' will be set to 'nonzero_string'.
+# Like standard set(), macro accept CACHE and PARENT_SCOPE modifiers.
+#
+# Useful for form meaningful value for cache variables, contained result
+# of execute_process().
+# Also may be used for form message for check_end().
+macro(set_zero_string var zero_string nonzero_string value)
+    set(_set_zero_string_value ${value})
+    if(_set_zero_string_value EQUAL "0")
+        set(${var} ${zero_string} ${ARGN})
+    else()
+        set(${var} ${nonzero_string} ${ARGN})
+    endif()
+endmacro(set_zero_string)

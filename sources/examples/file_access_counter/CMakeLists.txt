@@ -13,8 +13,8 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/makefile.in"
     @ONLY
 )
 
-add_example(${example_name}
-    "makefile"
+example_add(${example_name}
+    "makefile" SOURCE "example_makefile"
     "Kbuild"
     "file_access_counter.c"
     "fs_interception.c"
@@ -24,7 +24,7 @@ add_example(${example_name}
 )
 
 # Install example and export it for tests.
-install_example(TARGETS ${example_name} EXPORT file_access_counter_imported
+example_install(TARGETS ${example_name} EXPORT file_access_counter_imported
     COMPONENT "devel"
     DESTINATION "${KEDR_COI_INSTALL_PREFIX_EXAMPLES}/file_access_counter"
 )

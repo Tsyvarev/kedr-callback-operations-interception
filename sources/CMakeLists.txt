@@ -267,7 +267,7 @@ endif(KERNEL_PART)
 
 # Examples are common.
 if(USER_PART AND NOT CMAKE_CROSSCOMPILING)
-    include(examples_system)
+    include(example_system)
     add_subdirectory(examples)
 endif(USER_PART AND NOT CMAKE_CROSSCOMPILING)
 
