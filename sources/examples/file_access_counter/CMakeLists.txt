@@ -16,7 +16,7 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/makefile.in"
 example_add(${example_name}
     "makefile" SOURCE "example_makefile"
     "Kbuild"
-    "file_access_counter.c"
+    "module.c"
     "fs_interception.c"
     "fs_interception.h"
     "functions.yaml"

@@ -10,7 +10,8 @@ get_property(example_location TARGET file_access_counter_imported PROPERTY EXAMP
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/test.sh.in"
     "${CMAKE_CURRENT_BINARY_DIR}/test.sh"
-    @ONLY)
+    @ONLY
+)
 
 install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/test.sh"
     DESTINATION "${this_install_dir}")

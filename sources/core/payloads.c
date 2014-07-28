@@ -39,8 +39,17 @@ static void parray_reset(struct parray* array)
  */
 static int parray_add_elem(struct parray* array, void* elem)
 {
-    int n_elems_new = array->n_elems + 1;
-    void** elems_new = krealloc(array->elems,
+    /*
+     * NB: Keeping this definitions before initialization
+     * magically prevents strange NULL-pointer dereference in ksize.
+     */
+    int n_elems_new;
+    void** elems_new;
+    
+    pr_info("array->elems: %p", array->elems);
+    
+    n_elems_new = array->n_elems + 1;
+    elems_new = krealloc(array->elems,
         sizeof(*elems_new) * (n_elems_new + 1), GFP_KERNEL);
     if(elems_new == NULL)
     {

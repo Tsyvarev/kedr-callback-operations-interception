@@ -20,6 +20,9 @@ extern int {{interceptor.name}}_watch({{id.type}} id, {{tie.type}} tie, const {{
 extern int {{interceptor.name}}_forget({{id.type}} id, const {{object.operations_type}}** ops_p);
 <$ endif $>
 
+int {{interceptor.name}}_payload_register(struct kedr_coi_payload* payload);
+int {{interceptor.name}}_payload_unregister(struct kedr_coi_payload* payload);
+
 void {{interceptor.name}}_trace_unforgotten_object(void (*cb)(const <$ include 'id_type' $>* object));
 
 extern void {{interceptor.name}}_destroy(void);

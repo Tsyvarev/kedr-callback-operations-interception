@@ -44,9 +44,10 @@ module_param(mount_counter, uint, S_IRUGO);
 
 /* Update file counter */
 static void fops_open_post_update_file_counter(struct inode* inode,
-    struct file* filp, int returnValue,
+    struct file* filp,
     struct kedr_coi_operation_call_info* call_info)
 {
+    int kedr_coi_declare_return_value(call_info, returnValue);
     if((returnValue == 0) && S_ISREG(inode->i_mode))
     {
         file_counter ++;
@@ -54,10 +55,10 @@ static void fops_open_post_update_file_counter(struct inode* inode,
 }
 
 // Combine all handlers for file together
-static struct kedr_coi_post_handler file_operations_post_handlers[] =
+static struct kedr_coi_handler file_operations_post_handlers[] =
 {
-    file_operations_open_post_external(fops_open_post_update_file_counter),
-    kedr_coi_post_handler_end
+    file_operations_open_handler_external(fops_open_post_update_file_counter),
+    kedr_coi_handler_end
 };
 
 struct kedr_coi_payload file_operations_payload =
@@ -72,9 +73,10 @@ struct kedr_coi_payload file_operations_payload =
 #if defined(FILE_SYSTEM_TYPE_HAS_GET_SB)
 static void fst_get_sb_post_mount_counter(struct file_system_type* type,
     int flags, const char* name, void* data,
-    struct vfsmount* mnt, int returnValue,
+    struct vfsmount* mnt,
     struct kedr_coi_operation_call_info* call_info)
 {
+    int kedr_coi_declare_return_value(call_info, returnValue);
     if(returnValue == 0)
     {
         mount_counter++;
@@ -83,9 +85,9 @@ static void fst_get_sb_post_mount_counter(struct file_system_type* type,
 #else
 static void fst_mount_post_mount_counter(struct file_system_type* type,
     int flags, const char* name, void* data,
-    struct dentry* returnValue,
     struct kedr_coi_operation_call_info* call_info)
 {
+    struct dentry* kedr_coi_declare_return_value(call_info, returnValue);
     if(returnValue != NULL)
     {
         mount_counter++;
@@ -94,14 +96,14 @@ static void fst_mount_post_mount_counter(struct file_system_type* type,
 #endif /*FILE_SYSTEM_TYPE_HAS_GET_SB*/
 
 /* Combine all handlers for file system type operations together */
-static struct kedr_coi_post_handler file_system_type_post_handlers[] =
+static struct kedr_coi_handler file_system_type_post_handlers[] =
 {
 #if defined(FILE_SYSTEM_TYPE_HAS_GET_SB)
-    file_system_type_get_sb_post(fst_get_sb_post_mount_counter),
+    file_system_type_get_sb_handler(fst_get_sb_post_mount_counter),
 #else
-    file_system_type_mount_post(fst_mount_post_mount_counter),
+    file_system_type_mount_handler(fst_mount_post_mount_counter),
 #endif
-    kedr_coi_post_handler_end
+    kedr_coi_handler_end
 };
 
 static struct kedr_coi_payload file_system_type_payload =
@@ -194,7 +196,8 @@ static int __init file_access_counter_module_init(void)
     
     result = fs_interception_init();
     if(result) goto err_fs_interception;
-    //
+//
+    
     result = file_operations_interceptor_payload_register(&file_operations_payload);
     if(result) goto err_file_operations_payload;
 

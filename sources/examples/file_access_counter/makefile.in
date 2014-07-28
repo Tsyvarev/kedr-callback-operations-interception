@@ -21,7 +21,7 @@ interceptors_created = $(interceptors_normal) $(interceptors_factory)
 
 all: ${module_name}.ko
 
-${module_name}.ko: file_access_counter.c fs_interception.c functions_support.c \
+${module_name}.ko: module.c fs_interception.c functions_support.c \
 	$(addsuffix _interceptor.c, $(interceptors_created)) \
 	$(addsuffix _interceptor.h, $(interceptors_created)) \
 	$(addsuffix _interceptor.c, $(interceptors_standard)) \
