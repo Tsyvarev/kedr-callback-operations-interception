@@ -39,17 +39,8 @@ static void parray_reset(struct parray* array)
  */
 static int parray_add_elem(struct parray* array, void* elem)
 {
-    /*
-     * NB: Keeping this definitions before initialization
-     * magically prevents strange NULL-pointer dereference in ksize.
-     */
-    int n_elems_new;
-    void** elems_new;
-    
-    pr_info("array->elems: %p", array->elems);
-    
-    n_elems_new = array->n_elems + 1;
-    elems_new = krealloc(array->elems,
+    int n_elems_new = array->n_elems + 1;
+    void** elems_new = krealloc(array->elems,
         sizeof(*elems_new) * (n_elems_new + 1), GFP_KERNEL);
     if(elems_new == NULL)
     {
@@ -61,7 +52,7 @@ static int parray_add_elem(struct parray* array, void* elem)
     
     array->elems = elems_new;
     array->n_elems = n_elems_new;
-
+    
     return 0;
 }
 
@@ -231,10 +222,10 @@ static struct operation_info* operation_payloads_find_operation(
     list_for_each_entry(operation, &payloads->operations, list)
     {
         if(operation->operation_offset == operation_offset)
-            break;
+            return operation;
     }
     
-    return operation;
+    return NULL;
 }
  
 int operation_payloads_init(struct operation_payloads* payloads,

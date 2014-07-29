@@ -282,11 +282,6 @@ endif(KERNEL_PART)
 #######################################################################
 option(WITH_TESTING "Whether need to build tests" OFF)
 if(WITH_TESTING)
-    set(TEST_DEVICE "" CACHE FILEPATH "Device for use in tests.")
-    set(TEST_DEVICE_FS_DRIVER "" CACHE STRING "Filesystem driver which can mount TEST_DEVICE")
-    if(TEST_DEVICE AND NOT TEST_DEVICE_FS_DRIVER)
-	message(FATAL_ERROR "TEST_DEVICE is given without TEST_DEVICE_FS_DRIVER")
-    endif(TEST_DEVICE AND NOT TEST_DEVICE_FS_DRIVER)
     add_subdirectory(tests)
 endif(WITH_TESTING)
 #######################################################################

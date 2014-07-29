@@ -23,17 +23,21 @@ if ! make -C $example_dir; then
     exit 1
 fi
 
-test_device=@TEST_DEVICE@
-
-if test -z "$test_device"; then
-    # If no TEST_DEVICE is given, only check that example can be built.
-    # Otherwise also verify that created payload works.
+if test -z "$TEST_DEVICE"; then
+	printf "For test payload built TEST_DEVICE and TEST_DEVICE_FS_DRIVER variables should be defined.\n"
     exit
+fi
+
+if test -z "$TEST_DEVICE_FS_DRIVER"; then
+	printf "TEST_DEVICE_FS_DRIVER should describe filesystem driver which can mount TEST_DEVICE.\n"
+    # TEST_DEVICE without TEST_DEVICE_FS_DRIVER set is treated as error.
+    exit 1
 fi
 
 @multi_kernel_KERNEL_VAR_SHELL_DEFINITION@
 
-module=@TEST_DEVICE_FS_DRIVER@
+test_device=$TEST_DEVICE
+module=$TEST_DEVICE_FS_DRIVER
 
 mount_flags=
 
@@ -89,6 +93,8 @@ echo 456 >> $mount_point/test.txt
 
 mount_counter=`cat /sys/module/file_access_counter/parameters/mount_counter`
 file_counter=`cat /sys/module/file_access_counter/parameters/file_counter`
+
+sync
 
 if ! umount $mount_point; then
     printf "Umount failed.\n"

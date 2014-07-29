@@ -38,6 +38,11 @@ function(add_test_interceptor_indirect test_name source)
     )
 endfunction(add_test_interceptor_indirect test_name source)
 
+if(NOT indirect_use_copy)
+	# These tests does not use real interception.
+	add_subdirectory(unknown_operation)
+endif(NOT indirect_use_copy)
+
 add_subdirectory(base)
 add_subdirectory(several_payloads)
 add_subdirectory(no_payloads)

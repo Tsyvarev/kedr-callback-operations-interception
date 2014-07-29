@@ -392,12 +392,42 @@ static void fops_release_post_file_lifetime(struct inode* inode,
     file_operations_interceptor_forget(filp);
 }
 
+/* 
+ * Update interception information about inode(from file).
+ * 
+ * Because this handler is specific for file, created via watched(!)
+ * inode, it added to payload for inode-file factory interceptor.
+ * 
+ * So, this handler will not affect on file, created for character device.
+ */
+static void fops_release_post_inode_update(struct inode* inode,
+    struct file* filp,
+    struct kedr_coi_operation_call_info* call_info)
+{
+    int kedr_coi_declare_return_value(call_info, returnValue);
+
+    /*
+     * We only interested in files, created from watched inodes.
+     * 
+     * Because only those inodes may be watched, which are corresponds
+     * to filesystem, we only interested in regular files, dirs and links.
+     */
+    if(inode->i_mode & (S_IFLNK | S_IFREG | S_IFDIR)) return;
+
+    if(returnValue == 0)
+    {
+       inode_operations_all_interceptor_watch(inode);
+    }
+}
+
+
 // Combine all handlers for file together
 static struct kedr_coi_handler file_operations_post_handlers[] =
 {
     file_operations_open_handler(fops_open_post_file_watch),
     file_operations_open_handler(fops_open_post_file_lifetime),
     file_operations_release_handler_external(fops_release_post_file_lifetime),
+    file_operations_release_handler(fops_release_post_inode_update),
     kedr_coi_handler_end
 };
 
@@ -407,40 +437,6 @@ static struct kedr_coi_payload file_operations_payload =
     
     .post_handlers = file_operations_post_handlers,
 };
-
-/******************* Payload for file, created from inode *************/
-/* 
- * Update interception information about inode(from file).
- * 
- * Because this handler is specific for file, created via watched(!)
- * inode, it added to payload for inode-file factory interceptor.
- * 
- * So, this handler will not affect on file, created for character device.
- */
-static void ifops_release_post_inode_update(struct inode* inode,
-    struct file* filp,
-    struct kedr_coi_operation_call_info* call_info)
-{
-    int kedr_coi_declare_return_value(call_info, returnValue);
-    if(returnValue == 0)
-    {
-       inode_operations_all_interceptor_watch(inode);
-    }
-}
-
-static struct kedr_coi_handler inode_file_operations_post_handlers[] =
-{
-    file_operations_release_handler(ifops_release_post_inode_update),
-    kedr_coi_handler_end
-};
-
-static struct kedr_coi_payload inode_file_operations_payload =
-{
-    .mod = THIS_MODULE,
-    
-    .post_handlers = inode_file_operations_post_handlers,
-};
-
 
 int fs_interception_start(void)
 {
@@ -580,14 +576,8 @@ int fs_interception_init(void)
         &file_system_type_payload);
     if(result) goto err_file_system_type_payload;
 
-    result = inode_file_operations_interceptor_payload_register(
-        &inode_file_operations_payload);
-    if(result) goto err_inode_file_operations_payload;
-
     return 0;
 
-err_inode_file_operations_payload:
-    file_system_type_interceptor_payload_unregister(&file_system_type_payload);
 err_file_system_type_payload:
     super_operations_interceptor_payload_unregister(&super_operations_payload);
 err_super_operations_payload:
@@ -616,8 +606,6 @@ err_file_operations:
 
 void fs_interception_destroy(void)
 {
-    inode_file_operations_interceptor_payload_unregister(
-        &inode_file_operations_payload);
     file_system_type_interceptor_payload_unregister(&file_system_type_payload);
     super_operations_interceptor_payload_unregister(&super_operations_payload);
     dentry_operations_interceptor_payload_unregister(&dentry_operations_payload);
