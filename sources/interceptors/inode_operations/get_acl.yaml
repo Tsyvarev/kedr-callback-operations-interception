@@ -1,0 +1,23 @@
+operations:
+
+  - name:  get_acl
+    returnType:  struct posix_acl *
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+      - type:  int
+        name:  type
+
+    object:  inode
+
+# Called from get_acl
+    default: |
+        set_cached_acl(inode, type, NULL);
+        return NULL;
+
+    header: |
+            #include <linux/posix_acl.h>
+            /* 'struct inode_operations' has 'get_acl' method */
+            #define INODE_OPERATIONS_HAS_GET_ACL

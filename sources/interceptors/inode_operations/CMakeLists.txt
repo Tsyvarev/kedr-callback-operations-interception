@@ -23,6 +23,7 @@ OPTIONAL
     "fallocate"
     "truncate"
     "truncate_range"
+    "get_acl"
 REQUIRED
     "create"
         TYPED "accept_bool" "int (*)(struct inode*, struct dentry*, umode_t, bool)"

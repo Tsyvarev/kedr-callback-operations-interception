@@ -44,4 +44,54 @@ OPTIONAL
     "write_super"
 )
 
+kmodule_configure_operations(evict_inode_operation OPTIONAL "evict_inode")
+if(evict_inode_operation)
+    # Detect default ->evict_inode implementation.
+    check_begin("Detect way of default ->evict_inode implementation")
+    if(NOT DEFINED HAS_TRUNCATE_INODE_PAGES_FINAL)
+        check_try()
+        kbuild_try_compile(res
+            "${CMAKE_CURRENT_BINARY_DIR}/use_truncate_inode_pages_final"
+            "${CMAKE_CURRENT_SOURCE_DIR}/use_truncate_inode_pages_final.c"
+        )
+        set(HAS_TRUNCATE_INODE_PAGES_FINAL ${res} CACHE INTERNAL
+            "Whether truncate_inode_pages_final() function exists."
+        )
+    endif(NOT DEFINED HAS_TRUNCATE_INODE_PAGES_FINAL)
+    if(NOT HAS_TRUNCATE_INODE_PAGES_FINAL AND NOT DEFINED HAS_CLEAR_INODE)
+        check_try()
+        kbuild_try_compile(res
+            "${CMAKE_CURRENT_BINARY_DIR}/use_clear_inode"
+            "${CMAKE_CURRENT_SOURCE_DIR}/use_clear_inode.c"
+        )
+        set(HAS_CLEAR_INODE ${res} CACHE INTERNAL
+            "Whether clear_inode() function exists."
+        )
+    endif(NOT HAS_TRUNCATE_INODE_PAGES_FINAL AND NOT DEFINED HAS_CLEAR_INODE)
+    
+    if(HAS_TRUNCATE_INODE_PAGES_FINAL)
+        set(msg_res "use truncate_inode_pages_final")
+        configure_file("evict_inode_use_final.yaml"
+            "evict_inode.yaml"
+            COPY_ONLY
+        )
+    elseif(HAS_CLEAR_INODE)
+        set(msg_res "use clear_inode")
+        configure_file("evict_inode_use_clear_inode.yaml"
+            "evict_inode.yaml"
+            COPY_ONLY
+        )
+    else(HAS_TRUNCATE_INODE_PAGES_FINAL)
+        set(msg_res "use end_writeback")
+        configure_file("evict_inode_use_end_writeback.yaml"
+            "evict_inode.yaml"
+            COPY_ONLY
+        )
+    endif(HAS_TRUNCATE_INODE_PAGES_FINAL)
+    
+    check_end(${msg_res})
+    
+    list(APPEND operations_list ${evict_inode_operation})
+endif(evict_inode_operation)
+
 add_interceptor("super_operations_interceptor" "header.yaml" ${operations_list})
