@@ -1,0 +1,390 @@
+operations:
+
+  - name:  llseek
+    returnType:  loff_t
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  loff_t
+        name:  offset
+
+      - type:  int
+        name:  whence
+
+    object:  filp
+
+    default:  return default_llseek(filp, offset, whence);
+
+  - name:  read
+    returnType:  ssize_t
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  char __user *
+        name:  buf
+
+      - type:  size_t
+        name:  count
+
+      - type:  loff_t *
+        name:  f_pos
+
+    object:  filp
+
+    default:  return -EIO;
+
+  - name:  write
+    returnType:  ssize_t
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  const char __user *
+        name:  buf
+
+      - type:  size_t
+        name:  count
+
+      - type:  loff_t *
+        name:  f_pos
+
+    object:  filp
+
+    default:  return -EIO;
+
+  - name:  aio_read
+    returnType:  ssize_t
+
+    args:
+      - type:  struct kiocb *
+        name:  iocb
+
+      - type:  const struct iovec*
+        name:  iov
+
+      - type:  unsigned long
+        name:  nr_segs
+
+      - type:  loff_t
+        name:  pos
+
+    object:  iocb->ki_filp
+
+    default:  return generic_file_aio_read(iocb, iov, nr_segs, pos);
+
+
+  - name:  aio_write
+    returnType:  ssize_t
+
+    args:
+      - type:  struct kiocb *
+        name:  iocb
+
+      - type:  const struct iovec*
+        name:  iov
+
+      - type:  unsigned long
+        name:  nr_segs
+
+      - type:  loff_t
+        name:  pos
+
+    object:  iocb->ki_filp
+
+    default:  return generic_file_aio_write(iocb, iov, nr_segs, pos);
+
+
+  - name:  poll
+    returnType:  unsigned int
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  struct poll_table_struct *
+        name:  wait
+
+
+    object:  filp
+
+    default:  return DEFAULT_POLLMASK;
+
+
+  - name:  unlocked_ioctl
+    returnType:  long
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  unsigned int
+        name:  cmd
+
+      - type:  unsigned long
+        name:  arg
+
+    object:  filp
+
+    default:  return -ENOTTY;
+
+
+  - name:  compat_ioctl
+    returnType:  long
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  unsigned int
+        name:  cmd
+
+      - type:  unsigned long
+        name:  arg
+
+    object:  filp
+
+    default:  return -ENOIOCTLCMD;
+
+
+  - name:  mmap
+    returnType:  int
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  struct vm_area_struct *
+        name:  vma
+
+    object:  filp
+
+# Checked in do_mmap_pgoff, then called in mmap_region
+    default:  return -ENODEV;
+
+  - name:  open
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+      - type:  struct file *
+        name:  filp
+
+    object:  filp
+
+    default:  return 0;
+
+  - name:  flush
+    returnType:  int
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  fl_owner_t
+        name:  id
+
+    object:  filp
+
+    default:  return 0;
+
+  - name:  release
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+      - type:  struct file *
+        name:  filp
+
+    object:  filp
+
+    default:  return 0;
+
+  - name:  aio_fsync
+    returnType:  int
+
+    args:
+      - type:  struct kiocb *
+        name:  iocb
+
+      - type:  int
+        name:  datasync
+
+    object:  iocb->ki_filp
+
+    default:  return -EINVAL;
+
+  - name:  fasync
+    returnType:  int
+
+    args:
+      - type:  int
+        name:  fd
+
+      - type:  struct file *
+        name:  filp
+
+      - type:  int
+        name:  mode
+
+    object:  filp
+
+    default:  return 0;
+
+  - name:  lock
+    returnType:  int
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  int
+        name:  cmd
+
+      - type:  struct file_lock *
+        name:  fl
+
+    object:  filp
+
+    default:  return posix_lock_file(filp, fl, NULL);
+
+  - name:  sendpage
+    returnType:  ssize_t
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  struct page *
+        name:  page
+
+      - type:  int
+        name:  offset
+
+      - type:  size_t
+        name:  size
+
+      - type:  loff_t *
+        name:  ppos
+
+      - type:  int
+        name:  more
+
+    object:  filp
+
+    default:  return -EINVAL;
+
+  - name:  get_unmapped_area
+    returnType:  unsigned long
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  unsigned long
+        name:  addr
+
+      - type:  unsigned long
+        name:  len
+
+      - type:  unsigned long
+        name:  pgoff
+
+      - type:  unsigned long
+        name:  flags
+
+    object:  filp
+
+    default:  return current->mm->get_unmapped_area(filp, addr, len, pgoff, flags);
+
+# check_flags() operation has no affected object,
+# so it cannot be intercepted using KEDR COI.
+
+  - name:  flock
+    returnType:  int
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  int
+        name:  flags
+
+      - type:  struct file_lock *
+        name:  fl
+
+    object:  filp
+
+    default:  return flock_lock_file_wait(filp, fl);
+
+
+  - name:  splice_write
+    returnType:  ssize_t
+
+    args:
+      - type:  struct pipe_inode_info *
+        name:  pipe
+
+      - type:  struct file *
+        name:  out
+
+      - type:  loff_t *
+        name:  ppos
+
+      - type:  size_t
+        name:  len
+
+      - type:  unsigned int
+        name:  flags
+
+    object:  out
+
+    default:  return generic_splice_sendpage(pipe, out, ppos, len, flags);
+
+  - name:  splice_read
+    returnType:  ssize_t
+
+    args:
+      - type:  struct file *
+        name:  in
+
+      - type:  loff_t *
+        name:  ppos
+
+      - type:  struct pipe_inode_info *
+        name:  pipe
+
+      - type:  size_t
+        name:  len
+
+      - type:  unsigned int
+        name:  flags
+
+    object:  in
+
+    default:  return default_file_splice_read(in, ppos, pipe, len, flags);
+
+  - name:  setlease
+    returnType:  int
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  long
+        name:  arg
+
+      - type:  struct file_lock **
+        name:  lease
+
+    object:  filp
+
+    default:  return generic_setlease(filp, arg, lease);

@@ -1,0 +1,18 @@
+operations:
+  - name:  lookup
+    returnType:  struct dentry *
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  struct nameidata *
+        name:  nd
+
+    object:  inode
+
+# Called by __link_path_walk
+    default:  return ERR_PTR(-ENOTDIR);

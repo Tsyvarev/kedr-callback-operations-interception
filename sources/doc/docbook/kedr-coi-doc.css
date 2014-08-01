@@ -1,0 +1,202 @@
+/*
+ * CSS-stylesheet for KEDR COI documentation. Taken from KEDR package.
+ */
+
+body, .navheader td, .navfooter td, table
+{ 
+    font-family: Verdana, Arial, Helvetica, sans-serif;
+    font-size: 10pt;
+    max-width: 70em;
+}
+
+h1, h2, h3, h4, h5 
+{ 
+    font-style: italic; 
+    text-decoration: underline; 
+}
+
+h1 
+{ 
+    font-size: 18pt; 
+}
+
+h2 
+{ 
+    font-size: 14pt; 
+}
+
+h3 
+{ 
+    font-size: 12pt; 
+    text-align: left; 
+}
+
+h4, h5, h6
+{ 
+    font-size: 10pt; 
+    text-align: left; 
+}
+
+
+h3.author, h3.corpauthor 
+{ 
+    text-align: left; 
+    font-style: normal; 
+    font-size: 10pt; 
+    margin-bottom: 0; 
+}
+
+p 
+{ 
+    text-align: justify; 
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+}
+
+.releaseinfo
+{
+    font-size: 12pt; 
+}
+
+code 
+{ 
+    white-space: nowrap; 
+    font-family: "Courier New", monospace;
+    font-size: 10pt;
+}
+
+div.navheader th, .toc, a:link, a:active 
+{ 
+    color: #41A317; 
+    text-decoration: underline; 
+}
+
+a:visited 
+{ 
+    color: #41A317; 
+    text-decoration: underline; 
+}
+
+a:hover 
+{ 
+    color: #41A317; 
+    text-decoration: none; 
+}
+
+.programlisting, .screen, .note, .warning, .caution, .tip, .important
+{
+    padding: 0in;
+    font-size: 10pt;
+}
+
+.programlisting, .screen, .synopsis, pre
+{
+    border: thin solid #54C571; 
+    background-color: #E1FDDA; 
+    font-family: "Courier New", monospace;
+    font-size: 10pt;
+}
+
+.note, .tip
+{
+    background-color: white;
+    border: thin solid #347235; 
+}
+
+.warning .title, .caution .title, .important .title, .note .title, .tip .title
+{
+    color: white;
+    font-style: normal;
+    text-decoration: none;  
+    font-size: 12pt;
+}
+
+.warning, .caution, .important
+{
+    background-color: white;
+    border: thin solid #c00; 
+}
+
+.note .programlisting, .note .screen, 
+.tip .programlisting, .tip .screen, 
+.warning .programlisting, .warning .screen, 
+.caution .programlisting, .caution .screen, 
+.important .programlisting, .important .screen
+{
+    border: none;
+    background: none;
+}
+
+.note .title, .tip .title
+{
+    margin: 0in;
+    padding: 0.05in 0.1in 0.05in 0.1in; 
+    background-color: #4AA02C;
+    border-bottom: thin solid #347235; 
+}
+
+.warning .title, .caution .title, .important .title
+{
+    margin: 0in;
+    padding: 0.05in 0.1in 0.05in 0.1in; 
+    background-color: #ff0000;
+    border-bottom: thin solid #c00; 
+}
+
+.note p, .tip p, .warning p, .caution p, .important p
+{
+    padding: 0in 0.1in 0in 0.1in;   
+}
+
+img
+{
+    border: thin solid #808080;
+    margin: 0in 0.5in
+}
+
+.command
+{
+    font-family: "Courier New", monospace;
+    font-size: 10pt;
+}
+
+.filename
+{
+    font-style: italic;
+}
+
+.emphasis, .term /*, .firstterm*/
+{
+    font-weight: bold;
+}
+
+/* Special style for cited phrases */
+.pcite
+{
+    font-style: italic;
+}
+
+/* This style instructs the browser treat the corresponding part of the text
+ * as a single entity, that is, not to break it at the end of the line, etc.
+ */
+.nobreak
+{
+    white-space: nowrap;
+}
+
+.table-contents td
+{
+    padding: 0em 0.5em;
+}
+
+/* This style is used to emphasize a word or a part of a word.
+ */
+.emphasized
+{
+    font-weight: bold;
+}
+
+.releaseinfo
+{
+    font-weight: bold;
+}

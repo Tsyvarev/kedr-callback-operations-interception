@@ -1,0 +1,23 @@
+operations:
+
+  - name:  mount
+    returnType:  struct dentry *
+
+    args:
+      - type:  struct file_system_type *
+        name:  type
+
+      - type:  int
+        name:  flags
+
+      - type:  const char *
+        name:  name
+
+      - type:  void*
+        name:  data
+
+    object:  type
+
+    header: |
+            /* 'file_system_type' structure has 'mount' member*/
+            #define FILE_SYSTEM_TYPE_HAS_MOUNT

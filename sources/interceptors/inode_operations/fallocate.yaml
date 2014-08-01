@@ -1,0 +1,26 @@
+operations:
+
+  - name:  fallocate
+    returnType:  long
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+      - type:  int
+        name:  mode
+
+      - type:  loff_t
+        name:  offset
+
+      - type:  loff_t
+        name:  len
+
+    object:  inode
+
+# Called from do_fallocate
+    default:  return -EOPNOTSUPP;
+
+    header: |
+            /* 'struct inode_operations' has 'fallocate' method */
+            #define INODE_OPERATIONS_HAS_FALLOCATE

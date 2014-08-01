@@ -1,0 +1,16 @@
+operations:
+
+  - name:  drop_inode
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+    object:  inode->i_sb
+
+# Called from iput_final
+    default:  generic_drop_inode(inode);
+
+    header: |
+            /* 'drop_inode' method of 'super_operations' doesn't return a value */
+            #define SUPER_OPERATIONS_DROP_INODE_RETURN_INT 0

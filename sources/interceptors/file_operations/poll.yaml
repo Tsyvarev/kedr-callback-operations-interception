@@ -1,0 +1,17 @@
+operations:
+  - name:  poll
+    returnType:  unsigned int
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  struct poll_table_struct *
+        name:  wait
+
+
+    object:  filp
+
+    default:  return DEFAULT_POLLMASK;
+
+

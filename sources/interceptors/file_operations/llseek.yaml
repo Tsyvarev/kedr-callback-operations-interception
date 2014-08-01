@@ -1,0 +1,18 @@
+operations:
+  - name:  llseek
+    returnType:  loff_t
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  loff_t
+        name:  offset
+
+      - type:  int
+        name:  whence
+
+    object:  filp
+
+    default:  return default_llseek(filp, offset, whence);
+

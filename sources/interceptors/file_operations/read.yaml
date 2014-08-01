@@ -1,0 +1,21 @@
+operations:
+  - name:  read
+    returnType:  ssize_t
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  char __user *
+        name:  buf
+
+      - type:  size_t
+        name:  count
+
+      - type:  loff_t *
+        name:  f_pos
+
+    object:  filp
+
+    default:  return -EIO;
+

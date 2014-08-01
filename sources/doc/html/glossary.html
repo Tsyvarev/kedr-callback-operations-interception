@@ -1,0 +1,56 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><title>Glossary</title><link rel="stylesheet" href="kedr-coi-doc.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.75.2"><link rel="home" href="index.html" title="KEDR COI 0.1 Reference Manual"><link rel="up" href="index.html" title="KEDR COI 0.1 Reference Manual"><link rel="prev" href="api_reference.html" title="7. API Reference"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Glossary</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="api_reference.html">Prev</a> </td><th width="60%" align="center"> </th><td width="20%" align="right"> </td></tr></table><hr></div><div class="glossary"><div class="titlepage"><div><div><h2 class="title"><a name="glossary"></a>Glossary</h2></div></div></div><dl><dt><a name="callback_operation"></a><span class="emphasis"><em>Callback operation</em></span></dt><dd><p>
+A callback function which operates (may be, indirectly) on object, when this object contains (may be, indirectly) pointer to this function.
+    </p><p>
+In the Linux kernel callback operations implement something similar to virtual functions in OOP sence.
+    </p><p>
+'Callback operation' term may also be used for object type without mentioning of concrete object. In that case it identifies a way how to determine a callback operation for any object of given type.
+    </p><p>
+E.g., every opened file is treaded as object of type '<span class="type">struct file</span>'. Difference between file types is only in callback operations, pointers to which are contained in '<span class="type">file_operations</span>' structure. <code class="function">open</code>, <code class="function">release</code>, <code class="function">read</code>, <code class="function">write</code>, <code class="function">fcntl</code> - are all callback operations for the file. Each file contains pointer to the instance of this structure, corresponded to its(file's) type.
+    </p><p>
+Another example - file system, which is implemented via object of type '<span class="type">struct file_system_type</span>'. Every such object contains pointers to 2 callback operations: <code class="function">mount</code>(<code class="function">get_sb</code> in some kernels) and <code class="function">kill_sb</code>.
+    </p></dd><dt><a name="callback_operation_interception"></a><span class="emphasis"><em>Callback operation interception</em></span></dt><dd><p>
+An ability to perform actions when <a class="link" href="glossary.html#callback_operation">callback operation</a> is called as virtual function for some object. These actions may be indedepend from callback operation itself, and may be written by the person who doesn't concerned with author of concrete callback operation.
+    </p><p>
+KEDR COI library support executing user-defined function(s) before and/or after callback operation call, these functions are reffered to as <a class="link" href="glossary.html#pre_handler">pre-handlers</a> and <a class="link" href="glossary.html#post_handler">post-handlers</a> correspondingly.
+    </p></dd><dt><a name="interception_handler"></a><span class="emphasis"><em>Interception handler</em></span>(for callback operation)</dt><dd><p>
+An user-provided function for call along with call of the <a class="link" href="glossary.html#callback_operation">callback operation</a>. KEDR COI support <a class="link" href="glossary.html#pre_handler">pre handler</a> which is called before callback operation and <a class="link" href="glossary.html#post_handler">post handler</a> which is called after callback operation. For any callback operation several interception handlers may be set, of any type.
+    </p></dd><dt><a name="pre_handler"></a><span class="emphasis"><em>Pre handler</em></span>(for callback operation)</dt><dd><p>
+A user-provided function which is called before some <a class="link" href="glossary.html#callback_operation">callback operation</a>. In KEDR COI library is implemented by <span class="type"><a class="type" href="api_reference.html#api_reference.struct_pre_handler">struct kedr_coi_pre_handler</a></span>.
+    </p></dd><dt><a name="post_handler"></a><span class="emphasis"><em>Post handler</em></span>(for callback operation)</dt><dd><p>
+A user-provided function which is called after some <a class="link" href="glossary.html#callback_operation">callback operation</a>. In KEDR COI library is implemented by <span class="type"><a class="type" href="api_reference.html#api_reference.struct_post_handler">struct kedr_coi_post_handler</a></span>.
+    </p></dd><dt><a name="default_callback_operation"></a><span class="emphasis"><em>Default callback operation</em></span></dt><dd><p>
+An instance of <a class="link" href="glossary.html#callback_operation">callback operation</a>, pointer to which is equvalented to NULL pointer in the sence of external object's behaviour.
+    </p><p>
+From the OOP point of view, default callback operation is a definition of virtual function in the base class.
+    </p><p>
+E.g. default 'open' callback operation of the file is simply <code class="code">{return 0;}</code>, because its call from in-kernel code has same effect, as NULL pointer encountered by that code in the 'struct file_operations' instance pointed by the file object.
+    </p><p>
+Another examples:
+        </p><div class="itemizedlist"><ul class="itemizedlist" type="disc"><li class="listitem">
+default 'read' callback operation for the file object is <code class="code">{return -EIO;}</code></li><li class="listitem">
+default 'llseek' callback operation for the file object is <code class="function">default_llseek</code></li></ul></div><p>
+    </p></dd><dt><a name="interceptor"></a><span class="emphasis"><em>Interceptor</em></span>(of callback operations)</dt><dd><p>
+An object which encapsulates all information about how <a class="link" href="glossary.html#callback_operation">callback operations</a> should be <a class="link" href="glossary.html#callback_operation_interception">intercepted</a> (what <a class="link" href="glossary.html#interception_handler">interception handlers</a> should be called along with them) and for what objects. Also implements that interception.
+    </p><p>
+Each interceptor may work with one type of objects. But several interceptors may be defined for one type of objects, e.g. for call different interception handlers for objects in different non-overlapping sets.
+    </p><p>
+In KEDR COI library is implemented by <span class="type"><a class="type" href="api_reference.html#api_reference.interceptor.struct">struct kedr_coi_interceptor</a></span>.
+    </p></dd><dt><a name="foreign_interceptor"></a><span class="emphasis"><em>Foreign interceptor</em></span></dt><dd><p>
+An object, which, like normal <a class="link" href="glossary.html#interceptor">interceptor</a>, implements interception of object's <a class="link" href="glossary.html#callback_operation">callback operations</a>. But the only purpose of this interception - intercept moment when object is created. At this moment created object become watched by another interceptor, which is <span class="emphasis"><em>binded</em></span> with the foreign one.
+    </p><p>
+Foreign interceptor is applied for objects, containing pointer to struct with operations worked with another object. When foreign interceptor watch an object with foreign operations, and another object is created and use that operations, the second object become watched by the binded interceptor.
+    </p><p>
+Each foreign interceptor may work with one type of objects with foreign operations. But several foreign interceptors may be defined for one of objects and be binded with different normal interceptors. Also, one 'normal' interceptor may have different foreign interceptors binded with it.
+    </p><p>
+In KEDR COI library is implemented by <span class="type"><a class="type" href="api_reference.html#api_reference.foreign_interceptor.struct">struct kedr_coi_foreign_interceptor</a></span>.
+    </p></dd><dt><a name="intermediate_operation"></a><span class="emphasis"><em>Intermediate operation</em></span>(for callback operation)</dt><dd><p>
+A function which is called instead of corresponded <a class="link" href="glossary.html#callback_operation">callback operation</a> for perform <a class="link" href="glossary.html#callback_operation_interception">interception</a>. This function has same signature as corresponded callback operation and  performs calls of all needed <a class="link" href="glossary.html#interception_handler">interception handlers</a> and original callback operation.
+    </p><p>
+In KEDR COI library intermediate operation is described with <span class="type"><a class="type" href="api_reference.html#api_reference.interceptor_creation.struct_intermediate">struct kedr_coi_intermediate</a></span>.
+    </p><p>
+<a class="link" href="glossary.html#foreign_interceptor">Foreign interceptors</a> also use intermediate operations, but instead of calling interception handlers and original callback operation they do some another work. These intermediate operations are described with <span class="type"><a class="type" href="api_reference.html#api_reference.foreign_interceptor_creation.struct_intermediate">struct kedr_coi_foreign_intermediate</a></span>.
+    </p></dd><dt><a name="payload"></a><span class="emphasis"><em>Payload</em></span>(for callback operation)</dt><dd><p>
+An object containing <a class="link" href="glossary.html#pre_handler">pre-handlers</a> and <a class="link" href="glossary.html#post_handler">post-handlers</a> for <a class="link" href="glossary.html#callback_operation">callback operations</a> of objects of some type.
+    </p><p>
+For these handlers take an effect, the payload should be registered with <a class="link" href="glossary.html#interceptor">interceptor</a> which works with objects of same type as payload. One payload is allowed to be registered only with one interceptor at a time, but one interceptor may have several payloads registered with it.
+    </p></dd></dl></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="api_reference.html">Prev</a> </td><td width="20%" align="center"> </td><td width="40%" align="right"> </td></tr><tr><td width="40%" align="left" valign="top">7. API Reference </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> </td></tr></table></div></body></html>

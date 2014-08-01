@@ -1,0 +1,13 @@
+operations:
+  - name:  d_release
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+    object:  dentry
+
+# Called from d_free
+    default:  return;//do nothing
+
+

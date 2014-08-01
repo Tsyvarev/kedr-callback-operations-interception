@@ -1,0 +1,20 @@
+operations:
+
+  - name:  show_path
+    returnType:  int
+
+    args:
+      - type:  struct seq_file *
+        name:  m
+
+      - type:  struct vfsmount *
+        name:  mnt
+
+    object:  mnt->mnt_sb
+
+# Called by show_mountinfo.
+# Default implementation uses seq_dentry, which is not accessible for modules.
+
+    header: |
+            /* 'super_operations' has method 'show_path' */
+            #define SUPER_OPERATIONS_HAS_SHOW_PATH

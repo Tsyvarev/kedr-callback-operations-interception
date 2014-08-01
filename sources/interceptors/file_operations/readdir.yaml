@@ -1,0 +1,17 @@
+operations:
+  - name:  readdir
+    returnType:  int
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  void *
+        name:  buf
+
+      - type:  filldir_t
+        name:  filler
+
+    object:  filp
+
+    default:  return -ENOTDIR;

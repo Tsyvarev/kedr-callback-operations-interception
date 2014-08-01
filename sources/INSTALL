@@ -1,0 +1,18 @@
+Installation instructions.
+
+For configuring package, CMake utility should be used(available at http://cmake.org/).
+
+Standard steps for configuring, building and installing package:
+
+cd <build-dir>
+cmake <source-dir>
+make
+make install
+
+Here <source-dir> is a directory with source files, <build-dir> is a
+directory for build KEDR COI package.
+Any directory may be used for build package, but it is better to not
+use <source-dir> for that purpose.
+
+See doc/html/install.html for more information about configuring,
+building and installing KEDR COI.

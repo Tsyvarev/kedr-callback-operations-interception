@@ -1,0 +1,155 @@
+﻿<section id="overview">
+<title>Overview</title>
+
+<section id="overview.general">
+<title>General</title>
+<para>
+Linux kernel is written on C programming language, which itself not support object oriented programming(OOP). But Linux kernel widely uses many OOP principles in its implementation.
+</para>
+<para>
+Impressive example is a virtual file system(VFS), which is builded from objects of different types: inodes('<type>struct inode</type>'), directory entries('<type>struct dentry</type>'), super blocks('<type>struct super</type>'), files('<type>struct file</type>') and others. These types are very similar to virtual objects in OOP sence: aside from normal functions, which work with objects of that types and which is used to implement VFS, objects of these types also have 'virtual functions', which express properties of conrecte objects and called by VFS when it need to perform 'device-dependent' operation on the object.
+</para>
+<para>
+In the kernel virtual functions are implemented via <firstterm linkend="callback_operation">callback operations</firstterm>, pointer to which is stored inside object. E.g., file object('<type>struct file</type>') has more then ten callback operations, such as <function>open</function>, <function>read</function>, <function>fcntl</function>, <function>poll</function>. All of them are organized into one structure('<type>struct file_operations</type>'), pointer to which is stored inside a file object(field 'f_op').
+</para>
+<para>
+KEDR COI library allows to intercept callback operations of the objects inside Linux kernel. Such interception may be used for simple collecting usage statistics of functions implemented these operations, or be part of more complex analisys.
+</para>
+<para>
+Currently there are several tools, like SystemTap, that allow to intercept kernel functions implemented different part of system calls, like <function>open</function>, <function>close</function>, <function>fcntl</function>... These functions call corresponded callback operations - <function>open</function>, <function>release</function>, <function>fcntl</function>. This fact may be used for intercept callback operations with, e.g., SystemTap, but:
+    <orderedlist>
+        <listitem>
+There is no one-to-one correspondence between callback operations and kernel functions used to call them. Some kernel function may call several callback operations and some callback operation may be called from several kernel function.
+        </listitem>
+        <listitem>
+Some callback operations are called from kernel functions in non-trivial fasion. Example - <function>poll</function> operation is called inside the loop of <function>select</function> kernel function.
+        </listitem>
+        <listitem>
+Implementation of interception of callback operation via kernel function interception leads to interception of ALL callback operation calls, whenever it is needed or not.
+        </listitem>
+    </orderedlist>
+</para>
+
+<para>
+Features of interception done by KEDR COI library:
+    <orderedlist>
+        <listitem>
+Callback operation call is intercepted regadless what kernel function calls it and how.
+        </listitem>
+        <listitem>
+Only those callback operations are intercepted which are called for objects which previously marked as 'watched'. Such marks are made dynamically, i.e. choice whether to watch an object or not is done when kernel code is executed.
+        </listitem>
+    </orderedlist>
+</para>
+
+</section> 
+<!-- End of "overview.general" -->
+
+<section id="overview.sys_req">
+<title>System Requirements</title>
+
+<para>
+KEDR COI library works on Linux kernel versions 2.6.31 or newer. There is no principal restrictions to work with older kernels, but building library and its working are tested only on that kernels.
+</para>
+
+<para>
+For the present time, only x86 and x86-64 architectures are supported. Also, there is no principal restrictions to work with other architectures.
+</para>
+
+</section> 
+<!-- End of "overview.sys_req" -->
+
+<section id="overview.technologies">
+<title>Key Technologies KEDR COI Relies Upon</title>
+
+<para>
+Really, different virtual objects in Linux kernel are implemented in different ways.
+</para>
+<para>
+The most common way is to collect all pointers to callback operation ('virtual methods') in one structure and store pointer to concrete structure in the object structure. E.g., all callback operations for file object('<type>struct file</type>') are collected in structure '<type>file_operations</type>', and pointer to this structure is stored in the object's field 'f_op'. Different file objects may share same structure with operations.
+</para>
+<para>
+Another way is to store pointers to different callback operations in the different object's fields. E.g., file system type object('<type>struct file_system_type</type>') has two callback operations - <function>mount</function> and <function>kill_sb</function>(in kernels before 2.6.39 <function>mount</function> is named <function>get_sb</function>), pointer to each operation is stored in corresponded field of the object.
+</para>
+<para>
+KEDR COI library work with both implementations of callback operations and implements interception mechanism via replacing callback operations with special ones, referred to as <firstterm linkend="intermediate_operation">intermediate operations</firstterm>. When external kernel code call some intercepted object's callback operation, it really call intermediate operation. This operation calls all registered <firstterm linkend="pre_handler">pre-handlers</firstterm>, then original object's operation and then <firstterm linkend="post_handler">post-handlers</firstterm>.
+</para>
+
+</section>
+<!-- End of "overview.technologies" -->
+
+<section id="overview.common_use_case">
+<title>Common Use Case</title>
+Here is a common usage of KEDR COI library for intercept callback operations of the objects:
+<procedure>
+<step><para>
+Choose callback operations you need to intercept, and what actions you need to execute at that moment. Implement these actions as <link linkend="interception_handler">interception handlers</link> in terms of KEDR COI library.
+</para></step>
+<step><para>
+Create <link linkend="interceptor">interceptor</link> for every object's type which callback operations are needed to intercept. Interceptors for some object's types are already implemented in the KEDR COI as preexisted source and header files. Code of interceptors for other object's types may be generated from user-written definition files (see <xref linkend="create_interceptors_using_kedr_gen"/>).
+</para></step>
+<step><para>
+Create <link linkend="payload">payloads</link> with pre- and post- handlers you want to call when intercept operations. Register these payloads with corresponded interceptors.
+</para></step>
+<step><para>
+Call <function linkend="api_reference.interceptor.start">kedr_coi_interceptor_start</function> for every interceptor used.
+</para></step>
+<step><para>
+Determine moments when objects which operations you want to intercept are created(or became available for using). Call <function linkend="api_reference.interceptor.watch">kedr_coi_interceptor_watch</function> at that moments. Depended from objects type, this function may be called from interception handlers for kernel global functions, from interception handlers of another callback operations or may be called automatically when use <link linkend="foreign_interceptor">foreign interceptor</link>. See <xref linkend="objects_watching.when_to_watch"/> for more details.
+</para><para>
+Note, that calling of <function linkend="api_reference.interceptor.watch">kedr_coi_interceptor_watch</function> from interceptor handlers of another callback operations may introduce new interception handlers and new callback operations intercepted, so all previous steps should be revisited.
+</para></step>
+<step><para>
+Determine moments when objects which operations you want to intercept are destroyed(or became unavailable for using). Call <function linkend="api_reference.interceptor.forget">kedr_coi_interceptor_forget</function> or <function>kedr_coi_interceptor_forget_unrestore</function> at that moments. Depended from objects type, this function may be called from interception handlers for kernel global functions or from interception handlers of another callback operations. See <xref linkend="objects_watching.when_to_forget"/> for more details.
+</para><para>
+Note, that calling of <function linkend="api_reference.interceptor.forget">kedr_coi_interceptor_forget</function> from interceptor handlers of another callback operations may introduce new interception handlers and new callback operations intercepted, so all previous steps should be revisited.
+</para></step>
+<step><para>
+After interception mechanism become not needed, call <function linkend="api_reference.interceptor.stop">kedr_coi_interceptor_stop</function> for every interceptor used.
+</para></step>
+<step><para>
+Unregister all payloads and destroy all created interceptors.
+</para></step>
+</procedure>
+
+</section>
+<!-- End of "overview.common_use_case" -->
+
+<section id="overview.limit">
+<title>Limitations</title>
+
+<itemizedlist>
+<para>
+The ideas KEDR COI is based upon impose some limitations on what it can be used for.
+</para>
+
+<listitem>
+    <para>
+KEDR COI need to modify object for its operations became interceptable. So, you need to intercept creation(or some later) moment for every object which operations you want to intercept. If you unable to do this, the library cannot be applied.
+    </para>
+</listitem>
+
+<listitem>
+    <para>
+Modification of the object, done by the library, may conflict with modification of the object, done by external code. In the first queue it concerned changing of the object's field pointed to operation(s). If external code change operation(s) of the object is watched, interception mechanism does not work for that object until kedr_coi_interceptor_watch() will be called for object again.
+    </para>
+    <para>
+ In the current implementation of the library, watching an object doesn't change pointer to its operation structure. So, if external code set pointer to callback operations of the object to one which has been before object is watched (this is the most frequent case when external code set pointer to operations), interception mechanism doesn't break.
+    </para>
+</listitem>
+
+<listitem>
+    <para>
+Objects which share same operations struct cannot be watched by different interceptors, so cannot have different set of payloads with interception handlers. This is a price for interception mechanism tolerance to setting pointer to operation(s) by external code.
+    </para>
+    <para>
+In any case, different interceptors cannot watch the same object.
+    </para>
+</listitem>
+</itemizedlist>
+
+</section>
+<!-- End of "overview.limit" -->
+
+</section>
+<!-- End of "overview" -->

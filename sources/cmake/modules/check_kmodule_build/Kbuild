@@ -1,0 +1,2 @@
+obj-m := test_module.o
+test_module-y := module.o

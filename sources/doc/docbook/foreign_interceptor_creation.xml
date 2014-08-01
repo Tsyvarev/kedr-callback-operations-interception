@@ -1,0 +1,76 @@
+﻿<section id="foreign_interceptor_creation">
+<title>Creation of the foreign interceptors</title>
+<para>
+Foreign interceptor is created with function <function linkend="api_reference.foreign_interceptor_creation.indirect">kedr_coi_foreign_interceptor_create</function>. Next information should be passed to this function for describe interceptor created: object's geometry, intermediate operations and normal interceptor, which will be binded with new one.
+</para>
+
+<section id="foreign_interceptor_creation.binded_interceptor">
+<title>Binded interceptor</title>
+<para>
+Foreign interceptor is intended to use only for automatically watch for an objects by another interceptor, referred to as 'binded'. This binded interceptor should be passed to <function>kedr_coi_foreign_interceptor_create</function> as first parameter. Only indirect interceptor(see <xref linkend="interceptor_creation.object_geometry.indirect"/>) may be used as binded, attempt to use direct interceptor for this purpose will lead to error.
+</para>
+</section>
+<!-- End of "foreign_interceptor_creation.binded_interceptor" -->
+
+<section id="foreign_interceptor_creation.object_geometry">
+<title>Object's geometry</title>
+<para>
+The only parameter described object's geometry is an offset of the pointer to operations structure inside the prototype object.
+</para>
+
+</section>
+<!-- End of "foreign_interceptor_creation.object_geometry" -->
+<section id="foreign_interceptor_creation.intermediate_operations">
+<title>Intermediate operations</title>
+<para>
+Like a normal interceptor, foreign one uses <firstterm linkend="intermediate_operation">intermediate operations</firstterm> for implement interception mechanism. And like for a normal interceptor, intermediate operations for foreign one should be implemented by hands.
+</para>
+<para>
+For foreign interceptor, intermediate operations should be only defined for those operations in prototype which will be called just after object is created from this prototype. E.g., the first operation which is called for file object when it is created is <function>open</function>. So only this operation requires intermediate one.
+</para>
+<para>
+Intermediate operation for foreign interceptor should have same signature as operation it replace, and implements following simple logic:
+</para>
+<procedure>
+<step><para>
+Locally allocate(on stack) pointer to the original operation.
+</para></step>
+<step><para>
+Call <function linkend="api_reference.foreign_interceptor_creation.bind">kedr_coi_bind_prototype_with_object</function> and pass to it foriegn interceptor, prototype object, newly created object, offset of the operation replaced by this intermediate one and reference to the allocated pointer to the original operation.
+</para></step>
+<step><para>
+Call original callback operation. If pointer to it is <constant>NULL</constant>, <firstterm linkend="default_callback_operation">default callback operation</firstterm> should be called instead.
+</para></step>
+<step><para>
+If original(or default) operation returns any value, return this value.
+</para></step>
+</procedure>
+<para>
+For example, intermediate operation for foreign interceptor, used character device('struct cdev') as prototype object for create file object('<type>struct file</type>') may be implemented as follow:
+<programlisting><![CDATA[
+struct kedr_coi_foreign_interceptor* foreign_interceptor;
+//...
+static int intermediate_open(struct inode* inode, struct file* filp)
+{
+    int (*op_chained)(struct inode * inode, struct file * filp);
+
+    kedr_coi_bind_prototype_with_object(foreign_interceptor,
+        inode->i_cdev,
+        filp,
+        offsetof(struct file_operations, open),
+        (void**)&op_chained);
+    
+    return op_chained? op_chained(inode, filp) : 0;
+}
+]]></programlisting>
+Note, that like for a normal interceptor, intermediate operation for foreing interceptor should correctly process case when original callback operation is <constant>NULL</constant>. For <function>open</function> operation <constant>NULL</constant> pointer equivalents to callback simply returning <constant>0</constant>.
+</para>
+
+<note><para>
+Unlike to normal interceptor, intermediate operations for foreign interceptor are used for replace original callback operation of object in any case. So 'internal_only' flag and grouping has no sence for intermediate operations of foreign interceptor.
+</para></note>
+</section>
+<!-- End of "foreign_interceptor_creation.intermediate_operations" -->
+
+</section>
+<!-- End of "foreign_interceptor_creation" -->

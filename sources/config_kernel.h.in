@@ -1,0 +1,34 @@
+/* If hlist_for_each_entry*() macros accept only 'type *pos' as a loop 
+ * cursor, this symbol will be defined. */
+#cmakedefine HLIST_FOR_EACH_ENTRY_POS_ONLY
+
+/* Provide our own wrappers for hlist_for_each_entry*() API to hide the
+ * change in their interface.
+ *
+ * pos: 'type *' to use as a loop cursor.
+ * n: 'struct hlist_node *' to use as temporary storage
+ * head: the head of the list (struct hlist_head *).
+ * member: the name of the hlist_node within the struct.
+ */
+#if defined(HLIST_FOR_EACH_ENTRY_POS_ONLY)
+# define compat_hlist_for_each_entry hlist_for_each_entry
+# define compat_hlist_for_each_entry_safe hlist_for_each_entry_safe
+
+#else
+
+/* Based on the implementation of the changed API in kernel 3.9. */
+# define compat_hlist_entry_safe(ptr, type, member) \
+	({ typeof(ptr) ____ptr = (ptr); \
+	   ____ptr ? hlist_entry(____ptr, type, member) : NULL; \
+	})
+	
+# define compat_hlist_for_each_entry(pos, head, member) \
+	for (pos = compat_hlist_entry_safe((head)->first, typeof(*(pos)), member);\
+	     pos;							\
+	     pos = compat_hlist_entry_safe((pos)->member.next, typeof(*(pos)), member))
+
+# define compat_hlist_for_each_entry_safe(pos, n, head, member) 		\
+	for (pos = compat_hlist_entry_safe((head)->first, typeof(*(pos)), member);\
+	     pos && ({ n = (pos)->member.next; 1; });			\
+	     pos = compat_hlist_entry_safe(n, typeof(*(pos)), member))
+#endif /* defined(HLIST_FOR_EACH_ENTRY_POS_ONLY) */

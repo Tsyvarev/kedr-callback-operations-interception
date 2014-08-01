@@ -1,0 +1,60 @@
+module_name=@module_name@
+
+kedr_coi_templates_dir := @KEDR_COI_INSTALL_PREFIX_TEMPLATES@
+jy_tool := @KEDR_COI_INSTALL_MAKE_JY_TOOL@
+
+@multi_kernel_KERNEL_VAR_MAKE_DEFINITION@
+
+kedr_core_symbols=@KEDR_INSTALL_MAKE_PREFIX_KSYMVERS@/kedr.symvers
+kedr_coi_core_symbols=@KEDR_COI_INSTALL_MAKE_CORE_SYMBOLS@
+
+kedr_coi_interceptors_dir := @KEDR_COI_INSTALL_MAKE_PREFIX_INTERCEPTORS@
+
+KBUILD_DIR=/lib/modules/$(@multi_kernel_KERNEL_VAR@)/build
+PWD=`pwd`
+
+interceptors_normal = 
+interceptors_factory = 
+interceptors_standard = file_operations inode_file_operations file_system_type super_operations inode_operations dentry_operations
+
+interceptors_created = $(interceptors_normal) $(interceptors_factory)
+
+all: ${module_name}.ko
+
+${module_name}.ko: module.c fs_interception.c functions_support.c \
+	$(addsuffix _interceptor.c, $(interceptors_created)) \
+	$(addsuffix _interceptor.h, $(interceptors_created)) \
+	$(addsuffix _interceptor.c, $(interceptors_standard)) \
+	$(kedr_core_symbols) $(kedr_coi_core_symbols)
+	cat $(kedr_core_symbols) $(kedr_coi_core_symbols) > Module.symvers
+	$(MAKE) -C ${KBUILD_DIR} M=${PWD} modules
+
+
+$(addsuffix _interceptor.c, $(interceptors_normal)): %_interceptor.c: %.yaml
+	$(jy_tool) -t interceptor_c -o $@ $(kedr_coi_templates_dir)/kedr_coi_interceptor/ $^
+
+$(addsuffix _interceptor.h, $(interceptors_normal)): %_interceptor.h: %.yaml
+	$(jy_tool) -t interceptor_h -o $@ $(kedr_coi_templates_dir)/kedr_coi_interceptor/ $^
+
+
+$(addsuffix _interceptor.c, $(interceptors_factory)): %_interceptor.c: %.yaml
+	$(jy_tool) -t factory_interceptor_c -o $@ $(kedr_coi_templates_dir)/kedr_coi_interceptor/ $^
+
+$(addsuffix _interceptor.h, $(interceptors_factory)): %_interceptor.h: %.yaml
+	$(jy_tool) -t factory_interceptor_h -o $@ $(kedr_coi_templates_dir)/kedr_coi_interceptor/ $^
+
+
+$(addsuffix _interceptor.c, $(interceptors_standard)): %_interceptor.c: $(kedr_coi_interceptors_dir)/%_interceptor.c
+	cp -p $^ $@
+
+functions_support.c: functions.yaml
+	$(jy_tool) -o $@ $(kedr_coi_templates_dir)/kedr_trampolines.c/ $^
+
+clean:
+	$(MAKE) -C ${KBUILD_DIR} M=${PWD} clean
+	rm -f functions_support.c
+	rm -f $(addsuffix _interceptor.c, $(interceptors_created))
+	rm -f $(addsuffix _interceptor.h, $(interceptors_created))
+	rm -f $(addsuffix _interceptor.c, $(interceptors_standard))
+
+.PHONY: all clean

@@ -1,0 +1,19 @@
+operations:
+  - name:  compat_ioctl
+    returnType:  long
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  unsigned int
+        name:  cmd
+
+      - type:  unsigned long
+        name:  arg
+
+    object:  filp
+
+    default:  return -ENOIOCTLCMD;
+
+

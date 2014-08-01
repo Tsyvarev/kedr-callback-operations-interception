@@ -1,0 +1,8 @@
+operations:
+  - name:  kill_sb
+
+    args:
+      - type:  struct super_block *
+        name:  s
+
+    object:  s->s_type

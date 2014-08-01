@@ -1,0 +1,160 @@
+﻿<section id="pre_existed_interceptors">
+<title>Interceptors already implemented in KEDR COI</title>
+
+<para>
+Aside from providing basic API for implementing interceptors for any object's type, KEDR COI provide ready-made API and its implementation for some interceptors.
+</para>
+<para>
+For each such interceptor its API is declared in header file placed in <filename class="directory">/usr/local/include/kedr-coi/interceptors</filename> directory and implemented in source file placed in <filename class="directory">/usr/local/share/kedr-coi/interceptors</filename> directory. So, for use this API one should use include directive like this <code>#include &lt;kedr-coi/interceptors/<replaceable>interceptor_name.h</replaceable>&gt;</code> and use corresponded source file when compile kernel module.
+</para>
+<para>
+Each specific interceptor implementation use its own string as prefix for all exported functions, definitions and macros. In the API description below <replaceable>prefix</replaceable> will denote this prefix; <replaceable>object_t</replaceable> will denote object type for which the interceptor is intended to use.
+</para>
+
+<section id="pre_existed_interceptors.interceptor_api">
+<title>Object type-specific interceptor's API</title>
+<para>
+Next functions are defined for interceptor for object of specific type:
+<variablelist>
+    <varlistentry><term>int <replaceable>prefix</replaceable>_init(void (*trace_unforgotten_object)(<replaceable>object_t</replaceable>*  object))</term>
+        <listitem>Initialize interceptor. 'trace_unforgotten_object' has same sence as so-named parameter of instrumentor's constructor. Wrapper around of <link linkend="api_reference.interceptor_creation.indirect">kedr_coi_interceptor_create</link> or <link linkend="api_reference.interceptor_creation.direct">kedr_coi_interceptor_create_direct</link> depended whether interceptor is indirect or direct. Return <constant>0</constant> if interceptor was successfully created and negative error code otherwise.</listitem>
+    </varlistentry>
+    <varlistentry><term>void <replaceable>prefix</replaceable>_destroy(void);</term>
+        <listitem>Destroy interceptor, freeing all resources used by it. Wrapper around <link linkend="api_reference.interceptor_creation.destroy">kedr_coi_interceptor_destroy</link>.</listitem>
+    </varlistentry>
+    <varlistentry><term>int <replaceable>prefix</replaceable>_payload_register(struct kedr_coi_payload* payload);</term>
+        <listitem>Register payload for this interceptor. Wrapper around <link linkend="api_reference.interceptor.payload_register">kedr_coi_payload_register</link>.</listitem>
+    </varlistentry>
+    <varlistentry><term>int <replaceable>prefix</replaceable>_payload_unregister(struct kedr_coi_payload* payload);</term>
+        <listitem>Deregister payload for this interceptor. Wrapper around <link linkend="api_reference.interceptor.payload_unregister">kedr_coi_payload_unregister</link>.</listitem>
+    </varlistentry>
+    <varlistentry><term>int <replaceable>prefix</replaceable>_start(void);</term>
+        <listitem>Start to intercept. Wrapper around <link linkend="api_reference.interceptor.start">kedr_coi_interceptor_start</link>.</listitem>
+    </varlistentry>
+    <varlistentry><term>void <replaceable>prefix</replaceable>_stop(void);</term>
+        <listitem>Stop to intercept. Wrapper around <link linkend="api_reference.interceptor.stop">kedr_coi_interceptor_stop</link>.</listitem>
+    </varlistentry>
+    <varlistentry><term>int <replaceable>prefix</replaceable>_watch(<replaceable>object_t</replaceable>* object);</term>
+        <listitem>Watch for an object. Wrapper around <link linkend="api_reference.interceptor.watch">kedr_coi_interceptor_watch</link>.</listitem>
+    </varlistentry>
+    <varlistentry><term>int <replaceable>prefix</replaceable>_forget(<replaceable>object_t</replaceable>* object);</term>
+        <listitem>Stop to watch for an object. Wrapper around <link linkend="api_reference.interceptor.forget">kedr_coi_interceptor_forget</link>.</listitem>
+    </varlistentry>
+    <varlistentry><term>int <replaceable>prefix</replaceable>_forget_norestore(<replaceable>object_t</replaceable>* object);</term>
+        <listitem>Stop to watch for an object and doesn't restore object's content. Wrapper around <link linkend="api_reference.interceptor.forget_norestore">kedr_coi_interceptor_forget_norestore</link>.</listitem>
+    </varlistentry>
+</variablelist>
+</para>
+<para>
+Also, for each operation &lt;op&gt; which is allowable for intercept using this interceptor,
+next macros are defined:
+<variablelist>
+    <varlistentry><term><replaceable>opprefix</replaceable>_&lt;op&gt;_pre(func)</term>
+        <listitem>Define pre-handler for operation which use given function. Also check that function has correct signature.</listitem>
+    </varlistentry>
+    <varlistentry><term><replaceable>opprefix</replaceable>_&lt;op&gt;_post(func)</term>
+        <listitem>Define post-handler for operation which use given function. Also check that function has correct signature.</listitem>
+    </varlistentry>
+</variablelist>
+<replaceable>opprefix</replaceable> here denotes prefix for operations, which is usually same as <replaceable>prefix</replaceable> but without 'interceptor' word.
+</para>
+<para>
+If intermediate operation supports external interception (see <xref linkend="payload_description.internal_and_external"/>), next macros are defined for corresponded callback operation:
+<variablelist>
+    <varlistentry><term><replaceable>opprefix</replaceable>_&lt;op&gt;_pre_external(func)</term>
+        <listitem>Define external pre-handler for operation which use given function. Also check that function has correct signature.</listitem>
+    </varlistentry>
+    <varlistentry><term><replaceable>opprefix</replaceable>_&lt;op&gt;_post_external(func)</term>
+        <listitem>Define external pre-handler for operation which use given function. Also check that function has correct signature.</listitem>
+    </varlistentry>
+</variablelist>
+
+</para>
+<para>
+Also, for indirect interceptor next function will be exported for create foreign interceptor for this one:
+<programlisting>
+struct kedr_coi_foreign_interceptor*
+<replaceable>prefix</replaceable>_foreign_interceptor_create(const char* name,
+    size_t foreign_operations_field_offset,
+    const struct kedr_coi_foreign_intermediate* intermediate_operations,
+    void (*trace_unforgotten_object)(void* object));
+</programlisting>
+
+It is a wrapper around <link linkend="api_reference.foreign_interceptor_creation.indirect">kedr_coi_foreign_interceptor_create</link>.
+</para>
+
+</section>
+<!-- End of "pre_existed_interceptors.interceptor_api" -->
+
+<section id="pre_existed_interceptors.foreign_interceptor_api">
+<title>Object type-specific foreign interceptor's API</title>
+<para>
+Next function is defined create foreign interceptor for object of specific type:
+<programlisting>
+extern int <replaceable>prefix</replaceable>_interceptor_init(
+    struct kedr_coi_foreign_interceptor* (*foreign_interceptor_create)(
+        const char* name,
+        size_t foreign_operations_field_offset,
+        const struct kedr_coi_foreign_intermediate* intermediate_operations,
+        void (*trace_unforgotten_object)(void* object)),
+    void (*trace_unforgotten_object)(<replaceable>object_t</replaceable>* object));
+</programlisting>
+The first argument is expected to be a function '<replaceable>prefix</replaceable>_foreign_interceptor_create' generated for a normal interceptor, second argument has same sence as so-named argument of <function linkend="api_reference.foreign_interceptor_creation.indirect">kedr_coi_foreign_interceptor_create</function>. Return <constant>0</constant> if foreign interceptor was successfully created and negative error code otherwise.
+</para>
+
+<para>
+Also, next functions will be defined:
+<variablelist>
+    <varlistentry><term>void <replaceable>prefix</replaceable>_destroy(void);</term>
+        <listitem>Destroy interceptor, freeing all resources used by it. Wrapper around <link linkend="api_reference.foreign_interceptor_creation.destroy">kedr_coi_foreign_interceptor_destroy</link>.</listitem>
+    </varlistentry>
+    <varlistentry><term>int <replaceable>prefix</replaceable>_watch(<replaceable>object_t</replaceable>* object);</term>
+        <listitem>Watch for an object. Wrapper around <link linkend="api_reference.foreign_interceptor.watch">kedr_coi_foreign_interceptor_watch</link>.</listitem>
+    </varlistentry>
+    <varlistentry><term>int <replaceable>prefix</replaceable>_forget(<replaceable>object_t</replaceable>* object);</term>
+        <listitem>Stop to watch for an object. Wrapper around <link linkend="api_reference.foreign_interceptor.forget">kedr_coi_foreign_interceptor_forget</link>.</listitem>
+    </varlistentry>
+    <varlistentry><term>int <replaceable>prefix</replaceable>_forget_norestore(<replaceable>object_t</replaceable>* object);</term>
+        <listitem>Stop to watch for an object and doesn't restore object's content. Wrapper around <link linkend="api_reference.foreign_interceptor.forget_norestore">kedr_coi_foreign_interceptor_forget_norestore</link>.</listitem>
+    </varlistentry>
+</variablelist>
+</para>
+
+</section>
+<!-- End of "pre_existed_interceptors.foreign_interceptor_api" -->
+
+<section id="pre_existed_interceptors.list">
+<title>List of interceptors defined in KEDR COI</title>
+<para>
+Here is a list of functions' prefixes, used for create and work with interceptors for particular objects' types.
+<variablelist>
+    <varlistentry><term>file_operations_interceptor</term>
+        <listitem>Interceptor for watch objects of type '<type>struct file</type>'. Name of header file is <filename>file_operations_interceptor.h</filename>. Name of source file - <filename>file_operations_interceptor.c</filename>.
+        </listitem>
+    </varlistentry>
+    <varlistentry><term>inode_operations_interceptor</term>
+        <listitem>Interceptor for watch objects of type '<type>struct inode</type>'. Name of header file is <filename>inode_operations_interceptor.h</filename>. Name of source file - <filename>inode_operations_interceptor.c</filename>.
+        </listitem>
+    </varlistentry>
+    <varlistentry><term>dentry_operations_interceptor</term>
+        <listitem>Interceptor for watch objects of type '<type>struct dentry</type>'. Name of header file is <filename>dentry_operations_interceptor.h</filename>. Name of source file - <filename>dentry_operations_interceptor.c</filename>.
+        </listitem>
+    </varlistentry>
+    <varlistentry><term>super_operations_interceptor</term>
+        <listitem>Interceptor for watch objects of type '<type>struct super_block</type>'. Name of header file is <filename>super_operations_interceptor.h</filename>. Name of source file - <filename>super_operations_interceptor.c</filename>.
+        </listitem>
+    </varlistentry>
+    <varlistentry><term>file_system_type_interceptor</term>
+        <listitem>Interceptor for watch objects of type '<type>struct file_system_type</type>'. Name of header file is <filename>file_system_type_interceptor.h</filename>. Name of source file - <filename>file_system_type_interceptor.c</filename>.
+        </listitem>
+    </varlistentry>
+    <varlistentry><term>inode_file_operations_interceptor</term>
+        <listitem>Foreign interceptor for watch objects of type '<type>struct inode</type>' with automatic watch newly-created objects of type '<type>struct file</type>'. Name of header file is <filename>inode_file_operations_interceptor.h</filename>. Name of source file - <filename>inode_file_operations_interceptor.c</filename>.
+        </listitem>
+    </varlistentry>
+</variablelist>
+</para>
+</section>
+
+</section>
+<!-- End of "pre_existed_interceptors" -->

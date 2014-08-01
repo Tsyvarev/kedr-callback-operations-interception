@@ -1,0 +1,25 @@
+operations:
+
+  - name:  ioctl
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+      - type:  struct file *
+        name:  filp
+
+      - type:  unsigned int
+        name:  cmd
+
+      - type:  unsigned long
+        name:  arg
+
+    object:  filp
+
+    default:  return -ENOTTY;
+
+    header: |
+            /* 'file_operations' has ioctl method */
+            #define FILE_OPERATIONS_HAS_IOCTL

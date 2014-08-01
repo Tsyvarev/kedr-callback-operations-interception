@@ -1,0 +1,17 @@
+operations:
+
+  - name:  d_automount
+    returnType:  struct vfsmount *
+
+    args:
+      - type:  struct path *
+        name:  path
+
+    object:  path->dentry
+
+# Called by follow_automount.
+    default:  return ERR_PTR(-EREMOTE);
+
+    header: |
+            /* 'dentry_operations' has 'd_automount' member */
+            #define DENTRY_OPERATIONS_HAS_D_AUTOMOUNT

@@ -1,0 +1,16 @@
+﻿<section id="intro">
+<title>Introduction</title>
+
+<para>
+<emphasis>KEDR COI</emphasis> is a library which allow to intercept callback operations of the kernel's object in Linux. The library is inspired by <phrase role="emphasized">KEDR</phrase> - framework for runtime analysis of Linux kernel modules. The library extends abilities of KEDR, which itself allow to intercept only global functions calls, not a dynamicaly established callbacks calls. While the main purpose of KEDR COI library is using in conjunction with KEDR, it may also be used without it.
+</para>
+
+<para>
+KEDR COI is free software and is distributed under the terms of <ulink url="http://www.gnu.org/licenses/old-licenses/gpl-2.0.html">GNU General Public License Version 2</ulink>.
+</para>
+
+<para>
+The latest stable version of KEDR COI as well as the development versions (Mercurial repository) can be found at <ulink url="&kedr-coi-url;"><quote>KEDR COI</quote> project site at Google Code.</ulink>
+</para>
+
+</section>

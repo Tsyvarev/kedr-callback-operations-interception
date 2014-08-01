@@ -1,0 +1,26 @@
+operations:
+
+  - name:  fallocate
+    returnType:  long
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  int
+        name:  mode
+
+      - type:  loff_t
+        name:  offset
+
+      - type:  loff_t
+        name:  len
+
+    object:  filp
+
+# Called from do_fallocate
+    default:  return -EOPNOTSUPP;
+
+    header: |
+            /* 'file_operations' has fallocate method */
+            #define FILE_OPERATIONS_HAS_FALLOCATE

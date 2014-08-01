@@ -1,0 +1,19 @@
+operations:
+  - name:  flock
+    returnType:  int
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  int
+        name:  flags
+
+      - type:  struct file_lock *
+        name:  fl
+
+    object:  filp
+
+    default:  return flock_lock_file_wait(filp, fl);
+
+

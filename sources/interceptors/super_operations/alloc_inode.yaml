@@ -1,0 +1,16 @@
+operations:
+  - name:  alloc_inode
+    returnType:  struct inode *
+
+    args:
+      - type:  struct super_block *
+        name:  sb
+
+    object:  sb
+
+# Called from alloc_inode
+    default: |
+            struct inode* inode = kmalloc(sizeof(struct inode), GFP_KERNEL);
+            if(inode) inode_init_once(inode);
+            return inode;
+    group_id:  1

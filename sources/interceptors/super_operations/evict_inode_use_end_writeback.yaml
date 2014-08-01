@@ -1,0 +1,21 @@
+operations:
+
+  - name:  evict_inode
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+    object:  inode->i_sb
+
+# Called from evict()
+    default: |
+        if(inode->i_data.nrpages)
+            truncate_inode_pages(&inode->i_data, 0);
+        clear_inode(inode);
+
+    header: |
+            /* 'struct super_operations' has 'evict_inode' method */
+            #define SUPER_OPERATIONS_HAS_EVICT_INODE
+            /* 'struct super_operations' has 'evict_inode' method which use end_writeback().*/
+            #define SUPER_OPERATIONS_EVICT_INODE_USE_END_WRITEBACK

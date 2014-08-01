@@ -1,0 +1,15 @@
+operations:
+  - name:  aio_fsync
+    returnType:  int
+
+    args:
+      - type:  struct kiocb *
+        name:  iocb
+
+      - type:  int
+        name:  datasync
+
+    object:  iocb->ki_filp
+
+    default:  return -EINVAL;
+

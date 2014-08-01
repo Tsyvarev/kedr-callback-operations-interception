@@ -1,0 +1,24 @@
+operations:
+  - name:  splice_write
+    returnType:  ssize_t
+
+    args:
+      - type:  struct pipe_inode_info *
+        name:  pipe
+
+      - type:  struct file *
+        name:  out
+
+      - type:  loff_t *
+        name:  ppos
+
+      - type:  size_t
+        name:  len
+
+      - type:  unsigned int
+        name:  flags
+
+    object:  out
+
+    default:  return generic_splice_sendpage(pipe, out, ppos, len, flags);
+

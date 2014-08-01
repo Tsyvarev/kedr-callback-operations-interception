@@ -1,0 +1,15 @@
+operations:
+  - name:  statfs
+    returnType:  int
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  struct kstatfs *
+        name:  buf
+
+    object:  dentry->d_sb
+
+    default:  return -ENOSYS;
+

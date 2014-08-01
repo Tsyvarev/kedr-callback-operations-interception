@@ -1,0 +1,20 @@
+operations:
+  - name:  readlink
+    returnType:  int
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  char __user *
+        name:  buffer
+
+      - type:  int
+        name:  buflen
+
+    object:  dentry->d_inode
+
+## Called by SYSCALL readlinkat
+    default:  return -EINVAL;
+
+

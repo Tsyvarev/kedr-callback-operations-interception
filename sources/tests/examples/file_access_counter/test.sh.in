@@ -1,0 +1,123 @@
+#!/bin/sh
+
+example_files="@shell_example_files@"
+example_location=@example_location@
+example_dir=@example_dir@
+
+# Clean directory with example
+if ! rm -rf $example_dir; then
+    printf "Failed to remove directory with example copy.\n"
+    exit 1
+fi
+if ! mkdir -p $example_dir; then
+    printf "Failed to create directory for example copy.\n"
+    exit 1
+fi
+
+for example_file in ${example_files}; do
+    cp -p ${example_location}/${example_file} $example_dir
+done
+
+if ! make -C $example_dir; then
+    printf "Failed to build example.\n"
+    exit 1
+fi
+
+if test -z "$TEST_DEVICE"; then
+	printf "For test payload built TEST_DEVICE and TEST_DEVICE_FS_DRIVER variables should be defined.\n"
+    exit
+fi
+
+if test -z "$TEST_DEVICE_FS_DRIVER"; then
+	printf "TEST_DEVICE_FS_DRIVER should describe filesystem driver which can mount TEST_DEVICE.\n"
+    # TEST_DEVICE without TEST_DEVICE_FS_DRIVER set is treated as error.
+    exit 1
+fi
+
+@multi_kernel_KERNEL_VAR_SHELL_DEFINITION@
+
+test_device=$TEST_DEVICE
+module=$TEST_DEVICE_FS_DRIVER
+
+mount_flags=
+
+if ! test -e $test_device; then
+    printf "TEST_DEVICE $test_device is not exist\n"
+    exit 1
+fi
+
+if test -f $test_device; then
+    mount_flags=loop
+fi
+
+mount_opts=
+
+if test -n "$mount_flags"; then
+    mount_opts="-o$mount_flags"
+fi
+
+mount_point=/var/tmp/kedr-coi/test/mount-point
+
+if ! mkdir -p $mount_point; then
+    printf "Failed to prepare directory for mount.\n"
+    exit 1
+fi
+
+/sbin/rmmod $module
+
+@KEDR_INSTALL_PREFIX_EXEC@/kedr start $module -c "module @KEDR_COI_INSTALL_SHELL_CORE_MODULE@" -c "payload $example_dir/file_access_counter.ko"
+
+if test $? -ne 0; then
+    printf "Failed to load KEDR.\n"
+    exit 1
+fi
+
+# cat > /dev/null << comment
+if ! mount $mount_opts $test_device $mount_point; then
+    printf "Failed to mount test device.\n"
+    @KEDR_INSTALL_PREFIX_EXEC@/kedr stop
+    exit 1
+fi
+# comment
+
+cat > /dev/null << comment
+if ! /sbin/modprobe $module; then
+    printf "Failed to load fs module.\n"
+    @KEDR_INSTALL_PREFIX_EXEC@/kedr stop
+    exit 1
+fi
+comment
+
+echo 123 > $mount_point/test.txt
+echo 456 >> $mount_point/test.txt
+
+mount_counter=`cat /sys/module/file_access_counter/parameters/mount_counter`
+file_counter=`cat /sys/module/file_access_counter/parameters/file_counter`
+
+sync
+
+if ! umount $mount_point; then
+    printf "Umount failed.\n"
+    exit 1
+fi
+
+if ! /sbin/rmmod $module; then
+    printf "Failed to unload filesystem module\n"
+    exit 1
+fi
+# comment
+
+if ! @KEDR_INSTALL_PREFIX_EXEC@/kedr stop; then
+    printf "Failed to unload KEDR.\n"
+    exit 1
+fi
+
+if test "$mount_counter" != 1; then
+    printf "Expected, that mount counter will be '1', but it is '$mount_counter'"
+    exit 1
+fi
+
+if test "$file_counter" != 2; then
+    printf "Expected, that file access counter will be '2', but it is '$file_counter'"
+    exit 1
+fi

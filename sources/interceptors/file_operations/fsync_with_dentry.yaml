@@ -1,0 +1,23 @@
+operations:
+
+  - name:  fsync
+    returnType:  int
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  int
+        name:  datasync
+
+    object:  filp
+
+    default:  return -EINVAL;
+    header: |
+            /* 'fsync' method of 'file_operations' accepts dentry parameter */
+            #define FILE_OPERATIONS_FSYNC_ACCEPT_DENTRY 1
+            /* 'fsync' method of 'file_operations' doesn't accept range parameters */
+            #define FILE_OPERATIONS_FSYNC_ACCEPT_RANGE 0

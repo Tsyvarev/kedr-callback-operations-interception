@@ -1,0 +1,18 @@
+operations:
+  - name:  fasync
+    returnType:  int
+
+    args:
+      - type:  int
+        name:  fd
+
+      - type:  struct file *
+        name:  filp
+
+      - type:  int
+        name:  mode
+
+    object:  filp
+
+    default:  return 0;
+

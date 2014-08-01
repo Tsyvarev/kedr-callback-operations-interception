@@ -1,0 +1,11 @@
+operations:
+  - name:  put_super
+
+    args:
+      - type:  struct super_block *
+        name:  sb
+
+    object:  sb
+
+    default:  return;
+

@@ -1,0 +1,16 @@
+operations:
+# Do not used since 3.4.
+  - name:  truncate_range
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+      - type:  loff_t
+        name:  offset
+
+      - type:  loff_t
+        name:  end
+
+    object:  inode
+# Called from vmtruncate_range, shouldn't replace NULL pointer at all.

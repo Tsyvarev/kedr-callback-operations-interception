@@ -1,0 +1,18 @@
+operations:
+  - name:  lock
+    returnType:  int
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  int
+        name:  cmd
+
+      - type:  struct file_lock *
+        name:  fl
+
+    object:  filp
+
+    default:  return posix_lock_file(filp, fl, NULL);
+

@@ -1,0 +1,15 @@
+operations:
+
+  - name:  d_hash
+    returnType:  int
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  struct qstr *
+        name:  qstr
+
+    object:  dentry
+
+# Called from link_path_walk; checked in d_set_d_op

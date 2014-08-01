@@ -1,0 +1,26 @@
+operations:
+
+  - name:  get_sb
+    returnType:  int
+
+    args:
+      - type:  struct file_system_type *
+        name:  type
+
+      - type:  int
+        name:  flags
+
+      - type:  const char *
+        name:  name
+
+      - type:  void*
+        name:  data
+
+      - type:  struct vfsmount *
+        name:  mnt
+
+    object:  type
+
+    header: |
+            /* 'file_system_type' structure has 'get_sb' member*/
+            #define FILE_SYSTEM_TYPE_HAS_GET_SB

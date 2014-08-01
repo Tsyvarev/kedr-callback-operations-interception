@@ -1,0 +1,21 @@
+operations:
+  - name:  fiemap
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+      - type:  struct fiemap_extent_info*
+        name:  fieinfo
+
+      - type:  u64
+        name:  start
+
+      - type:  u64
+        name:  len
+
+    object:  inode
+
+# Called by ioctl_fiemap
+    default:  return -EOPNOTSUPP;

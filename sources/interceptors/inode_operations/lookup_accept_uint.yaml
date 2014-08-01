@@ -1,0 +1,22 @@
+operations:
+  - name:  lookup
+    returnType:  struct dentry *
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  unsigned int
+        name:  excl
+
+    object:  inode
+
+# Called by __link_path_walk
+    default:  return ERR_PTR(-ENOTDIR);
+
+    header: |
+            /* 'inode_operations' has method 'lookup' which accepts unsigned int as last argument */
+            #define INODE_OPERATIONS_LOOKUP_ACCEPT_UINT

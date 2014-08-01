@@ -1,0 +1,22 @@
+operations:
+  - name:  getxattr
+    returnType:  ssize_t
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  const char *
+        name:  name
+
+      - type:  void *
+        name:  value
+
+      - type:  size_t
+        name:  size
+
+    object:  dentry->d_inode
+
+# Called by vfs_getxattr
+    default:  return -EOPNOTSUPP;
+

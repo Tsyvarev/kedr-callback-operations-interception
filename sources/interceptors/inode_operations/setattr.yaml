@@ -1,0 +1,16 @@
+operations:
+  - name:  setattr
+    returnType:  int
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  struct iattr *
+        name:  attr
+
+    object:  dentry->d_inode
+
+# Called from notify_change
+# Default implementation is system-depended and not easy.
+

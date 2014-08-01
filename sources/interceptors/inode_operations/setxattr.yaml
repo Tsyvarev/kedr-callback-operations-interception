@@ -1,0 +1,25 @@
+operations:
+  - name:  setxattr
+    returnType:  int
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  const char *
+        name:  name
+
+      - type:  const void *
+        name:  value
+
+      - type:  size_t
+        name:  size
+
+      - type:  int
+        name:  flags
+
+    object:  dentry->d_inode
+
+# Called by __vfs_setxattr_noperm
+# Default implementation is very kernel-depended and subtle.
+

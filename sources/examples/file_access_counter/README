@@ -1,0 +1,12 @@
+File access counter.
+
+Implemented as payload module 'file_system_counter_module.ko' for KEDR.
+
+For filesystem registered by the target module count mounts and
+openings of files belonging to that filesystem. Only regular files
+are counted.
+
+These counters may be read from payload module parameters
+'mount_counter' and 'file_counter'.
+
+If target module registers several filesystem, sums counters for them.

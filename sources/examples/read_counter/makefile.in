@@ -1,0 +1,35 @@
+module_name=@module_name@
+
+kedr_coi_templates_dir := @KEDR_COI_INSTALL_PREFIX_TEMPLATES@
+jy_tool := @KEDR_COI_INSTALL_MAKE_JY_TOOL@
+
+@multi_kernel_KERNEL_VAR_MAKE_DEFINITION@
+
+kedr_coi_interceptors_dir := @KEDR_COI_INSTALL_MAKE_PREFIX_INTERCEPTORS@
+
+kedr_coi_core_symbols=@KEDR_COI_INSTALL_MAKE_CORE_SYMBOLS@
+
+KBUILD_DIR=/lib/modules/$(@multi_kernel_KERNEL_VAR@)/build
+PWD=`pwd`
+
+all: ${module_name}.ko
+
+${module_name}.ko: cfake.c read_counter.c \
+	cdev_file_operations_interceptor.c file_operations_interceptor.c \
+	cdev_file_operations_interceptor.h
+	cat $(kedr_coi_core_symbols) > Module.symvers
+	$(MAKE) -C ${KBUILD_DIR} M=${PWD} modules
+
+file_operations_interceptor.c: $(kedr_coi_interceptors_dir)/file_operations_interceptor.c
+	cp -p $^ $@
+
+cdev_file_operations_interceptor.c cdev_file_operations_interceptor.h: cdev_file_operations_interceptor.%: cdev_file_operations.yaml
+	$(jy_tool) -o $@ $(kedr_coi_templates_dir)/kedr_coi_interceptor/ -t factory_interceptor_$* $^
+
+
+clean:
+	$(MAKE) -C ${KBUILD_DIR} M=${PWD} clean
+	rm -f file_operations_interceptor.c
+	rm -f cdev_file_operations_interceptor.c cdev_file_operations_interceptor.h
+
+.PHONY: all clean

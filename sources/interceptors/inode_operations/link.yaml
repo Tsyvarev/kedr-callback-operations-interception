@@ -1,0 +1,18 @@
+operations:
+  - name:  link
+    returnType:  int
+
+    args:
+      - type:  struct dentry *
+        name:  old_dentry
+
+      - type:  struct inode *
+        name:  dir
+
+      - type:  struct dentry *
+        name:  new_dentry
+
+    object:  dir
+
+# Called by vfs_link
+    default:  return -EPERM;

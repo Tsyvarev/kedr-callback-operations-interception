@@ -1,0 +1,23 @@
+operations:
+  - name:  rename
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  old_dir
+
+      - type:  struct dentry *
+        name:  old_dentry
+
+      - type:  struct inode *
+        name:  new_dir
+
+      - type:  struct dentry *
+        name:  new_dentry
+
+    object:  old_dir
+
+# Called by vfs_rename
+    default:  return -EPERM;
+
+

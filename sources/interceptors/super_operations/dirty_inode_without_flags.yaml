@@ -1,0 +1,14 @@
+operations:
+
+  - name:  dirty_inode
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+    object:  inode->i_sb
+    default:  return;
+
+    header: |
+            /* 'dirty_inode' method of 'super_operations' doesn't accept 'flags' parameter */
+            #define SUPER_OPERATIONS_DIRTY_INODE_ACCEPT_FLAGS 0

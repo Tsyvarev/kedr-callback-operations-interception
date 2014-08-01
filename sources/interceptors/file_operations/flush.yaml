@@ -1,0 +1,15 @@
+operations:
+  - name:  flush
+    returnType:  int
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  fl_owner_t
+        name:  id
+
+    object:  filp
+
+    default:  return 0;
+

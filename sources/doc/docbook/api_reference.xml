@@ -1,0 +1,884 @@
+﻿<section id="api_reference">
+<title>API Reference</title>
+
+<para>
+This section describe interface that KEDR COI library provides for use in the kernel code.
+</para>
+
+<section id="api_reference.header">
+<title>Header File</title>
+
+<para>
+The API is declared in the header file that should be included for use any of function or definition described in this document:
+</para>
+
+<programlisting><![CDATA[
+#include <kedr-coi/operations_interception.h>
+]]></programlisting>
+
+</section>
+<!-- End of "api_reference.header"-->
+
+<section id="api_reference.interceptor">
+<title>API of interceptor</title>
+
+
+<section id="api_reference.interceptor.struct">
+<title>Interceptor structure</title>
+
+<para>
+Opaque structure which represents interceptor for a particular type of objects.
+</para>
+
+<programlisting><![CDATA[
+struct kedr_coi_interceptor;
+]]></programlisting>
+
+</section>
+<!-- End of "api_reference.interceptor.struct"-->
+
+<section id="api_reference.struct_operation_call_info">
+<title>struct kedr_coi_operation_call_info</title>
+
+<para>
+Contains information about particular callback operation call. Used as parameter to interception handlers.
+</para>
+
+<programlisting><![CDATA[
+struct kedr_coi_operation_call_info
+{
+    void* return_address;
+    void* op_orig;
+};
+]]></programlisting>
+
+<para>
+<variablelist>
+    <varlistentry><term>return_address</term>
+        <listitem>Returning address of this operation call. Should be used instead of <code>__builtin_return_address(0)</code>, which will return address inside intermediate operation, that is probably not what one wants.</listitem>
+    </varlistentry>
+    <varlistentry><term>op_orig</term>
+        <listitem>Pointer to the original callback operation. Should be used instead of direct reading that pointer from object structure, because latter contains pointer to the intermediate operation, not the original one.</listitem>
+    </varlistentry>
+</variablelist>
+</para>
+
+</section>
+<!-- End of "api_reference.struct_operation_call_info"-->
+
+<section id="api_reference.struct_pre_handler">
+<title>struct kedr_coi_pre_handler</title>
+
+<para>
+Pre-handler for callback operation. Contain pointer to function which should be called before corresponded callback operation.
+</para>
+
+<programlisting><![CDATA[
+struct kedr_coi_pre_handler
+{
+    size_t operation_offset;
+    void* func;
+    bool external;
+};
+]]></programlisting>
+
+<para>
+<variablelist>
+    <varlistentry><term>operation_offset</term>
+        <listitem>Offset of the pointer to the callback operation inside object/operations structure.</listitem>
+    </varlistentry>
+    <varlistentry><term>func</term>
+        <listitem>Pointer to the function to be called before callback operation.
+        <para>
+Function should take same arguments as callback operation plus argument of type <type><link linkend="api_reference.struct_operation_call_info">struct kedr_coi_operation_call_info</link> *</type>. Function shouldn't return any value.
+        </para></listitem>
+    </varlistentry>
+    <varlistentry><term>external</term>
+        <listitem>If true, handler will be called even when pointer to callback operation is <constant>NULL</constant>. By default handler is called only if callback operation is set for an object.</listitem>
+    </varlistentry>
+</variablelist>
+</para>
+
+<para>
+For example, if object with callback operations is defined as
+<programlisting><![CDATA[
+struct foo
+{
+    int a;
+    long (*do_something)(char c, void* p);
+};
+]]></programlisting>
+then pre-handler for callback operation 'do_something' should be defined as
+<programlisting><![CDATA[
+void do_something_pre(char c, void* p, struct kedr_coi_operation_call_info* call_info)
+{
+    //...
+}
+struct kedr_coi_pre_handler pre_handler =
+{
+    .operation_offset = offsetof(struct foo, do_something),
+    .func = (void*)&do_something_pre
+};
+]]></programlisting>
+
+</para>
+
+</section>
+<!-- End of "api_reference.struct_pre_handler"-->
+
+<section id="api_reference.pre_handler_end">
+<title>kedr_coi_pre_handler_end</title>
+
+<para>
+End marker of the array of pre-handlers.
+</para>
+
+<programlisting><![CDATA[
+#define kedr_coi_pre_handler_end {.operation_offset = -1}
+]]></programlisting>
+
+</section>
+<!-- End of "api_reference.pre_handler_end"-->
+
+<section id="api_reference.struct_post_handler">
+<title>struct kedr_coi_post_handler</title>
+
+<para>
+Post-handler for callback operation. Contain pointer to function which should be called after corresponded callback operation.
+</para>
+
+<programlisting><![CDATA[
+struct kedr_coi_post_handler
+{
+    size_t operation_offset;
+    void* func;
+    bool external;
+};
+]]></programlisting>
+
+<para>
+<variablelist>
+    <varlistentry><term>operation_offset</term>
+        <listitem>Offset of the pointer to the callback operation inside object/operations structure.</listitem>
+    </varlistentry>
+    <varlistentry><term>func</term>
+        <listitem>Pointer to the function to be called after callback operation.
+        <para>
+Function should take same arguments as callback operation plus argument of returning type of callback operation(if callback operation returns any value) plus argument of type <type><link linkend="api_reference.struct_operation_call_info">struct kedr_coi_operation_call_info</link> *</type>. Function shouldn't return any value.
+        </para></listitem>
+    </varlistentry>
+    <varlistentry><term>external</term>
+        <listitem>If true, handler will be called even when pointer to callback operation is <constant>NULL</constant>. By default handler is called only if callback operation is set for an object.</listitem>
+    </varlistentry>
+</variablelist>
+</para>
+
+<para>
+For example, if object with callback operations is defined as
+<programlisting><![CDATA[
+struct foo
+{
+    int a;
+    long (*do_something)(char c, void* p);
+    void (*do_another)(char c, void* p);
+};
+]]></programlisting>
+then pre-handlers for operations 'do_something' and 'do_another' should be defined as
+<programlisting><![CDATA[
+void do_something_post(char c, void* p,
+    long returnValue, struct kedr_coi_operation_call_info* call_info)
+{
+    //...
+}
+struct kedr_coi_post_handler post_handler_do_something =
+{
+    .operation_offset = offsetof(struct foo, do_something),
+    .func = (void*)&do_something_post
+};
+
+void do_another_post(char c, void* p,
+    struct kedr_coi_operation_call_info* call_info)
+{
+    //...
+}
+struct kedr_coi_post_handler post_handler_do_another =
+{
+    .operation_offset = offsetof(struct foo, do_another),
+    .func = (void*)&do_another_post
+};
+
+]]></programlisting>
+
+</para>
+
+</section>
+<!-- End of "api_reference.struct_post_handler"-->
+
+<section id="api_reference.post_handler_end">
+<title>kedr_coi_post_handler_end</title>
+
+<para>
+End marker of the array of post-handlers.
+</para>
+
+<programlisting><![CDATA[
+#define kedr_coi_post_handler_end {.operation_offset = -1}
+]]></programlisting>
+
+</section>
+<!-- End of "api_reference.post_handler_end"-->
+
+<section id="api_reference.struct_payload">
+<title>struct kedr_coi_payload</title>
+
+<para>
+Represent interception information from one module for one object type.
+</para>
+
+<programlisting><![CDATA[
+struct kedr_coi_payload
+{
+    struct module* mod;
+    struct kedr_coi_pre_handler* pre_handlers;
+    struct kedr_coi_post_handler* post_handlers;
+};
+]]></programlisting>
+
+<para>
+<variablelist>
+    <varlistentry><term>mod</term>
+        <listitem>Module containing code of interception functions. This module will be prevented from unload while interceptor is started.</listitem>
+    </varlistentry>
+    <varlistentry><term>pre_handlers</term>
+        <listitem>Array of the <link linkend="api_reference.struct_pre_handler">pre-handlers</link>. Last element in that array should have <constant>-1</constant> in the 'operation_offset' field (<constant>kedr_coi_pre_handler_end</constant> may be used as last element).</listitem>
+    </varlistentry>
+    <varlistentry><term>post_handlers</term>
+        <listitem>Array of the <link linkend="api_reference.struct_post_handler">post-handlers</link>. Last element in that array should have <constant>-1</constant> in the 'operation_offset' field (<constant>kedr_coi_post_handler_end</constant> may be used as last element).</listitem>
+    </varlistentry>
+</variablelist>
+
+</para>
+</section>
+<!-- End of "api_reference.struct_payload"-->
+
+<section id="api_reference.interceptor.payload_register">
+<title>kedr_coi_payload_register</title>
+
+<para>
+Add interception information contained in the payload to the interceptor.
+</para>
+
+<programlisting><![CDATA[
+int kedr_coi_payload_register(
+    struct kedr_coi_interceptor* interceptor,
+    struct kedr_coi_payload* payload);
+]]></programlisting>
+
+<para>
+Make all pre- and post-handlers, contained in the payload's 'pre_handlers' and 'post_handlers' fields, be known to the interceptor. Return <constant>0</constant> on success and negative error code otherwise.
+</para>
+<para>
+Same payload shouldn't be registered twice.
+</para>
+
+<para>
+An attempt to register payload while interceptor is started returns <constant>-EBUSY</constant>.
+</para>
+
+</section>
+<!-- End of "api_reference.interceptor.payload_register"-->
+
+<section id="api_reference.interceptor.payload_unregister">
+<title>kedr_coi_payload_unregister</title>
+
+<para>
+Remove interception information listed in the payload from the interceptor. Payload should be previously registered using <function linkend="api_reference.interceptor.payload_register">kedr_coi_payload_register</function>.
+</para>
+
+<programlisting><![CDATA[
+int kedr_coi_payload_unregister(
+    struct kedr_coi_interceptor* interceptor,
+    struct kedr_coi_payload* payload);
+]]></programlisting>
+
+<para>
+Make all pre- and post-handlers, contained in the payload, be not known to the interceptor. Return <constant>0</constant> on success and negative error code otherwise.
+</para>
+<para>
+An attempt to unregister payload which previously wasn't registered returns <constant>-EINVAL</constant>.
+</para>
+
+<para>
+An attempt to unregister payload which is used by interceptor in 'started' state returns <constant>-EBUSY</constant>.
+</para>
+
+</section>
+<!-- End of "api_reference.interceptor.payload_unregister" -->
+
+<section id="api_reference.interceptor.start">
+<title>kedr_coi_interceptor_start</title>
+
+<para>
+Move interceptor to 'started' state.
+</para>
+
+<programlisting><![CDATA[
+int kedr_coi_interceptor_start(struct kedr_coi_interceptor* interceptor);
+]]></programlisting>
+
+<para>
+Fix list of interception handlers of the interceptor and allow to add objects for watch by the interceptor. Return <constant>0</constant> on success and negative error code on fail.
+</para>
+
+<para>
+Shouldn't be called when interceptor already in 'started' state.
+</para>
+
+</section>
+<!-- End of "api_reference.interceptor.start" -->
+
+<section id="api_reference.interceptor.stop">
+<title>kedr_coi_interceptor_stop</title>
+
+<para>
+Move interceptor to 'initialized' state.
+</para>
+
+<programlisting><![CDATA[
+void kedr_coi_interceptor_stop(struct kedr_coi_interceptor* interceptor);
+]]></programlisting>
+
+<para>
+Release list of interception handlers, allowing it to be changed by registering/deregistering payloads. If any object is watched at this moment, stop to watch it. Also, if 'trace_unforgotten_object' parameter of interceptor constructor was not <constant>NULL</constant>, call functions pointed by this parameter for every such object.
+</para>
+
+<para>
+If called when interceptor is already in 'initialized' state, do nothing.
+</para>
+
+</section>
+<!-- End of "api_reference.interceptor.stop" -->
+
+<section id="api_reference.interceptor.watch">
+<title>kedr_coi_interceptor_watch</title>
+
+<para>
+Tell interceptor to watch an object.
+</para>
+
+<programlisting><![CDATA[
+int kedr_coi_interceptor_watch(
+    struct kedr_coi_interceptor* interceptor,
+    void* object);
+]]></programlisting>
+
+<para>
+Interceptor will intercept object's callback operations, calling interception handlers from registered payloads. Return <constant>0</constant> on success and negative error code on fail.
+</para>
+<para>
+If called when interceptor is not in the 'started' state, return <constant>-ENODEV</constant>.
+</para>
+<para>
+If object is already watched, return <constant>1</constant> on success and negative error code on fail.
+</para>
+
+<note>
+    <para>
+Interception of the object's callback operations is implemented via changing object's operations in some fasion.
+    </para>
+    <para>
+If object's callback operations are changed outside of the library, interception of the object's callback operations will be lost until this function is called again.
+    </para>
+</note>
+
+</section>
+<!-- End of "api_reference.interceptor.watch" -->
+
+<section id="api_reference.interceptor.forget">
+<title>kedr_coi_interceptor_forget</title>
+
+<para>
+Tell interceptor to forget an object.
+</para>
+
+<programlisting><![CDATA[
+int kedr_coi_interceptor_forget(
+    struct kedr_coi_interceptor* interceptor,
+    void* object);
+]]></programlisting>
+
+<para>
+Interceptor won't intercept object's callback operations any more. Return <constant>0</constant> on success, negative error code on fail. If object is not watched, return <constant>1</constant>.
+</para>
+<para>
+If called when interceptor is not in the 'started' state, return <constant>-ENODEV</constant>.
+</para>
+
+</section>
+<!-- End of "api_reference.interceptor.forget" -->
+
+
+<section id="api_reference.interceptor.forget_norestore">
+<title>kedr_coi_interceptor_forget_norestore</title>
+
+<para>
+Tell interceptor to forget the object but do not revert changes, made when object become watched.
+</para>
+
+<programlisting><![CDATA[
+int kedr_coi_interceptor_forget_norestore(
+    struct kedr_coi_interceptor* interceptor,
+    void* object);
+]]></programlisting>
+
+<para>
+Free resources used for watching the prototype object. Return <constant>0</constant> on success, negative error code on fail. If object is not watched, return <constant>1</constant>.
+</para>
+<para>
+If called when interceptor is not in the 'started' state, return <constant>-ENODEV</constant>.
+</para>
+<para>
+Function is garanteed to not access any object's field, so it may be used for objects which is probably freed at this moment.
+</para>
+<para>
+Further using callback operations of this object leads to undefined behaviour.
+</para>
+
+</section>
+<!-- End of "api_reference.interceptor.forget_norestore" -->
+
+</section>
+<!-- End of "api_reference.interceptor" -->
+
+<section id="api_reference.interceptor_creation">
+<title>API for create interceptor</title>
+
+<section id="api_reference.struct_intermediate_info">
+<title>struct kedr_coi_intermediate_info</title>
+
+<para>
+Contains information about interception of particular callback operation call. Used by intermediate operation.
+</para>
+
+<programlisting><![CDATA[
+struct kedr_coi_intermediate_info
+{
+    void* op_orig;
+    void* const* pre;
+    void* const* post;
+};
+]]></programlisting>
+
+<para>
+<variablelist>
+    <varlistentry><term>op_orig</term>
+        <listitem>Original callback operation of the object.</listitem>
+    </varlistentry>
+    <varlistentry><term>pre</term>
+        <listitem>Array of pre-handlers which should be called for this callback operation. Last element in this array is <constant>NULL</constant>. <constant>NULL</constant> value of this field means an empty array.        
+        </listitem>
+    </varlistentry>
+    <varlistentry><term>post</term>
+        <listitem>Array of post-handlers which should be called for this callback operation. Last element in this array is <constant>NULL</constant>. <constant>NULL</constant> value of this field means an empty array.        
+        </listitem>
+    </varlistentry>
+</variablelist>
+</para>
+
+</section>
+<!-- End of "api_reference.struct_intermediate_info" -->
+
+<section id="api_reference.interceptor_creation.get_intermediate_info">
+<title>kedr_coi_get_intermediate_info</title>
+
+<para>
+Return interception information for intermediate operation. Should be used only in intermediate operation implementation.
+</para>
+
+<programlisting><![CDATA[
+int kedr_coi_interceptor_get_intermediate_info(
+    struct kedr_coi_interceptor* interceptor,
+    const void* object,
+    size_t operation_offset,
+    struct kedr_coi_intermediate_info* info);
+]]></programlisting>
+<para>
+Fill <link linkend="api_reference.struct_intermediate_info">kedr_coi_intermediate_info</link> structure with information about callback operation call. Return <constant>0</constant> on success and negative error code on fail.
+</para>
+
+</section>
+<!-- End of "api_reference.interceptor_creation.get_intermediate_info" -->
+
+<section id="api_reference.interceptor_creation.struct_intermediate">
+<title>struct kedr_coi_intermediate</title>
+
+<para>
+Describe intermediate operation for callback operation.
+</para>
+
+<programlisting><![CDATA[
+struct kedr_coi_intermediate
+{
+    size_t operation_offset;
+    void* repl;
+    int group_id;
+    bool internal_only;
+};
+]]></programlisting>
+
+<para>
+<variablelist>
+    <varlistentry><term>operation_offset</term>
+        <listitem>Offset of the callback operation inside object/operations structure.
+        </listitem>
+    </varlistentry>
+    <varlistentry><term>repl</term>
+        <listitem>Pointer to the function implementing intermediate operation.
+        </listitem>
+    </varlistentry>
+    <varlistentry><term>internal_only</term>
+        <listitem>If true, do not intercept operation if pointer to it is <constant>NULL</constant>. This make impossible to register payload which have external handler for that operation. See also definition of 'external' field in structures <link linkend="api_reference.struct_pre_handler">kedr_coi_pre_handler</link> and <link linkend="api_reference.struct_post_handler">kedr_coi_post_handler</link>.
+        </listitem>
+    </varlistentry>
+    <varlistentry><term>group_id</term>
+        <listitem>If not <constant>0</constant>, determine group which that intermediate operation is belonged to. <para>If any intermediate operation from the group is used as replacement when pointer to original callback operation is <constant>NULL</constant>, then all other intermediate operations from the same group are used in case when pointers to corresponded callback operations are <constant>NULL</constant>.
+        </para>
+        <para>Normally, intermediate operation is used as replacement only when some interception handler is registered for it.
+        </para>
+        <para>For usage example, see <xref linkend="interceptor_creation.intermediate_operations.grouping"/>.
+        </para>
+        <para>Grouping shouldn't be used for 'internal_only' intermediates (e.g. that have 'internal_only' fiels set to true).
+        </para></listitem>
+    </varlistentry>
+</variablelist>
+</para>
+
+</section>
+<!-- End of "api_reference.interceptor_creation.struct_intermediate" -->
+
+<section id="api_reference.interceptor_creation.indirect">
+<title>kedr_coi_interceptor_create</title>
+
+<para>
+Create interceptor for objects which contain pointer to the structure with their callback operations.
+</para>
+
+<programlisting><![CDATA[
+struct kedr_coi_interceptor*
+kedr_coi_interceptor_create(const char* name,
+    size_t operations_field_offset,
+    size_t operations_struct_size,
+    struct kedr_coi_intermediate* intermediate_operations,
+    void (*trace_unforgotten_object)(void* object));
+]]></programlisting>
+<para>
+'name' is a name of interceptor created, used in some error reports.
+</para>
+<para>
+'operations_field_offset' and 'operations_struct_size' parameters describe object's geometry (see <xref linkend="interceptor_creation.object_geometry.indirect"/>).
+</para>
+<para>
+'intermediate_operations' is an array of <link linkend="api_reference.interceptor_creation.struct_intermediate">intermediate operations</link>. Last element in the array should have 'operation_offset' field set to <constant>-1</constant>. Every callback operation, which interception is supported, should have intermediate operation.
+</para>
+<para>
+If 'trace_unforgotten_object' parameter is not <constant>NULL</constant>, function pointer by it will be called for every watched object when interceptor is being stopped (see also <xref linkend="api_reference.interceptor.stop"/>).
+</para>
+<para>
+Return new interceptor on success. If interceptor cannot be created, return <constant>NULL</constant>.
+</para>
+</section>
+<!-- End of "api_reference.interceptor_creation.indirect" -->
+
+<section id="api_reference.interceptor_creation.direct">
+<title>kedr_coi_interceptor_create_direct</title>
+
+<para>
+Create interceptor for objects which contain pointers to their callback operations.
+</para>
+
+<programlisting><![CDATA[
+struct kedr_coi_interceptor*
+kedr_coi_interceptor_create_direct(const char* name,
+    size_t object_struct_size,
+    struct kedr_coi_intermediate* intermediate_operations,
+    void (*trace_unforgotten_object)(void* object));
+]]></programlisting>
+<para>
+'name' is a name of interceptor created, used in some error reports.
+</para>
+<para>
+'object_struct_size' is a size of the object structure (see <xref linkend="interceptor_creation.object_geometry.direct"/>).
+</para>
+<para>
+'intermediate_operations' is an array of <link linkend="api_reference.interceptor_creation.struct_intermediate">intermediate operations</link>. Last element in the array should have 'operation_offset' field set to <constant>-1</constant>. Every callback operation, which interception is supported, should have intermediate operation.
+</para>
+<para>
+If 'trace_unforgotten_object' parameter is not <constant>NULL</constant>, function pointed by it will be called for every watched object when interceptor is being stopped (see also <xref linkend="api_reference.interceptor.stop"/>).
+</para>
+<para>
+Return new interceptor on success. If interceptor cannot be created, return <constant>NULL</constant>.
+</para>
+</section>
+<!-- End of "api_reference.interceptor_creation.direct" -->
+
+<section id="api_reference.interceptor_creation.destroy">
+<title>kedr_coi_interceptor_destroy</title>
+
+<para>
+Destroy interceptor, freeing all resourced used by it.
+</para>
+
+<programlisting><![CDATA[
+void kedr_coi_interceptor_destroy(
+    struct kedr_coi_interceptor* interceptor);
+]]></programlisting>
+<para>
+Shouldn't be called when interceptor is started.
+</para>
+</section>
+<!-- End of "api_reference.interceptor_creation.destroy" -->
+
+</section>
+<!-- End of "api_reference.interceptor_creation" -->
+
+<section id="api_reference.foreign_interceptor">
+<title>API of foreign interceptor</title>
+
+
+<section id="api_reference.foreign_interceptor.struct">
+<title>Foreign interceptor structure</title>
+
+<para>
+Opaque structure which represents foreign interceptor for a particular types of objects(prototype and normal ones).
+</para>
+
+<programlisting><![CDATA[
+struct kedr_coi_foreign_interceptor;
+]]></programlisting>
+
+<para>
+When created, foreign interceptor has 'binded' interceptor - normal interceptor, which is used for watch the objects created from prototype objects.
+</para>
+
+<para>
+Foreign interceptor has not 'start' and 'stop' function analogies of normal one. Instead, foreign interceptor is started or stopped automatically when its binded interceptor is started or stopped correspondingly.
+</para>
+
+</section>
+<!-- End of "api_reference.foreign_interceptor.struct"-->
+
+<section id="api_reference.foreign_interceptor.watch">
+<title>kedr_coi_foreign_interceptor_watch</title>
+
+<para>
+Tell foreign interceptor to watch a prototype object.
+</para>
+
+<programlisting><![CDATA[
+int kedr_coi_foreign_interceptor_watch(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    void* prototype_object);
+]]></programlisting>
+
+<para>
+All objects created from this prototype object will be automatically watched by the binded interceptor. Return <constant>0</constant> on success and negative error code on fail.
+</para>
+<para>
+If called when interceptor is not in the 'started' state, return <constant>-ENODEV</constant>.
+</para>
+<para>
+If object is already watched, return <constant>1</constant> on success and negative error code on fail.
+</para>
+
+<note>
+    <para>
+Watching of prototype object is implemented via changing foreign callback operations (which are copied to the object created from prototype) in some fasion.
+    </para>
+    <para>
+If these operations are changed outside of the library, automatically watching objects created from this one will not work until this function is called again.
+    </para>
+</note>
+
+</section>
+<!-- End of "api_reference.foreign_interceptor.watch" -->
+
+<section id="api_reference.foreign_interceptor.forget">
+<title>kedr_coi_foreign_interceptor_forget</title>
+
+<para>
+Tell foreign interceptor to forget a prototype object.
+</para>
+
+<programlisting><![CDATA[
+int kedr_coi_foreign_interceptor_forget(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    void* prototype_object);
+]]></programlisting>
+
+<para>
+Objects created from this prototype object will no longer be watched by the binded interceptor automatically. Return <constant>0</constant> on success, negative error on fail. If prototype object is not watched, return <constant>1</constant>.
+</para>
+<para>
+If called when interceptor is not in the 'started' state, return <constant>-ENODEV</constant>.
+</para>
+
+</section>
+<!-- End of "api_reference.foreign_interceptor.forget" -->
+
+
+<section id="api_reference.foreign_interceptor.forget_norestore">
+<title>kedr_coi_foreign_interceptor_forget_norestore</title>
+
+<para>
+Tell foreign interceptor to forget a prototype object but do not revert changes, made when the object became watched.
+</para>
+
+<programlisting><![CDATA[
+int kedr_coi_foreign_interceptor_forget_norestore(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    void* prototype_object);
+]]></programlisting>
+
+<para>
+Free resources used for watching of the prototype object. Return <constant>0</constant> on success, negative error on fail. If prototype object is not watched, return <constant>1</constant>.
+</para>
+<para>
+If called when interceptor is not in the 'started' state, return <constant>-ENODEV</constant>.
+</para>
+<para>
+Function is garanteed to not access any object's field, so it may be used for objects which is probably freed at this moment.
+</para>
+<para>
+Futher objects creation from this prototype object leads to undefined behaviour.
+</para>
+
+</section>
+<!-- End of "api_reference.foreign_interceptor.forget" -->
+
+</section>
+<!-- End of "api_reference.foreign_interceptor" -->
+
+<section id="api_reference.foreign_interceptor_creation">
+<title>API for create foreign interceptor</title>
+
+<section id="api_reference.foreign_interceptor_creation.bind">
+<title>kedr_coi_bind_prototype_with_object</title>
+
+<para>
+Make binded interceptor watched the object, if it is created from prototype object which is watched by the foreign interceptor. Should be called only from intermediate operation for foreign interceptor.
+</para>
+
+<programlisting><![CDATA[
+int kedr_coi_bind_prototype_with_object(
+    struct kedr_coi_foreign_interceptor* interceptor,
+    void* prototype_object,
+    void* object,
+    size_t operation_offset,
+    void** op_chained);
+]]></programlisting>
+<para>
+Return <constant>0</constant> on success or negative error code on fail.
+</para>
+<para>
+Also set 'op_chained' pointed to callback operation which should be called then. If cannot define next operation, set 'op_chained' to <code>ERR_PTR(error)</code>.
+</para>
+<para>
+If <constant>0</constant> is returned, 'op_chained' is alrways correct pointer to a function(not an error indicator). But 'op_chained' may be correct pointer even in case of error returned.
+</para>
+
+</section>
+<!-- End of "api_reference.foreign_interceptor_creation.bind" -->
+
+<section id="api_reference.foreign_interceptor_creation.struct_intermediate">
+<title>struct kedr_coi_foreign_intermediate</title>
+
+<para>
+Describe intermediate operation for the foreign interceptor.
+</para>
+
+<programlisting><![CDATA[
+struct kedr_coi_foreign_intermediate
+{
+    size_t operation_offset;
+    void* repl;
+};
+]]></programlisting>
+
+<para>
+<variablelist>
+    <varlistentry><term>operation_offset</term>
+        <listitem>Offset of the callback operation inside object/operations structure.
+        </listitem>
+    </varlistentry>
+    <varlistentry><term>repl</term>
+        <listitem>Pointer to the function implementing intermediate operation.
+        </listitem>
+    </varlistentry>
+</variablelist>
+</para>
+
+</section>
+<!-- End of "api_reference.foreign_interceptor_creation.struct_intermediate" -->
+
+<section id="api_reference.foreign_interceptor_creation.indirect">
+<title>kedr_coi_foreign_interceptor_create</title>
+
+<para>
+Create foreign interceptor for prototype objects which contain pointer to the structure with their callback operations.
+</para>
+
+<programlisting><![CDATA[
+struct kedr_coi_foreign_interceptor*
+kedr_coi_foreign_interceptor_create(
+    struct kedr_coi_interceptor* interceptor_indirect,
+    const char* name,
+    size_t foreign_operations_field_offset,
+    const struct kedr_coi_foreign_intermediate* intermediate_operations,
+    void (*trace_unforgotten_object)(void* object));
+]]></programlisting>
+<para>
+'interceptor_indirect' is a binded interceptor for created one. Only indirect interceptor may be binded, using direct interceptor for this purpose leads to undefined behaviour.
+</para>
+<para>
+'name' is a name of interceptor created, used in some error reports.
+</para>
+<para>
+'foreign_operations_field_offset' is offset of the pointer to operations struct inside prototype object.
+</para>
+<para>
+'intermediate_operations' is an array of <link linkend="api_reference.foreign_interceptor_creation.struct_intermediate">intermediate operations</link>. Last element in the array should have 'operation_offset' field set to <constant>-1</constant>. Every callback operation which is called just after object is created from prototype should have intermediate operation. Usually there is only one such callback operation.
+</para>
+<para>
+If 'trace_unforgotten_object' is not <constant>NULL</constant>, function pointed by it will be called for every watched object when interceptor is being stopped.
+</para>
+<para>
+Return new interceptor on success. If interceptor cannot be created, return <constant>NULL</constant>.
+</para>
+<para>
+Shouldn't be called when binded interceptor is started.
+</para>
+</section>
+<!-- End of "api_reference.foreign_interceptor_creation.indirect" -->
+
+<section id="api_reference.foreign_interceptor_creation.destroy">
+<title>kedr_coi_foreign_interceptor_destroy</title>
+
+<para>
+Destroy foreign interceptor, freeing all resourced used by it.
+</para>
+
+<programlisting><![CDATA[
+void kedr_coi_foreign_interceptor_destroy(
+    struct kedr_coi_foreign_interceptor* interceptor);
+]]></programlisting>
+<para>
+Shouldn't be called when interceptor is started(that is, when binded instrumentor is started).
+</para>
+</section>
+<!-- End of "api_reference.foreign_interceptor_creation.destroy" -->
+
+</section>
+<!-- End of "api_reference.foreign_interceptor_creation" -->
+
+</section>
+<!-- End of "api_reference" -->

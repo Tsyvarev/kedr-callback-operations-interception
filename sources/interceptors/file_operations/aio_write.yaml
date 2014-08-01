@@ -1,0 +1,22 @@
+operations:
+  - name:  aio_write
+    returnType:  ssize_t
+
+    args:
+      - type:  struct kiocb *
+        name:  iocb
+
+      - type:  const struct iovec*
+        name:  iov
+
+      - type:  unsigned long
+        name:  nr_segs
+
+      - type:  loff_t
+        name:  pos
+
+    object:  iocb->ki_filp
+
+    default:  return generic_file_aio_write(iocb, iov, nr_segs, pos);
+
+

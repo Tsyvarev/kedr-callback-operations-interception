@@ -1,0 +1,12 @@
+operations:
+  - name:  destroy_inode
+
+    args:
+      - type:  struct inode*
+        name:  inode
+
+    object:  inode->i_sb
+
+# Called from destroy_inode
+    default:  kfree(inode);
+    group_id:  1

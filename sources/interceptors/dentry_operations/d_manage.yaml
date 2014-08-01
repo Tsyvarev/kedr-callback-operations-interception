@@ -1,0 +1,19 @@
+operations:
+
+  - name:  d_manage
+    returnType:  int
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  bool
+        name:  mounting_here
+
+    object:  dentry
+
+# Called by follow_managed. Checked via flag DCACHE_MANAGE_TRANSIT.
+
+    header: |
+            /* 'dentry_operations' has 'd_manage' member */
+            #define DENTRY_OPERATIONS_HAS_D_MANAGE

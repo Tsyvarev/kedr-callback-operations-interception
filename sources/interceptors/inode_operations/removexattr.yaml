@@ -1,0 +1,16 @@
+operations:
+  - name:  removexattr
+    returnType:  int
+
+    args:
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  const char *
+        name:  name
+
+    object:  dentry->d_inode
+
+# Called by vfs_removexattr
+    default:  return -EOPNOTSUPP;
+

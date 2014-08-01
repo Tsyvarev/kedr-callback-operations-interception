@@ -1,0 +1,21 @@
+operations:
+  - name:  create
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  dir
+
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  int
+        name:  mode
+
+      - type:  struct nameidata *
+        name:  nd
+
+    object:  dir
+
+# Called by vfs_create
+    default:  return -EACCES;

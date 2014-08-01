@@ -1,0 +1,9 @@
+Character device with read counter.
+
+Read counter implemented using KEDR COI library (interception of 'read'
+operation for file, created for character device).
+
+Character device is taken from KEDR project (examples/sample_target/)
+and annotated with calls of functions from read_counter implementation
+(read_counter_init(), read_counter_detstroy(), CDEV_ADD_ANNOTATION(),
+CDEV_DEL_ANNOTATION).

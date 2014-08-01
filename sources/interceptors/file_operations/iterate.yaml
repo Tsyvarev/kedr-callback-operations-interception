@@ -1,0 +1,14 @@
+operations:
+  - name:  iterate
+    returnType:  int
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  struct dir_context *
+        name:  ctx
+
+    object:  filp
+
+    default:  return -ENOTDIR;

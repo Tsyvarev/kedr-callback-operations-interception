@@ -1,0 +1,25 @@
+operations:
+  - name:  mknod
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  dir
+
+      - type:  struct dentry *
+        name:  dentry
+
+      - type:  umode_t
+        name:  mode
+
+      - type:  dev_t
+        name:  dev
+
+    object:  dir
+
+# Called vfs_mknod
+    default:  return -EPERM;
+
+    header: |
+            /* 'inode_operations' has method 'mkdir' which accepts umode_t as third argument */
+            #define INODE_OPERATIONS_MKDIR_ACCEPT_UMODE

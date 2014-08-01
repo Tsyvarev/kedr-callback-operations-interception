@@ -1,0 +1,15 @@
+operations:
+
+  - name:  drop_inode
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+    object:  inode->i_sb
+    default:  return generic_drop_inode(inode);
+
+    header: |
+            /* 'drop_inode' method of 'super_operations' return integer value */
+            #define SUPER_OPERATIONS_DROP_INODE_RETURN_INT 1

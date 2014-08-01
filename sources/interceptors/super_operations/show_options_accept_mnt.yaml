@@ -1,0 +1,15 @@
+operations:
+  - name:  show_options
+    returnType:  int
+
+    args:
+      - type:  struct seq_file *
+        name:  m
+
+      - type:  struct vfsmount *
+        name:  mnt
+
+    object:  mnt->mnt_sb
+
+# Called from show_vfsmnt
+    default:  return 0;

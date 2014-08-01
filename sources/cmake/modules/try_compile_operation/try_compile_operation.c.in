@@ -1,0 +1,27 @@
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/kernel.h>
+
+MODULE_LICENSE("GPL");
+
+#include "@include_file@"
+
+@operations_struct@ ops =
+{
+    .@operation_name@ = NULL,
+};
+
+
+static int __init
+my_init(void)
+{
+    return 0;
+}
+
+static void __exit
+my_exit(void)
+{
+}
+
+module_init(my_init);
+module_exit(my_exit);
