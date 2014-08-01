@@ -5,6 +5,8 @@
 MODULE_LICENSE("GPL");
 
 #include <linux/fs.h>
+// truncate_inode_pages_final is really defined there
+#include <linux/mm.h>
 
 static int __init
 my_init(void)

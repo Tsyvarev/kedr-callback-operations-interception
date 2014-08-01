@@ -51,12 +51,6 @@ endif(NOT USER_PART_ONLY)
 include(multi_kernel)
 
 fill_install_prefixes("${KEDR_COI_PACKAGE_NAME}" KEDR_COI KERNEL)
-# Manually replace some prefixes for make all global installations consistent with DKMS.
-# In the future, these paths may be changed in path_prefixes.cmake module.
-if(KEDR_COI_INSTALL_TYPE MATCHES "GLOBAL")
-    set(KEDR_COI_KERNEL_INSTALL_PREFIX_KMODULE "/lib/modules/%kernel%/extra")
-    set(KEDR_COI_KERNEL_INSTALL_PREFIX_KSYMVERS "/lib/modules/%kernel%/symvers")
-endif(KEDR_COI_INSTALL_TYPE MATCHES "GLOBAL")
 #######################################################################
 # Kernel-specific path definitions.
 if(KERNEL_PART)
