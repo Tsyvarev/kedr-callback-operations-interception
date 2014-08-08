@@ -152,6 +152,7 @@ if(KERNEL_PART)
     )
 
     include(kbuild_system)
+    include(lookup_module_symbol)
     include(kmodule)
 endif(KERNEL_PART)
 

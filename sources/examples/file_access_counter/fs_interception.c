@@ -14,6 +14,10 @@
  * So user should only call file_system_type_interceptor_watch and 
  * file_system_type_interceptor_forget[_norestore] when needed.
  * Watch/forget functions for others interceptors shouldn't be called.
+ * 
+ * NB: It is better to intercept also root_inode creation functions,
+ * and call super_operations_interceptor_watch() for corresponded
+ * object.
  */
 
 /* ========================================================================
@@ -41,45 +45,6 @@
 
 #include "fs_interception.h"
 
-//*Unify interceptors for inode operations and file operations for inode*
-
-static void inode_operations_all_interceptor_watch(struct inode* inode)
-{
-    inode_operations_interceptor_watch(inode);
-    inode_file_operations_interceptor_watch(inode);
-}
-
-// Not used
-//static void inode_operations_all_interceptor_forget(struct inode* inode)
-//{
-    //inode_file_operations_interceptor_forget(inode);
-    //inode_operations_interceptor_forget(inode);
-//}
-
-
-static void inode_operations_all_interceptor_forget_norestore(struct inode* inode)
-{
-    inode_file_operations_interceptor_forget_norestore(inode);
-    inode_operations_interceptor_forget_norestore(inode);
-}
-
-/* Unify interceptors for dentry operations and inode operations for its inode */
-static void dentry_operations_all_interceptor_watch(struct dentry* dentry)
-{
-    dentry_operations_interceptor_watch(dentry);
-    if(dentry->d_inode)
-        inode_operations_all_interceptor_watch(dentry->d_inode);
-}
-
-// Not used
-//static void dentry_operations_all_interceptor_forget(struct dentry* dentry)
-//{
-    //if(dentry->d_inode)
-        //inode_operations_all_interceptor_forget(dentry->d_inode);
-    //dentry_operations_interceptor_forget(dentry);
-//}
-
-
 /***************** File system type payload *************************/
 
 /* Determine lifetime of super block(from file_system_type object) */
@@ -101,7 +66,7 @@ static void fst_mount_post_super_lifetime(struct file_system_type* type,
     struct kedr_coi_operation_call_info* call_info)
 {
     struct dentry* kedr_coi_declare_return_value(call_info, returnValue);
-    if(returnValue != NULL)
+    if(!IS_ERR(returnValue))
     {
         super_operations_interceptor_watch(returnValue->d_sb);
     }
