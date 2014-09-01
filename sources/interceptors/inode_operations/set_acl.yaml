@@ -1,0 +1,24 @@
+operations:
+
+  - name:  set_acl
+    returnType:  int
+
+    args:
+      - type:  struct inode *
+        name:  inode
+
+      - type: struct posix_acl *
+        name: acl
+
+      - type:  int
+        name:  type
+
+    object:  inode
+
+# Called from posix_acl_xattr_set
+    default: |
+        return -EOPNOTSUPP;
+
+    header: |
+            /* 'struct inode_operations' has 'set_acl' method */
+            #define INODE_OPERATIONS_HAS_SET_ACL
