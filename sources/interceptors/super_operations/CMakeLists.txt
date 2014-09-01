@@ -50,20 +50,14 @@ if(evict_inode_operation)
     check_begin("Detect way of default ->evict_inode implementation")
     if(NOT DEFINED HAS_TRUNCATE_INODE_PAGES_FINAL)
         check_try()
-        kbuild_try_compile(res
-            "${CMAKE_CURRENT_BINARY_DIR}/use_truncate_inode_pages_final"
-            "${CMAKE_CURRENT_SOURCE_DIR}/use_truncate_inode_pages_final.c"
-        )
+        lookup_module_symbol(res "truncate_inode_pages_final")
         set(HAS_TRUNCATE_INODE_PAGES_FINAL ${res} CACHE INTERNAL
             "Whether truncate_inode_pages_final() function exists."
         )
     endif(NOT DEFINED HAS_TRUNCATE_INODE_PAGES_FINAL)
     if(NOT HAS_TRUNCATE_INODE_PAGES_FINAL AND NOT DEFINED HAS_CLEAR_INODE)
         check_try()
-        kbuild_try_compile(res
-            "${CMAKE_CURRENT_BINARY_DIR}/use_clear_inode"
-            "${CMAKE_CURRENT_SOURCE_DIR}/use_clear_inode.c"
-        )
+        lookup_module_symbol(res "clear_inode")
         set(HAS_CLEAR_INODE ${res} CACHE INTERNAL
             "Whether clear_inode() function exists."
         )
