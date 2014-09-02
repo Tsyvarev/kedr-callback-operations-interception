@@ -87,7 +87,7 @@ EXPORT_SYMBOL(kedr_coi_factory_interceptor_forget_generic);
 EXPORT_SYMBOL(kedr_coi_factory_interceptor_create_generic);
 
 // Method modified interceptor's behaviour
-EXPORT_SYMBOL(kedr_coi_is_module_address);
+EXPORT_SYMBOL(kedr_coi_default_mechanism_selector);
 EXPORT_SYMBOL(kedr_coi_interceptor_mechanism_selector);
 EXPORT_SYMBOL(kedr_coi_interceptor_trace_unforgotten_object);
 EXPORT_SYMBOL(kedr_coi_factory_interceptor_trace_unforgotten_object);
