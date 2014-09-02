@@ -100,7 +100,7 @@ static void fst_mount_post_root_lifetime(struct file_system_type* type,
     struct kedr_coi_operation_call_info* call_info)
 {
     struct dentry* kedr_coi_declare_return_value(call_info, returnValue);
-    if(returnValue != NULL)
+    if(!IS_ERR(returnValue))
     {
         dentry_operations_all_interceptor_watch(returnValue);
     }
