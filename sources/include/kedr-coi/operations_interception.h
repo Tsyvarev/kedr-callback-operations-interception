@@ -811,9 +811,9 @@ void kedr_coi_interceptor_trace_unforgotten_object(
 
 /*
  * Similar to kedr_coi_interceptor_trace_unforgotten_object(),
- * but uses for factory interceptor.
+ * but should be used for factory interceptor instead of normal one.
  * 
- * When applied to interceptor create by
+ * When applied to interceptor created by
  * kedr_coi_factory_interceptor_create_generic(),
  * 'object' corresponds to 'id' of the watch.
  */
