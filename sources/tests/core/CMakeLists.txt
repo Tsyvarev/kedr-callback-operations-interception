@@ -53,3 +53,5 @@ set(indirect_use_copy "TRUE")
 add_subdirectory(indirect indirect_use_copy)
 add_subdirectory(factory factory_use_copy)
 add_subdirectory(creation_interceptor creation_interceptor_use_copy)
+
+add_subdirectory(default_mechanism_selector)

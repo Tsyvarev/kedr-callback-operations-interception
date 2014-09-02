@@ -17,6 +17,7 @@ operations:
 
     object:  iocb->ki_filp
 
-    default:  return generic_file_aio_read(iocb, iov, nr_segs, pos);
-
+    # Since kernel 3.16 NULL-equal property of operation is used for
+    # FMODE_CAN_READ flag. Also, since that kernel, NULL value
+    # of operation means to use read_iter() callback.
 

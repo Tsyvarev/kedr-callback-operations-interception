@@ -17,5 +17,6 @@ operations:
 
     object:  filp
 
-    default:  return -EIO;
-
+    # NULL operation means to use other read callbacks(aio_read, read_iter)
+    # Also, since kernel 3.16 NULL-equal property of operation is used in
+    # FMODE_CAN_READ flag at open() stage.

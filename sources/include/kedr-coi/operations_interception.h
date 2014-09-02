@@ -823,13 +823,13 @@ void kedr_coi_factory_interceptor_trace_unforgotten_object(
 
 
 /* 
- * Return true, if given addr is inside some module.
- * Intended to be called with preemption disabled.
- * 
- * This is a default selector of instrumentation mechanism
+ * Default selector of instrumentation mechanism
  * (see kedr_coi_interceptor_mechanism_selector() description below).
+ * 
+ * Return true if given address belongs to the module sections and is
+ * writable.
  */
-bool kedr_coi_is_module_address(const void* addr);
+bool kedr_coi_default_mechanism_selector(const void* addr);
 
 /*
  * Change selector for operations interception mechanism.
@@ -858,8 +858,8 @@ bool kedr_coi_is_module_address(const void* addr);
  * object. Factory interceptor use selector from normal interceptor it
  * binded to.
  * 
- * Default selector is &kedr_coi_is_module_address, and it is sufficient
- * in the most cases.
+ * Default selector is &kedr_coi_default_mechanism_selector,
+ * and it is sufficient in the most cases.
  */
 void kedr_coi_interceptor_mechanism_selector(
     struct kedr_coi_interceptor* interceptor,

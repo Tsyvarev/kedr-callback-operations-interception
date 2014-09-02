@@ -26,7 +26,7 @@
 #include "payloads.h"
 
 #include <linux/slab.h>
-#include <linux/module.h> /* for kedr_coi_is_module_address() */
+#include <linux/module.h> /* for __module_address() */
 
 // Return pointer to the operations struct in the object
 static const void* indirect_operations(const void* object,
@@ -269,7 +269,7 @@ struct kedr_coi_interceptor* kedr_coi_interceptor_create(
     if(interceptor)
     {
         interceptor->operations_field_offset = operations_field_offset;
-        interceptor->replace_at_place = &kedr_coi_is_module_address;
+        interceptor->replace_at_place = &kedr_coi_default_mechanism_selector;
     }
     
     return interceptor;        
@@ -871,10 +871,20 @@ void kedr_coi_factory_interceptor_trace_unforgotten_object(
 }
 
 
-bool kedr_coi_is_module_address(const void* addr)
+bool kedr_coi_default_mechanism_selector(const void* addr)
 {
     struct module* m = __module_address((unsigned long)addr);
-    return !m;
+#ifdef CONFIG_DEBUG_SET_MODULE_RONX
+    // Not all module sections are writable.
+    if(m)
+    {
+        if(addr >= m->module_core && addr < m->module_core + m->core_size)
+            return addr >= m->module_core + m->core_ro_size;
+        else
+            return addr >= m->module_init + m->init_ro_size;
+    }
+#endif /* CONFIG_DEBUG_SET_MODULE_RONX */
+    return !!m;
 }
 
 void kedr_coi_interceptor_mechanism_selector(
