@@ -36,7 +36,7 @@ struct kedr_coi_replacement
 
 /*
  * Type of callback to be called for every object, which is watched
- * at time instrumentor is destroyed.
+ * when instrumentor is being destroyed.
  */
 typedef void (*trace_unforgotten_watch_t)(const void* object, void* user_data);
 //*************Structure of normal instrumentor*************************

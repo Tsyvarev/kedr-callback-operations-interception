@@ -342,7 +342,9 @@ static void instrumentor_destroy_watch_data_callback(
         container_of(elem, typeof(*watch_data), object_elem);
     struct instrumentor_destroy_data* destroy_data = user_data;
     
-    instrumentor_destroy_watch_data(destroy_data->instrumentor, watch_data);
+    instrument_data_unref(destroy_data->instrumentor, watch_data->idata);
+    
+    kfree(watch_data);
     
     if(destroy_data->trace_unforgotten_watch)
         destroy_data->trace_unforgotten_watch(object, destroy_data->user_data);
@@ -1024,8 +1026,19 @@ static void instrumentor_foreign_destroy_watch_data_callback(
     struct kedr_coi_foreign_instrumentor_watch_data* watch_data = 
         container_of(elem, typeof(*watch_data), id_elem);
     struct instrumentor_foreign_destroy_data* destroy_data = user_data;
+    struct kedr_coi_foreign_instrumentor* instrumentor = destroy_data->instrumentor;
     
-    instrumentor_foreign_destroy_watch_data(destroy_data->instrumentor, watch_data);
+    instrument_data_foreign_unref(instrumentor,
+        watch_data->idata_foreign);
+    
+    kedr_coi_hash_table_remove_elem(&instrumentor->ties_table,
+        &watch_data->tie_elem);
+    
+    kedr_coi_hash_table_remove_elem(
+        &instrumentor->instrumentor_binded->foreign_ops_p_table,
+        &watch_data->ops_p_elem);
+    
+    kfree(watch_data);
     
     if(destroy_data->trace_unforgotten_watch)
         destroy_data->trace_unforgotten_watch(object, destroy_data->user_data);
