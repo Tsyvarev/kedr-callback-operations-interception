@@ -40,8 +40,10 @@
 
 static inline unsigned long hash_function(const void* key, unsigned int bits)
 {
-    // really hash_ptr process first argument as unsigned long, so
-    // its constantness has no sence
+    /*
+     * Actually, hash_ptr process first argument as unsigned long, so
+     * its constantness has no sence.
+     */
     return hash_ptr((void*)key, bits);
 }
 
@@ -138,7 +140,7 @@ void kedr_coi_hash_table_destroy(struct kedr_coi_hash_table* table,
 {
     struct hlist_head* head_end = table->heads + (1 << table->bits);
     struct hlist_head* head;
-    // Look for first non-deleted element
+    // Look for the first element
     for(head = table->heads; head < head_end; head++)
     {
         if(!hlist_empty(head))
@@ -149,12 +151,8 @@ void kedr_coi_hash_table_destroy(struct kedr_coi_hash_table* table,
                     table);
                 // go to the end of the cycle
                 head = head_end;
-                break;
             }
-            else
-            {
-                break;
-            }
+            break;
         }
     }
     // Remove all non-deleted elements with function supplied.
