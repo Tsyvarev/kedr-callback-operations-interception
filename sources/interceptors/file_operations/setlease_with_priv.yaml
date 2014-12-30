@@ -1,0 +1,20 @@
+operations:
+  - name:  setlease
+    returnType:  int
+
+    args:
+      - type:  struct file *
+        name:  filp
+
+      - type:  long
+        name:  arg
+
+      - type:  struct file_lock **
+        name:  lease
+    
+      - type: void **
+        name: priv
+
+    object:  filp
+
+    default:  return generic_setlease(filp, arg, lease, priv);
