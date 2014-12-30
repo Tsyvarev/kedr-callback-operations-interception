@@ -22,11 +22,13 @@ kmodule_configure_operations(operations_list
     "flock"
     "splice_write"
     "splice_read"
-    "setlease"
 OPTIONAL
     "ioctl"
     "fallocate"
 REQUIRED
+    "setlease"
+        TYPED "with_priv" "int (*) (struct file *, long, struct file_lock **, void **)"
+        TYPED "without_priv" "int (*) (struct file *, long, struct file_lock **)"
     "fsync"
         TYPED "with_dentry" "int (*) (struct file *, struct dentry *, int)"
         TYPED "with_range" "int (*) (struct file *, loff_t, loff_t, int)"
